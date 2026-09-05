@@ -122,6 +122,63 @@ fn sorted_bam_gate() {
 #[ignore = "requires ~/uni-rnaseq-data/tier0/MANIFEST.tsv"]
 fn flagstat_and_idxstats_gate() {
     let root = fixture();
+    for name in ["sorted.bam", "markdup.bam"] {
+        let stats = Command::new("samtools")
+            .arg("idxstats")
+            .arg(output().join(name))
+            .output()
+            .unwrap();
+        assert!(stats.status.success());
+        assert_eq!(
+            stats.stdout,
+            fs::read(root.join("chr22.idxstats.txt")).unwrap(),
+            "{name} BAI idxstats differs"
+        );
+        // Compare indexed queries to a sequential scan, including long alignments that start
+        // before the query and references with sparse or empty linear-index windows.
+        let all = sam(&output().join(name));
+        for (chrom, start, end) in [
+            ("chr22", 20_000_000, 20_100_000),
+            ("chr22", 1, 16_384),
+            ("chr22", 30_000_000, 30_000_001),
+        ] {
+            let region = format!("{chrom}:{start}-{end}");
+            let query = Command::new("samtools")
+                .args(["view", output().join(name).to_str().unwrap(), &region])
+                .output()
+                .unwrap();
+            assert!(query.status.success());
+            let mut actual = String::from_utf8(query.stdout)
+                .unwrap()
+                .lines()
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>();
+            let mut expected = all
+                .iter()
+                .filter(|line| {
+                    let f = line.split('\t').collect::<Vec<_>>();
+                    let pos = f[3].parse::<u32>().unwrap();
+                    let mut length = 0u32;
+                    let mut n = 0u32;
+                    for c in f[5].chars() {
+                        if let Some(d) = c.to_digit(10) {
+                            n = n * 10 + d;
+                        } else {
+                            if matches!(c, 'M' | 'D' | 'N' | '=' | 'X') {
+                                length += n;
+                            }
+                            n = 0;
+                        }
+                    }
+                    f[2] == chrom && pos <= end && pos + length.max(1) > start
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            stable_sort(&mut actual);
+            stable_sort(&mut expected);
+            assert_records_equal(&actual, &expected, &format!("{name} {region}"));
+        }
+    }
     assert_eq!(
         fs::read(output().join("flagstat.txt")).unwrap(),
         fs::read(root.join("chr22.flagstat.txt")).unwrap(),

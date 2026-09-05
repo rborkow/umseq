@@ -28,3 +28,13 @@ at chr1:35351419, several `3D` operations end and the golden depth falls from
 21 to 9. `umbam` follows the measured bedtools output for byte-compatible
 genomecov output: `M`, `=`, and `X` cover bases; `D` and `N` advance the
 reference but are gaps.
+
+## markdup: multi-library single-end sets (known divergence from Picard, preserved)
+
+Picard's duplicate sets are per library (`LB` of the read group): two unpaired reads at the
+same fragment end but with different `LB` are never duplicates of each other. `umbam`'s
+`FragmentEnd` key does not include the library, so it would mark the lower-quality one.
+Concrete case: two single-end reads at `chr1:101`, both `10M`, `RG`s with different `LB` —
+Picard 3.5.0 marks neither, `umbam` marks one. Tier 0 has a single library and cannot
+observe this. Preserved deliberately until a multi-library fixture exists; the metrics'
+`LIBRARY` column is likewise single-valued.

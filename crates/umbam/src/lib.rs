@@ -39,7 +39,9 @@ pub struct RecordHeader {
     pub name_hash: u64,
     pub offset: u64,
     pub len: u32,
-    pub _padding2: u32,
+    /// Reference-consuming CIGAR length (M/D/N/=/X), computed once at decode so the BAI
+    /// builder and sweeps never re-parse the CIGAR.
+    pub ref_len: u32,
 }
 
 // SAFETY: repr(C), integer-only fields, initialized padding, and all bit patterns are valid.
@@ -86,18 +88,27 @@ pub fn chain(input: &Path, gtf: &Path, out_dir: &Path, threads: usize) -> Result
     let sort = now.elapsed();
     let sorted = out_dir.join("sorted.bam");
     let now = Instant::now();
-    write_bam(&sorted, &resident, threads)?;
+    let sorted_layout = pool.install(|| write_bam(&sorted, &resident, threads))?;
     let write_sorted = now.elapsed();
     let now = Instant::now();
-    let markdup_result = mark_duplicates(&resident)?;
+    let markdup_result = pool.install(|| mark_duplicates(&resident))?;
     let markdup_compute = now.elapsed();
     let markdup = out_dir.join("markdup.bam");
     let now = Instant::now();
-    write_bam_with_duplicates(&markdup, &resident, threads, &markdup_result.duplicates)?;
+    let marked_layout = pool.install(|| {
+        write_markdup_reusing_blocks(
+            &sorted,
+            &markdup,
+            &resident,
+            threads,
+            &markdup_result.duplicates,
+            &sorted_layout,
+        )
+    })?;
     let write_markdup = now.elapsed();
     let now = Instant::now();
-    write_index(&sorted)?;
-    write_index(&markdup)?;
+    write_index(&sorted, &resident, &sorted_layout)?;
+    write_index(&markdup, &resident, &marked_layout)?;
     let index = now.elapsed();
     write_flagstat_and_idxstats(out_dir, &resident)?;
     write_markdup_metrics(out_dir, &markdup_result.metrics)?;
@@ -220,11 +231,11 @@ fn bam_record_header(body: &[u8], offset: u64, len: u32) -> Result<RecordHeader>
         mate_tid: le_i32(&body[20..24]),
         mate_pos: le_i32(&body[24..28]),
         tlen: le_i32(&body[28..32]),
-        name_hash: 0,
+        name_hash: bam_name_hash(body)?,
         offset,
         len,
         _padding: 0,
-        _padding2: 0,
+        ref_len: u32::try_from(native_shape(body)?.2).context("negative reference length")?,
     })
 }
 
@@ -245,7 +256,98 @@ fn compare_headers(a: &RecordHeader, b: &RecordHeader, a_index: u32, b_index: u3
     (a.tid, a.pos, a_index).cmp(&(b.tid, b.pos, b_index))
 }
 
-fn write_bam(path: &Path, resident: &Resident, threads: usize) -> Result<()> {
+// Fixed uncompressed blocks make record offsets independent of compression and flag patches.
+// Bounded batches avoid keeping another uncompressed BAM resident.
+const OUTPUT_BLOCK_SIZE: usize = 65_280;
+struct BamLayout {
+    records: Vec<u64>,
+    blocks: Vec<u64>,
+}
+impl BamLayout {
+    fn virtual_offset(&self, offset: u64) -> u64 {
+        let block = offset as usize / OUTPUT_BLOCK_SIZE;
+        (self.blocks[block] << 16) | (offset % OUTPUT_BLOCK_SIZE as u64)
+    }
+}
+
+fn compress_block(raw: &[u8]) -> Result<Vec<u8>> {
+    let mut writer = bgzf::io::Writer::new(Vec::new());
+    writer.write_all(raw)?;
+    // Flush without finish: each batch element is a data block, not a complete BGZF file.
+    writer.flush()?;
+    Ok(writer.into_inner())
+}
+
+struct BlockWriter {
+    file: io::BufWriter<File>,
+    pending: Vec<Vec<u8>>,
+    raw: Vec<u8>,
+    blocks: Vec<u64>,
+    compressed: u64,
+    uncompressed: u64,
+    batch_size: usize,
+}
+impl BlockWriter {
+    fn new(path: &Path, threads: usize) -> Result<Self> {
+        Ok(Self {
+            file: io::BufWriter::new(File::create(path)?),
+            pending: Vec::new(),
+            raw: Vec::with_capacity(OUTPUT_BLOCK_SIZE),
+            blocks: Vec::new(),
+            compressed: 0,
+            uncompressed: 0,
+            batch_size: threads.max(1) * 8,
+        })
+    }
+    fn append(&mut self, mut bytes: &[u8]) -> Result<()> {
+        self.uncompressed += bytes.len() as u64;
+        while !bytes.is_empty() {
+            let n = bytes.len().min(OUTPUT_BLOCK_SIZE - self.raw.len());
+            self.raw.extend_from_slice(&bytes[..n]);
+            bytes = &bytes[n..];
+            if self.raw.len() == OUTPUT_BLOCK_SIZE {
+                self.pending.push(std::mem::replace(
+                    &mut self.raw,
+                    Vec::with_capacity(OUTPUT_BLOCK_SIZE),
+                ));
+                if self.pending.len() >= self.batch_size {
+                    self.flush_batch()?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn flush_batch(&mut self) -> Result<()> {
+        let blocks = self
+            .pending
+            .par_iter()
+            .map(|raw| compress_block(raw))
+            .collect::<Result<Vec<_>>>()?;
+        for block in blocks {
+            self.blocks.push(self.compressed);
+            self.file.write_all(&block)?;
+            self.compressed += block.len() as u64;
+        }
+        self.pending.clear();
+        Ok(())
+    }
+    fn finish(mut self, records: Vec<u64>) -> Result<BamLayout> {
+        if !self.raw.is_empty() {
+            self.pending.push(std::mem::take(&mut self.raw));
+        }
+        self.flush_batch()?;
+        self.blocks.push(self.compressed);
+        let eof = bgzf::io::Writer::new(Vec::new()).finish()?;
+        self.file.write_all(&eof)?;
+        self.file.flush()?;
+        Ok(BamLayout {
+            records,
+            blocks: self.blocks,
+        })
+    }
+}
+
+fn write_bam(path: &Path, resident: &Resident, threads: usize) -> Result<BamLayout> {
     write_bam_with_duplicates(path, resident, threads, &HashSet::new())
 }
 
@@ -254,35 +356,131 @@ fn write_bam_with_duplicates(
     resident: &Resident,
     threads: usize,
     duplicates: &HashSet<usize>,
-) -> Result<()> {
+) -> Result<BamLayout> {
     let mut header = resident.header.clone();
     header
         .header_mut()
         .get_or_insert_with(Map::<SamHeader>::default)
         .other_fields_mut()
         .insert(SORT_ORDER, COORDINATE.into());
-    let workers = NonZeroUsize::new(threads.max(1)).expect("clamped");
     let mut header_bytes = Vec::new();
     bam::io::Writer::from(&mut header_bytes).write_header(&header)?;
-    let mut writer = bgzf::io::MultithreadedWriter::with_worker_count(workers, File::create(path)?);
-    writer.write_all(&header_bytes)?;
-    for index in &resident.order {
-        let fixed = resident.headers()[*index as usize];
+    let mut writer = BlockWriter::new(path, threads)?;
+    writer.append(&header_bytes)?;
+    let mut records = Vec::with_capacity(resident.order.len() + 1);
+    for &index in &resident.order {
+        let fixed = resident.headers()[index as usize];
         let bytes = resident.record_bytes(fixed);
-        writer.write_all(&fixed.len.to_le_bytes())?;
-        if duplicates.contains(&(*index as usize)) {
-            let mut patched = bytes.to_vec();
-            let flag = le_u16(&patched[14..16]) | 0x400;
-            patched[14..16].copy_from_slice(&flag.to_le_bytes());
-            writer.write_all(&patched)?;
+        records.push(writer.uncompressed);
+        writer.append(&fixed.len.to_le_bytes())?;
+        if duplicates.contains(&(index as usize)) {
+            writer.append(&bytes[..14])?;
+            writer.append(&(fixed.flag | 0x400).to_le_bytes())?;
+            writer.append(&bytes[16..])?;
         } else {
-            writer.write_all(bytes)?;
+            writer.append(bytes)?;
         }
     }
-    writer.finish()?;
-    Ok(())
+    records.push(writer.uncompressed);
+    writer.finish(records)
 }
 
+fn write_markdup_reusing_blocks(
+    sorted: &Path,
+    marked: &Path,
+    resident: &Resident,
+    threads: usize,
+    duplicates: &HashSet<usize>,
+    layout: &BamLayout,
+) -> Result<BamLayout> {
+    // Only the high byte of FLAG changes. A flag straddling two blocks therefore patches
+    // exactly one block; pre-existing duplicate bits require no recompression.
+    let mut patches = Vec::with_capacity(duplicates.len());
+    for (rank, &index) in resident.order.iter().enumerate() {
+        if duplicates.contains(&(index as usize))
+            && resident.headers()[index as usize].flag & 0x400 == 0
+        {
+            patches.push(layout.records[rank] + 4 + 15);
+        }
+    }
+    let count = layout.blocks.len() - 1;
+    let affected = patches
+        .chunk_by(|a, b| a / OUTPUT_BLOCK_SIZE as u64 == b / OUTPUT_BLOCK_SIZE as u64)
+        .count();
+    let full = affected * 5 > count * 4;
+    let recompressed = if full { count } else { affected };
+    let fraction = if count == 0 {
+        0.0
+    } else {
+        recompressed as f64 / count as f64
+    };
+    eprintln!(
+        "markdup BGZF: {affected}/{count} blocks affected; recompressing {recompressed}/{count} ({:.2}%){}",
+        fraction * 100.0,
+        if full {
+            "; >80% affected, using full parallel compression"
+        } else {
+            ""
+        }
+    );
+    fs::write(
+        marked.with_file_name("block_reuse.tsv"),
+        format!(
+            "blocks\taffected\trecompressed\trecompressed_fraction\tfull_recompression\n{count}\t{affected}\t{recompressed}\t{fraction:.6}\t{full}\n"
+        ),
+    )?;
+    if full {
+        return write_bam_with_duplicates(marked, resident, threads, duplicates);
+    }
+    let mut input = io::BufReader::new(File::open(sorted)?);
+    let mut output = io::BufWriter::new(File::create(marked)?);
+    let mut blocks = Vec::with_capacity(layout.blocks.len());
+    let mut compressed_offset = 0;
+    let mut patch_at = 0;
+    for first in (0..count).step_by(threads.max(1) * 8) {
+        let last = count.min(first + threads.max(1) * 8);
+        let mut batch = Vec::with_capacity(last - first);
+        for block in first..last {
+            let mut bytes = vec![0; (layout.blocks[block + 1] - layout.blocks[block]) as usize];
+            input.read_exact(&mut bytes)?;
+            let begin = patch_at;
+            while patch_at < patches.len()
+                && patches[patch_at] / OUTPUT_BLOCK_SIZE as u64 == block as u64
+            {
+                patch_at += 1;
+            }
+            batch.push((block, bytes, &patches[begin..patch_at]));
+        }
+        let encoded = batch
+            .into_par_iter()
+            .map(|(block, bytes, changes)| -> Result<_> {
+                if changes.is_empty() {
+                    return Ok(bytes);
+                }
+                let mut raw = Vec::with_capacity(OUTPUT_BLOCK_SIZE);
+                bgzf::io::Reader::new(&bytes[..]).read_to_end(&mut raw)?;
+                for &offset in changes {
+                    raw[offset as usize - block * OUTPUT_BLOCK_SIZE] |= 4;
+                }
+                compress_block(&raw)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        for bytes in encoded {
+            blocks.push(compressed_offset);
+            output.write_all(&bytes)?;
+            compressed_offset += bytes.len() as u64;
+        }
+    }
+    blocks.push(compressed_offset);
+    output.write_all(&bgzf::io::Writer::new(Vec::new()).finish()?)?;
+    output.flush()?;
+    Ok(BamLayout {
+        records: layout.records.clone(),
+        blocks,
+    })
+}
+
+#[cfg(test)]
 #[derive(Clone)]
 struct DupRecord {
     index: usize,
@@ -306,7 +504,7 @@ struct MarkdupResult {
     metrics: DupMetrics,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 struct DupMetrics {
     unpaired_examined: u64,
     pairs_examined: u64,
@@ -316,7 +514,167 @@ struct DupMetrics {
     pair_duplicates: u64,
 }
 
+// Bulk vectors only: names and CIGARs stay borrowed from the resident arena.
+fn native_shape(body: &[u8]) -> Result<(i32, i32, i32)> {
+    let (name_len, count, _) = bam_layout(body)?;
+    let ops = &body[32 + name_len..32 + name_len + count * 4];
+    let clip = |v: u32| matches!(v & 15, 4 | 5);
+    let leading = ops
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|v| le_u32(v))
+        .take_while(|v| clip(*v))
+        .map(|v| (v >> 4) as i32)
+        .sum();
+    let trailing = ops
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .rev()
+        .map(|v| le_u32(v))
+        .take_while(|v| clip(*v))
+        .map(|v| (v >> 4) as i32)
+        .sum();
+    let mut reference = 0;
+    for v in ops.as_chunks::<4>().0.iter().map(|v| le_u32(v)) {
+        if v & 15 > 9 {
+            bail!("invalid BAM CIGAR op");
+        }
+        if matches!(v & 15, 0 | 2 | 3 | 7 | 8) {
+            reference += (v >> 4) as i32;
+        }
+    }
+    Ok((leading, trailing, reference))
+}
+
 fn mark_duplicates(resident: &Resident) -> Result<MarkdupResult> {
+    let headers = resident.headers();
+    let mut rank = vec![0; headers.len()];
+    for (r, &i) in resident.order.iter().enumerate() {
+        rank[i as usize] = r;
+    }
+    let mut metrics = DupMetrics::default();
+    let mut names = Vec::with_capacity(headers.len());
+    for (i, h) in headers.iter().enumerate() {
+        if h.flag & 0x900 != 0 {
+            metrics.secondary_or_supplementary += 1;
+        } else if h.flag & 4 != 0 {
+            metrics.unmapped += 1;
+        } else {
+            names.push((h.name_hash, i));
+        }
+    }
+    names.par_sort_unstable();
+    let name = |i: usize| {
+        let body = resident.record_bytes(headers[i]);
+        &body[32..31 + usize::from(body[8])]
+    };
+    // Equal hashes are verified before pairing; collisions sort by actual name then table index.
+    for run in names.chunk_by_mut(|a, b| a.0 == b.0) {
+        if run.iter().any(|x| name(x.1) != name(run[0].1)) {
+            run.sort_unstable_by(|a, b| name(a.1).cmp(name(b.1)).then(a.1.cmp(&b.1)));
+        }
+    }
+    let data = headers
+        .par_iter()
+        .map(|h| -> Result<_> {
+            if h.flag & 0x904 != 0 {
+                return Ok((
+                    FragmentEnd {
+                        tid: 0,
+                        pos: 0,
+                        reverse: false,
+                    },
+                    0,
+                ));
+            }
+            let body = resident.record_bytes(*h);
+            let (leading, trailing, reference) = native_shape(body)?;
+            let reverse = h.flag & 16 != 0;
+            let end = FragmentEnd {
+                tid: h.tid,
+                pos: if reverse {
+                    h.pos + reference - 1 + trailing
+                } else {
+                    h.pos - leading
+                },
+                reverse,
+            };
+            let score = bam_qualities(body)?
+                .iter()
+                .filter(|q| **q >= 15)
+                .map(|q| u64::from(*q))
+                .sum::<u64>();
+            Ok((end, score))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut used = vec![false; headers.len()];
+    let mut pairs = Vec::new();
+    let mut ends = Vec::new();
+    for run in names.chunk_by(|a, b| a.0 == b.0 && name(a.1) == name(b.1)) {
+        let a = run
+            .iter()
+            .find(|x| headers[x.1].flag & 0x40 != 0)
+            .map(|x| x.1);
+        let b = run
+            .iter()
+            .find(|x| headers[x.1].flag & 0x80 != 0)
+            .map(|x| x.1);
+        if let (Some(a), Some(b)) = (a, b)
+            && headers[a].flag & 9 == 1
+            && headers[b].flag & 9 == 1
+        {
+            used[a] = true;
+            used[b] = true;
+            let (left, right) = (data[a].0, data[b].0);
+            ends.extend([left, right]);
+            pairs.push((
+                left.min(right),
+                left.max(right),
+                u64::MAX - data[a].1 - data[b].1,
+                rank[a].min(rank[b]),
+                a,
+                b,
+            ));
+        }
+    }
+    metrics.pairs_examined = pairs.len() as u64;
+    pairs.par_sort_unstable();
+    ends.par_sort_unstable();
+    ends.dedup();
+    let mut duplicates = HashSet::new();
+    for run in pairs.chunk_by(|a, b| (a.0, a.1) == (b.0, b.1)) {
+        for p in &run[1..] {
+            duplicates.extend([p.4, p.5]);
+            metrics.pair_duplicates += 1;
+        }
+    }
+    let mut singles = names
+        .par_iter()
+        .filter(|x| !used[x.1])
+        .map(|x| {
+            let i = x.1;
+            (data[i].0, u64::MAX - data[i].1, rank[i], i)
+        })
+        .collect::<Vec<_>>();
+    metrics.unpaired_examined = singles.len() as u64;
+    singles.par_sort_unstable();
+    for run in singles.chunk_by(|a, b| a.0 == b.0) {
+        let skip = usize::from(ends.binary_search(&run[0].0).is_err());
+        for p in &run[skip..] {
+            duplicates.insert(p.3);
+            metrics.unpaired_duplicates += 1;
+        }
+    }
+    Ok(MarkdupResult {
+        duplicates,
+        metrics,
+    })
+}
+
+#[cfg(test)]
+fn mark_duplicates_reference(resident: &Resident) -> Result<MarkdupResult> {
     let records = (0..resident.headers().len())
         .map(|index| duplicate_record(resident, index))
         .collect::<Result<Vec<_>>>()?;
@@ -421,6 +779,7 @@ fn mark_duplicates(resident: &Resident) -> Result<MarkdupResult> {
     })
 }
 
+#[cfg(test)]
 fn duplicate_record(resident: &Resident, index: usize) -> Result<DupRecord> {
     let body = resident.record_bytes(resident.headers()[index]);
     let fixed = resident.headers()[index];
@@ -443,6 +802,7 @@ fn duplicate_record(resident: &Resident, index: usize) -> Result<DupRecord> {
     })
 }
 
+#[cfg(test)]
 fn fragment_end(record: &DupRecord) -> FragmentEnd {
     let reverse = record.flag & 0x10 != 0;
     let (leading, trailing, reference) = cigar_shape(&record.cigar);
@@ -458,6 +818,7 @@ fn fragment_end(record: &DupRecord) -> FragmentEnd {
     }
 }
 
+#[cfg(test)]
 fn cigar_shape(cigar: &str) -> (i32, i32, i32) {
     let operations = cigar_operations(cigar);
     let clip = |operation: char| operation == 'S' || operation == 'H';
@@ -480,6 +841,7 @@ fn cigar_shape(cigar: &str) -> (i32, i32, i32) {
     (leading, trailing, reference)
 }
 
+#[cfg(test)]
 fn cigar_operations(cigar: &str) -> Vec<(i32, char)> {
     let mut number = 0_i32;
     let mut operations = Vec::new();
@@ -526,6 +888,15 @@ fn bam_name(body: &[u8]) -> Result<&str> {
         bail!("invalid BAM read name")
     }
     std::str::from_utf8(&body[32..31 + name_len]).context("BAM read name is UTF-8")
+}
+
+/// Stable FNV-1a lets later stages use the decoded read-name fingerprint without allocating.
+fn bam_name_hash(body: &[u8]) -> Result<u64> {
+    Ok(bam_name(body)?
+        .bytes()
+        .fold(0xcbf29ce484222325_u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+        }))
 }
 
 fn bam_cigar(body: &[u8]) -> Result<Vec<(i32, char)>> {
@@ -618,6 +989,7 @@ fn bam_nh_is_multiple(body: &[u8]) -> Result<bool> {
 /// Picard `SUM_OF_BASE_QUALITIES` scoring: highest score wins. On a tie Picard keeps the
 /// pair it encountered first while streaming the coordinate-sorted input, i.e. the one whose
 /// earlier-positioned read has the lowest sorted rank (verified on Tier 0: 167/167 tied sets).
+#[cfg(test)]
 fn best_record_pair(
     group: &[(usize, usize)],
     records: &[DupRecord],
@@ -636,6 +1008,7 @@ fn best_record_pair(
 }
 
 /// Same rule as [`best_record_pair`] for unpaired reads.
+#[cfg(test)]
 fn best_single(group: &[usize], records: &[DupRecord], sorted_rank: &[usize]) -> usize {
     *group
         .iter()
@@ -671,9 +1044,105 @@ fn write_markdup_metrics(out: &Path, metrics: &DupMetrics) -> Result<()> {
     Ok(())
 }
 
-fn write_index(path: &Path) -> Result<()> {
-    let index = bam::fs::index(path)?;
-    bam::bai::fs::write(PathBuf::from(format!("{}.bai", path.display())), &index)?;
+#[derive(Default)]
+struct BaiReference {
+    bins: BTreeMap<u32, Vec<(u64, u64)>>,
+    linear: Vec<u64>,
+    first: Option<u64>,
+    last: u64,
+    mapped: u64,
+    unmapped: u64,
+}
+
+fn reg2bin(start: u32, end: u32) -> u32 {
+    let end = end - 1;
+    for (shift, base) in [(14, 4681), (17, 585), (20, 73), (23, 9), (26, 1)] {
+        if start >> shift == end >> shift {
+            return base + (start >> shift);
+        }
+    }
+    0
+}
+
+fn write_index(path: &Path, resident: &Resident, layout: &BamLayout) -> Result<()> {
+    let mut refs = (0..resident.header.reference_sequences().len())
+        .map(|_| BaiReference::default())
+        .collect::<Vec<_>>();
+    let mut no_coordinate = 0u64;
+    for (rank, &index) in resident.order.iter().enumerate() {
+        let h = resident.headers()[index as usize];
+        if h.tid < 0 {
+            no_coordinate += 1;
+            continue;
+        }
+        let r = refs
+            .get_mut(h.tid as usize)
+            .context("BAM reference ID outside header")?;
+        let start = u32::try_from(h.pos).context("negative coordinate on reference")?;
+        let length = if h.flag & 4 != 0 { 1 } else { h.ref_len.max(1) };
+        let end = start
+            .checked_add(length)
+            .context("alignment end overflow")?;
+        if end > 1 << 29 {
+            bail!("alignment exceeds BAI coordinate limit");
+        }
+        let a = layout.virtual_offset(layout.records[rank]);
+        let b = layout.virtual_offset(layout.records[rank + 1]);
+        r.first.get_or_insert(a);
+        r.last = b;
+        if h.flag & 4 == 0 {
+            r.mapped += 1;
+        } else {
+            r.unmapped += 1;
+        }
+        let chunks = r.bins.entry(reg2bin(start, end)).or_default();
+        if let Some(last) = chunks.last_mut()
+            && (last.1 >= a || last.1 >> 16 == a >> 16)
+        {
+            last.1 = b;
+        } else {
+            chunks.push((a, b));
+        }
+        let last = ((end - 1) >> 14) as usize;
+        r.linear.resize(r.linear.len().max(last + 1), u64::MAX);
+        for slot in &mut r.linear[(start >> 14) as usize..=last] {
+            *slot = (*slot).min(a);
+        }
+    }
+    let mut out = io::BufWriter::new(File::create(PathBuf::from(format!(
+        "{}.bai",
+        path.display()
+    )))?);
+    out.write_all(b"BAI\x01")?;
+    out.write_all(&(refs.len() as u32).to_le_bytes())?;
+    for r in refs {
+        out.write_all(&((r.bins.len() + usize::from(r.first.is_some())) as u32).to_le_bytes())?;
+        for (bin, chunks) in r.bins {
+            out.write_all(&bin.to_le_bytes())?;
+            out.write_all(&(chunks.len() as u32).to_le_bytes())?;
+            for (a, b) in chunks {
+                out.write_all(&a.to_le_bytes())?;
+                out.write_all(&b.to_le_bytes())?;
+            }
+        }
+        if let Some(first) = r.first {
+            out.write_all(&37450u32.to_le_bytes())?;
+            out.write_all(&2u32.to_le_bytes())?;
+            for value in [first, r.last, r.mapped, r.unmapped] {
+                out.write_all(&value.to_le_bytes())?;
+            }
+        }
+        out.write_all(&(r.linear.len() as u32).to_le_bytes())?;
+        let mut previous = 0;
+        for value in r.linear {
+            if value != u64::MAX {
+                previous = value;
+            }
+            out.write_all(&previous.to_le_bytes())?;
+        }
+    }
+    out.write_all(&no_coordinate.to_le_bytes())?;
+    out.flush()?;
     Ok(())
 }
 
@@ -1214,7 +1683,247 @@ fn write_timing(out: &Path, timing: &Timing) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::RecordHeader;
+    use super::*;
+    #[test]
+    #[ignore = "requires ~/uni-rnaseq-data/tier0/MANIFEST.tsv"]
+    fn tier0_markdup_reference_equivalence() {
+        let path = PathBuf::from(std::env::var("HOME").unwrap())
+            .join("uni-rnaseq-data/tier0/chr22.unsorted.bam");
+        let mut resident = decode(&path, 12).unwrap();
+        let headers = resident.headers();
+        let mut order = resident.order.clone();
+        order.par_sort_unstable_by(|a, b| {
+            compare_headers(&headers[*a as usize], &headers[*b as usize], *a, *b)
+        });
+        resident.order = order;
+        let actual = mark_duplicates(&resident).unwrap();
+        let expected = mark_duplicates_reference(&resident).unwrap();
+        assert_eq!(actual.duplicates, expected.duplicates);
+        assert_eq!(actual.metrics, expected.metrics);
+    }
+    fn body(name: &str, flag: u16, pos: i32, quality: u8) -> Vec<u8> {
+        let mut body = vec![0; 32];
+        body[0..4].copy_from_slice(&0i32.to_le_bytes());
+        body[4..8].copy_from_slice(&pos.to_le_bytes());
+        body[8] = (name.len() + 1) as u8;
+        body[12..14].copy_from_slice(&1u16.to_le_bytes());
+        body[14..16].copy_from_slice(&flag.to_le_bytes());
+        body[16..20].copy_from_slice(&10i32.to_le_bytes());
+        body.extend_from_slice(name.as_bytes());
+        body.push(0);
+        body.extend_from_slice(&(10u32 << 4).to_le_bytes());
+        body.extend_from_slice(&[0x11; 5]);
+        body.extend_from_slice(&[quality; 10]);
+        body
+    }
+
+    fn resident_from_bodies(bodies: &[Vec<u8>]) -> Resident {
+        let mut raw = Vec::new();
+        let mut headers = Vec::new();
+        for body in bodies {
+            headers.push(bam_record_header(body, raw.len() as u64, body.len() as u32).unwrap());
+            raw.extend_from_slice(body);
+        }
+        let allocation = || Allocation::Anon {
+            huge: false,
+            require_huge: false,
+        };
+        let mut arena = Buf::<Rw>::allocate(raw.len().max(1), allocation()).unwrap();
+        arena.as_mut_slice()[..raw.len()].copy_from_slice(&raw);
+        let mut table = Buf::<Rw>::allocate((headers.len() * 48).max(1), allocation()).unwrap();
+        table.as_pod_mut_slice::<RecordHeader>()[..headers.len()].copy_from_slice(&headers);
+        let mut order = (0..headers.len() as u32).collect::<Vec<_>>();
+        order.sort_unstable_by(|a, b| {
+            compare_headers(&headers[*a as usize], &headers[*b as usize], *a, *b)
+        });
+        Resident {
+            header: "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000000\n"
+                .parse()
+                .unwrap(),
+            arena: arena.freeze(),
+            table: table.freeze(),
+            arena_used: raw.len(),
+            order,
+        }
+    }
+
+    #[test]
+    fn markdup_edge_cases_and_hash_collisions() {
+        let mut bodies = vec![
+            body("pair", 0x41, 100, 20),
+            body("pair", 0x81, 200, 20),
+            body("tie", 0x41, 100, 20),
+            body("tie", 0x81, 200, 20),
+            body("single", 0, 100, 40), // Pairs win even against a higher score.
+            body("secondary_mate", 0x41, 300, 20),
+            body("secondary_mate", 0x181, 400, 20),
+            body("single_winner", 0, 300, 30),
+            body("mate_unmapped", 0x49, 500, 20),
+            body("mate_unmapped", 0x85, 600, 20),
+            body("single2", 0, 500, 30),
+            body("repeated", 0x49, 700, 20),
+            body("repeated", 0x41, 700, 20),
+            body("repeated", 0x81, 800, 20), // First read1 disqualifies pairing.
+            body("supplementary", 0x841, 100, 40),
+            body("both_bits", 0xc1, 900, 20),
+        ];
+        // Exercise clipping on both strands, including all-clipped CIGARs.
+        for (i, ops) in [
+            vec![(3u32, 5u32), (2, 4), (10, 0), (4, 4), (5, 5)],
+            vec![(10, 4)],
+            vec![(4, 7), (6, 8)],
+        ]
+        .iter()
+        .enumerate()
+        {
+            for flag in [0, 16] {
+                let mut b = body(&format!("clip{i}_{flag}"), flag, 1000, 20);
+                let at = 32 + b[8] as usize;
+                b[12..14].copy_from_slice(&(ops.len() as u16).to_le_bytes());
+                b.splice(
+                    at..at + 4,
+                    ops.iter().flat_map(|(n, op)| ((n << 4) | op).to_le_bytes()),
+                );
+                bodies.push(b);
+            }
+        }
+        let mut resident = resident_from_bodies(&bodies);
+        for collide in [false, true] {
+            if collide {
+                let mut table = Buf::<Rw>::allocate(
+                    resident.headers().len() * 48,
+                    Allocation::Anon {
+                        huge: false,
+                        require_huge: false,
+                    },
+                )
+                .unwrap();
+                table
+                    .as_pod_mut_slice::<RecordHeader>()
+                    .copy_from_slice(resident.headers());
+                for h in table.as_pod_mut_slice::<RecordHeader>() {
+                    h.name_hash = 1;
+                }
+                resident.table = table.freeze();
+            }
+            let expected = mark_duplicates_reference(&resident).unwrap();
+            for threads in [1, 4] {
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(threads)
+                    .build()
+                    .unwrap();
+                let actual = pool.install(|| mark_duplicates(&resident)).unwrap();
+                assert_eq!(actual.duplicates, expected.duplicates);
+                assert_eq!(actual.metrics, expected.metrics);
+            }
+        }
+    }
+
+    #[test]
+    fn block_reuse_preserves_bytes_and_cross_block_records() {
+        let dir = tempfile::tempdir().unwrap();
+        let sorted = dir.path().join("sorted.bam");
+        let marked = dir.path().join("marked.bam");
+        let full = dir.path().join("full.bam");
+        let mut bodies = vec![body("padding", 0, 10, 20), body("changed", 0, 20, 20)];
+        let r = resident_from_bodies(&bodies);
+        let mut header_bytes = Vec::new();
+        bam::io::Writer::from(&mut header_bytes)
+            .write_header(&r.header)
+            .unwrap();
+        // Second FLAG's low byte is the last byte in block 0, high byte starts block 1.
+        let first_len = OUTPUT_BLOCK_SIZE - header_bytes.len() - 4 - 19;
+        bodies[0].extend_from_slice(b"ZZZ");
+        bodies[0].resize(first_len - 1, b'x');
+        bodies[0].push(0);
+        bodies[1].extend_from_slice(b"ZZZ");
+        bodies[1].resize(OUTPUT_BLOCK_SIZE * 4, b'y');
+        bodies[1].push(0);
+        let r = resident_from_bodies(&bodies);
+        let layout = write_bam(&sorted, &r, 4).unwrap();
+        assert_eq!((layout.records[1] + 19) % OUTPUT_BLOCK_SIZE as u64, 0);
+        let duplicates = HashSet::from([1]);
+        let changed =
+            write_markdup_reusing_blocks(&sorted, &marked, &r, 4, &duplicates, &layout).unwrap();
+        write_bam_with_duplicates(&full, &r, 4, &duplicates).unwrap();
+        assert_eq!(fs::read(&marked).unwrap(), fs::read(&full).unwrap());
+        let original = fs::read(&sorted).unwrap();
+        let patched = fs::read(&marked).unwrap();
+        for block in 0..layout.blocks.len() - 1 {
+            if block != 1 {
+                assert_eq!(
+                    &original[layout.blocks[block] as usize..layout.blocks[block + 1] as usize],
+                    &patched[changed.blocks[block] as usize..changed.blocks[block + 1] as usize]
+                );
+            }
+        }
+        let unchanged = dir.path().join("unchanged.bam");
+        write_markdup_reusing_blocks(&sorted, &unchanged, &r, 4, &HashSet::new(), &layout).unwrap();
+        assert_eq!(fs::read(unchanged).unwrap(), original);
+    }
+    #[test]
+    #[ignore = "requires samtools"]
+    fn direct_bai_spans_unmapped_and_empty_references() {
+        let mut spanning = body("span", 0, 10, 20);
+        let at = 32 + spanning[8] as usize;
+        spanning[12..14].copy_from_slice(&3u16.to_le_bytes());
+        spanning.splice(
+            at..at + 4,
+            [5u32 << 4, (70_000u32 << 4) | 3, 5u32 << 4]
+                .into_iter()
+                .flat_map(u32::to_le_bytes),
+        );
+        let mut unplaced = body("unplaced", 4, -1, 20);
+        unplaced[0..4].copy_from_slice(&(-1i32).to_le_bytes());
+        let r = &mut resident_from_bodies(&[
+            spanning,
+            body("mapped", 0, 100_000, 20),
+            body("placed_unmapped", 4, 120_000, 20),
+            unplaced,
+        ]);
+        r.header =
+            "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000000\n@SQ\tSN:empty\tLN:1000000\n"
+                .parse()
+                .unwrap();
+        r.order = vec![0, 1, 2, 3];
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("direct.bam");
+        let golden = dir.path().join("golden.bam");
+        let layout = write_bam(&path, r, 4).unwrap();
+        write_index(&path, r, &layout).unwrap();
+        fs::copy(&path, &golden).unwrap();
+        let status = std::process::Command::new("samtools")
+            .arg("index")
+            .arg(&golden)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        for args in [
+            vec!["idxstats"],
+            vec!["view", "chr1:16385-16385"],
+            vec!["view", "chr1:65536-65537"],
+            vec!["view", "chr1:90000-110000"],
+            vec!["view", "chr1:120001-120001"],
+            vec!["view", "empty:1-1000"],
+            vec!["view", "*"],
+        ] {
+            let query = |p: &Path| {
+                let result = std::process::Command::new("samtools")
+                    .arg(args[0])
+                    .arg(p)
+                    .args(&args[1..])
+                    .output()
+                    .unwrap();
+                assert!(
+                    result.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&result.stderr)
+                );
+                result.stdout
+            };
+            assert_eq!(query(&path), query(&golden), "{args:?}");
+        }
+    }
     #[test]
     fn record_header_is_48_bytes() {
         assert_eq!(std::mem::size_of::<RecordHeader>(), 48);
