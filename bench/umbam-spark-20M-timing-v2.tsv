@@ -1,0 +1,10 @@
+stage	seconds
+decode	7.465125
+sort	1.226137
+write_sorted	9.985866
+markdup	58.670766
+write_markdup	17.905239
+index	27.623741
+featurecounts	31.995840
+genomecov	5.676565
+peak_rss_bytes	29622050816

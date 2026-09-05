@@ -1,11 +1,41 @@
-# Phase 2a — `umbam` CPU control arm: first 20M-BAM run on the Spark
+# Phase 2a — `umbam` CPU control arm on the Spark: 408 s → 162 s
 
 Commit: (this one). `umbam chain` at 6/6 Tier 0 byte-compat gates (sorted BAM, flagstat,
 idxstats, Picard markdup flags + metrics to 6 dp, featureCounts per-gene counts, bedtools
 genomecov bedGraph). Run on the Tier 1 20M BAM: `NA12716_20M.Aligned.out.bam`, 4.0 GB,
 53.9M alignments (38.8M primary, 15.0M secondary), 20 threads, THP-backed `umem` buffers.
 
-## Result: 416 s, 33.9 GB peak RSS — parity with the tool chain, not yet a win
+## Correction
+The first run (416 s, below) was accidentally given the StringTie *transcripts* GTF
+(4,853 rows) instead of GENCODE v49 filtered (78,899 genes, 3.7M exons, 3.3 GB); its
+featureCounts number is not comparable. Both runs in the "Perf pass" section use the
+correct GTF (`data/ref/gencode.v49.filtered.gtf` on the Spark).
+
+## Perf pass 1 (commit after 3272754): 408 s → 162 s, outputs byte-identical
+Same input, same GTF, same box, 20 threads. flagstat/idxstats/featureCounts/genomecov
+byte-identical between builds; markdup flags identical (8,918,475 records × 0x400), metrics
+identical (4,447,593 pair dups, 22.96%).
+
+| stage | v1 (3272754) | v2 | ceiling |
+|---|---|---|---|
+| decode | 57.7 | **7.5** | 3–5 |
+| sort | 1.3 | 1.2 | — |
+| write sorted | 58.3 | **10.0** | ~10 (BGZF level 6) |
+| markdup compute | (149.7 incl. write) | **58.7** | <10 |
+| write markdup | | **17.9** | ~1 with block reuse |
+| index | 27.4 | 27.6 | <1 |
+| featureCounts | 51.7 | **32.0** | ~10 |
+| genomecov | 61.5 | **5.7** | ~5 |
+| **total** | **408** | **162** | **<60** |
+| peak RSS | 33.9 GB | 28.9 GB | |
+
+What changed: the arena now holds BAM record bodies verbatim (no per-record object
+construction on decode, straight copy on write); multithreaded BGZF on both writes; markdup
+patches flags in place; genomecov per-tid. Remaining fat is markdup compute (by-name
+`HashMap<String, _>` pair grouping over 54M records), index (re-scans our own output),
+and the markdup write (full recompression instead of block reuse) — ~104 s of 162.
+
+## First run (historical, wrong GTF for featureCounts): 416 s, 33.9 GB peak RSS
 | stage | s | tool-chain equivalent (Phase 1) |
 |---|---|---|
 | decode → resident table+arena | 57.9 | (samtools sort reads: ~30 s) |

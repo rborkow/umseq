@@ -7,7 +7,6 @@ use noodles_bam as bam;
 use noodles_bgzf as bgzf;
 use noodles_sam::{
     self as sam,
-    alignment::{RecordBuf, io::Write as _},
     header::record::value::{
         Map,
         map::header::{Header as SamHeader, sort_order::COORDINATE, tag::SORT_ORDER},
@@ -18,12 +17,12 @@ use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap, HashSet},
     fs::{self, File},
-    io::{self, BufReader, Cursor},
+    io::{self, Read, Write},
     num::NonZeroUsize,
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-use umem::{Allocation, Arena, Buf, Pod, Ro, Rw};
+use umem::{Allocation, Buf, Pod, Ro, Rw};
 
 /// Fixed metadata shared by CPU and future GPU implementations.
 #[repr(C)]
@@ -60,6 +59,7 @@ struct Timing {
     decode: Duration,
     sort: Duration,
     write_sorted: Duration,
+    markdup: Duration,
     write_markdup: Duration,
     index: Duration,
     featurecounts: Duration,
@@ -88,9 +88,11 @@ pub fn chain(input: &Path, gtf: &Path, out_dir: &Path, threads: usize) -> Result
     let now = Instant::now();
     write_bam(&sorted, &resident, threads)?;
     let write_sorted = now.elapsed();
-    let markdup = out_dir.join("markdup.bam");
     let now = Instant::now();
     let markdup_result = mark_duplicates(&resident)?;
+    let markdup_compute = now.elapsed();
+    let markdup = out_dir.join("markdup.bam");
+    let now = Instant::now();
     write_bam_with_duplicates(&markdup, &resident, threads, &markdup_result.duplicates)?;
     let write_markdup = now.elapsed();
     let now = Instant::now();
@@ -111,6 +113,7 @@ pub fn chain(input: &Path, gtf: &Path, out_dir: &Path, threads: usize) -> Result
             decode,
             sort,
             write_sorted,
+            markdup: markdup_compute,
             write_markdup,
             index,
             featurecounts,
@@ -134,37 +137,52 @@ impl Resident {
 }
 
 fn decode(input: &Path, threads: usize) -> Result<Resident> {
-    let compressed = fs::metadata(input)?.len() as usize;
-    let capacity = compressed
-        .checked_mul(4)
-        .context("arena size overflow")?
-        .max(1);
-    let buf = Buf::<Rw>::allocate(
-        capacity,
-        Allocation::Anon {
-            huge: true,
-            require_huge: false,
-        },
-    )?;
-    let mut arena = Arena::new(buf);
+    // The multithreaded BGZF reader inflates blocks concurrently.  Unlike the old path, the
+    // record stream stays in BAM's native representation: bodies are copied verbatim into the
+    // resident arena and no `RecordBuf` or SAM text is built while decoding.
     let file = File::open(input).with_context(|| format!("open {}", input.display()))?;
     let workers = NonZeroUsize::new(threads.max(1)).expect("clamped");
     let mut reader = bam::io::Reader::from(bgzf::io::MultithreadedReader::with_worker_count(
         workers, file,
     ));
     let header = reader.read_header()?;
-    let mut entries = Vec::new();
-    for item in reader.record_bufs(&header) {
-        let record = item.context("decode BAM record")?;
-        let bytes = encode_record(&header, &record)?;
-        let span = arena
-            .push(&bytes)
-            .ok_or_else(|| anyhow::anyhow!("arena exhausted at {} bytes", arena.used()))?;
-        let mut fixed = record_header(&record);
-        fixed.offset = span.offset;
-        fixed.len = span.len;
-        entries.push(fixed);
+    let mut stream = Vec::new();
+    reader.into_inner().read_to_end(&mut stream)?;
+    let mut starts = Vec::new();
+    let mut offset = 0usize;
+    while offset < stream.len() {
+        let size = le_u32(
+            stream
+                .get(offset..offset + 4)
+                .context("truncated BAM block size")?,
+        ) as usize;
+        let end = offset
+            .checked_add(4 + size)
+            .context("BAM block size overflow")?;
+        if end > stream.len() {
+            bail!("truncated BAM record body")
+        }
+        starts.push((offset, size));
+        offset = end;
     }
+    let mut arena = Buf::<Rw>::allocate(
+        stream.len().max(1),
+        Allocation::Anon {
+            huge: true,
+            require_huge: false,
+        },
+    )?;
+    arena.as_mut_slice()[..stream.len()].copy_from_slice(&stream);
+    let entries: Vec<RecordHeader> = starts
+        .par_iter()
+        .map(|&(offset, len)| {
+            bam_record_header(
+                &stream[offset + 4..offset + 4 + len],
+                (offset + 4) as u64,
+                len as u32,
+            )
+        })
+        .collect::<Result<_>>()?;
     let bytes = entries
         .len()
         .checked_mul(std::mem::size_of::<RecordHeader>())
@@ -181,49 +199,43 @@ fn decode(input: &Path, threads: usize) -> Result<Resident> {
     let order = (0..entries.len())
         .map(|i| u32::try_from(i).context("too many records"))
         .collect::<Result<Vec<_>>>()?;
-    let (arena, arena_used) = arena.into_buf();
     Ok(Resident {
         header,
         table: table.freeze(),
         arena: arena.freeze(),
-        arena_used,
+        arena_used: stream.len(),
         order,
     })
 }
 
-fn encode_record(header: &sam::Header, record: &RecordBuf) -> Result<Vec<u8>> {
-    let mut writer = sam::io::Writer::new(Vec::new());
-    writer.write_alignment_record(header, record)?;
-    Ok(writer.into_inner())
-}
-
-fn record_header(record: &RecordBuf) -> RecordHeader {
-    RecordHeader {
-        tid: record.reference_sequence_id().map_or(-1, |id| id as i32),
-        pos: record
-            .alignment_start()
-            .map_or(-1, |p| usize::from(p) as i32 - 1),
-        flag: record.flags().bits(),
-        mapq: record.mapping_quality().map_or(0, u8::from),
-        mate_tid: record
-            .mate_reference_sequence_id()
-            .map_or(-1, |id| id as i32),
-        mate_pos: record
-            .mate_alignment_start()
-            .map_or(-1, |p| usize::from(p) as i32 - 1),
-        tlen: record.template_length(),
-        name_hash: record.name().map_or(0, |name| fnv1a(name.as_ref())),
-        offset: 0,
-        len: 0,
+fn bam_record_header(body: &[u8], offset: u64, len: u32) -> Result<RecordHeader> {
+    if body.len() < 32 {
+        bail!("BAM record body is shorter than its fixed fields")
+    }
+    Ok(RecordHeader {
+        tid: le_i32(&body[0..4]),
+        pos: le_i32(&body[4..8]),
+        flag: le_u16(&body[14..16]),
+        mapq: body[9],
+        mate_tid: le_i32(&body[20..24]),
+        mate_pos: le_i32(&body[24..28]),
+        tlen: le_i32(&body[28..32]),
+        name_hash: 0,
+        offset,
+        len,
         _padding: 0,
         _padding2: 0,
-    }
+    })
 }
 
-fn fnv1a(name: &[u8]) -> u64 {
-    name.iter().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
-        (hash ^ u64::from(*byte)).wrapping_mul(0x0000_0100_0000_01b3)
-    })
+fn le_u16(bytes: &[u8]) -> u16 {
+    u16::from_le_bytes(bytes.try_into().expect("u16 slice"))
+}
+fn le_u32(bytes: &[u8]) -> u32 {
+    u32::from_le_bytes(bytes.try_into().expect("u32 slice"))
+}
+fn le_i32(bytes: &[u8]) -> i32 {
+    i32::from_le_bytes(bytes.try_into().expect("i32 slice"))
 }
 
 /// Coordinate order with `samtools sort` tie-breaking: equal (tid, pos) keep input order.
@@ -250,22 +262,24 @@ fn write_bam_with_duplicates(
         .other_fields_mut()
         .insert(SORT_ORDER, COORDINATE.into());
     let workers = NonZeroUsize::new(threads.max(1)).expect("clamped");
-    let encoder = bgzf::io::MultithreadedWriter::with_worker_count(workers, File::create(path)?);
-    let mut writer = bam::io::Writer::from(encoder);
-    writer.write_header(&header)?;
-    let mut record = RecordBuf::default();
+    let mut header_bytes = Vec::new();
+    bam::io::Writer::from(&mut header_bytes).write_header(&header)?;
+    let mut writer = bgzf::io::MultithreadedWriter::with_worker_count(workers, File::create(path)?);
+    writer.write_all(&header_bytes)?;
     for index in &resident.order {
-        let bytes = resident.record_bytes(resident.headers()[*index as usize]);
-        let mut reader = sam::io::Reader::new(BufReader::new(Cursor::new(bytes)));
-        if reader.read_record_buf(&resident.header, &mut record)? == 0 {
-            bail!("empty arena record at index {index}");
-        }
+        let fixed = resident.headers()[*index as usize];
+        let bytes = resident.record_bytes(fixed);
+        writer.write_all(&fixed.len.to_le_bytes())?;
         if duplicates.contains(&(*index as usize)) {
-            *record.flags_mut() |= sam::alignment::record::Flags::DUPLICATE;
+            let mut patched = bytes.to_vec();
+            let flag = le_u16(&patched[14..16]) | 0x400;
+            patched[14..16].copy_from_slice(&flag.to_le_bytes());
+            writer.write_all(&patched)?;
+        } else {
+            writer.write_all(bytes)?;
         }
-        writer.write_alignment_record(&header, &record)?;
     }
-    writer.into_inner().finish()?;
+    writer.finish()?;
     Ok(())
 }
 
@@ -408,23 +422,21 @@ fn mark_duplicates(resident: &Resident) -> Result<MarkdupResult> {
 }
 
 fn duplicate_record(resident: &Resident, index: usize) -> Result<DupRecord> {
-    let text = std::str::from_utf8(resident.record_bytes(resident.headers()[index]))
-        .context("SAM record is UTF-8")?;
-    let fields: Vec<&str> = text.trim_end().split('\t').collect();
-    if fields.len() < 11 {
-        bail!("SAM record has fewer than 11 fields");
-    }
+    let body = resident.record_bytes(resident.headers()[index]);
     let fixed = resident.headers()[index];
     Ok(DupRecord {
         index,
-        name: fields[0].to_owned(),
+        name: bam_name(body)?.to_owned(),
         flag: fixed.flag,
         tid: fixed.tid,
         pos: fixed.pos,
-        cigar: fields[5].to_owned(),
-        score: fields[10]
-            .bytes()
-            .map(|quality| quality.saturating_sub(33))
+        cigar: bam_cigar(body)?
+            .iter()
+            .map(|&(len, op)| format!("{len}{op}"))
+            .collect(),
+        score: bam_qualities(body)?
+            .iter()
+            .copied()
             .filter(|quality| *quality >= 15)
             .map(u64::from)
             .sum(),
@@ -480,6 +492,127 @@ fn cigar_operations(cigar: &str) -> Vec<(i32, char)> {
         }
     }
     operations
+}
+
+fn bam_layout(body: &[u8]) -> Result<(usize, usize, usize)> {
+    if body.len() < 32 {
+        bail!("short BAM record")
+    }
+    let name_len = usize::from(body[8]);
+    let cigar_count = usize::from(le_u16(&body[12..14]));
+    let seq_len = le_i32(&body[16..20]);
+    if seq_len < 0 {
+        bail!("negative BAM sequence length")
+    }
+    let cigar_end = 32usize
+        .checked_add(name_len)
+        .and_then(|n| n.checked_add(cigar_count * 4))
+        .context("BAM CIGAR overflow")?;
+    let qual_start = cigar_end
+        .checked_add((seq_len as usize).div_ceil(2))
+        .context("BAM sequence overflow")?;
+    let aux_start = qual_start
+        .checked_add(seq_len as usize)
+        .context("BAM quality overflow")?;
+    if aux_start > body.len() {
+        bail!("truncated BAM variable fields")
+    }
+    Ok((name_len, cigar_count, aux_start))
+}
+
+fn bam_name(body: &[u8]) -> Result<&str> {
+    let (name_len, _, _) = bam_layout(body)?;
+    if name_len == 0 || 32 + name_len > body.len() || body[31 + name_len] != 0 {
+        bail!("invalid BAM read name")
+    }
+    std::str::from_utf8(&body[32..31 + name_len]).context("BAM read name is UTF-8")
+}
+
+fn bam_cigar(body: &[u8]) -> Result<Vec<(i32, char)>> {
+    let (name_len, count, _) = bam_layout(body)?;
+    const OPS: &[u8] = b"MIDNSHP=XB";
+    (0..count)
+        .map(|i| {
+            let value = le_u32(&body[32 + name_len + i * 4..36 + name_len + i * 4]);
+            let op = OPS
+                .get((value & 0x0f) as usize)
+                .context("invalid BAM CIGAR op")?;
+            Ok(((value >> 4) as i32, char::from(*op)))
+        })
+        .collect()
+}
+
+fn bam_qualities(body: &[u8]) -> Result<&[u8]> {
+    let (_, _, aux_start) = bam_layout(body)?;
+    let length = le_i32(&body[16..20]) as usize;
+    Ok(&body[aux_start - length..aux_start])
+}
+
+fn bam_nh_is_multiple(body: &[u8]) -> Result<bool> {
+    let (_, _, mut at) = bam_layout(body)?;
+    while at < body.len() {
+        if at + 3 > body.len() {
+            bail!("truncated BAM auxiliary field")
+        }
+        let tag = &body[at..at + 2];
+        let ty = body[at + 2];
+        at += 3;
+        let value = match ty {
+            b'c' | b'C' => {
+                let v = *body.get(at).context("truncated BAM aux")? as i64;
+                at += 1;
+                v
+            }
+            b's' | b'S' => {
+                let v = le_u16(body.get(at..at + 2).context("truncated BAM aux")?) as i64;
+                at += 2;
+                v
+            }
+            b'i' | b'I' => {
+                let v = le_u32(body.get(at..at + 4).context("truncated BAM aux")?) as i64;
+                at += 4;
+                v
+            }
+            b'f' => {
+                at += 4;
+                0
+            }
+            b'A' => {
+                at += 1;
+                0
+            }
+            b'Z' | b'H' => {
+                let end = body[at..]
+                    .iter()
+                    .position(|&b| b == 0)
+                    .context("unterminated BAM aux")?;
+                at += end + 1;
+                0
+            }
+            b'B' => {
+                if at + 5 > body.len() {
+                    bail!("truncated BAM array")
+                };
+                let n = le_u32(&body[at + 1..at + 5]) as usize;
+                let width = match body[at] {
+                    b'c' | b'C' | b'A' => 1,
+                    b's' | b'S' => 2,
+                    b'i' | b'I' | b'f' => 4,
+                    _ => bail!("invalid BAM array type"),
+                };
+                at += 5 + n * width;
+                0
+            }
+            _ => bail!("invalid BAM auxiliary type"),
+        };
+        if at > body.len() {
+            bail!("truncated BAM auxiliary value")
+        }
+        if tag == b"NH" && value > 1 {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// Picard `SUM_OF_BASE_QUALITIES` scoring: highest score wins. On a tie Picard keeps the
@@ -852,21 +985,20 @@ fn count_fragments(resident: &Resident, features: &FeatureIndex) -> Result<Vec<u
         if fixed.flag & 0x904 != 0 {
             continue;
         }
-        let fields = sam_fields(resident, index)?;
         let mate = match fixed.flag & 0xc0 {
             0x40 => 0,
             0x80 => 1,
             _ => continue,
         };
         let entry = fragments
-            .entry(fields[0].to_owned())
+            .entry(bam_name(resident.record_bytes(fixed))?.to_owned())
             .or_insert(([None, None], true));
         // Multiple primary records for the same mate are not a valid paired fragment;
         // omit it just as featureCounts omits multi-mapping reads without -M.
         if entry.0[mate].replace(index).is_some() {
             entry.1 = false;
         }
-        entry.1 &= !nh_is_multiple(&fields);
+        entry.1 &= !bam_nh_is_multiple(resident.record_bytes(fixed))?;
     }
     let mut totals = vec![0_u64; features.genes.len()];
     for (_name, ([first, second], is_unique)) in fragments {
@@ -910,8 +1042,8 @@ fn mate_gene_hits(
     let Some(bins) = features.by_tid.get(&fixed.tid) else {
         return Ok(HashSet::new());
     };
-    let fields = sam_fields(resident, index)?;
-    let blocks = aligned_blocks(fixed.pos, fields[5]);
+    let cigar = bam_cigar(resident.record_bytes(fixed))?;
+    let blocks = aligned_blocks(fixed.pos, &cigar);
     let mut candidates = HashSet::<usize>::new();
     for &(start, end) in &blocks {
         for bin in start.div_euclid(FEATURE_BIN)..=(end - 1).div_euclid(FEATURE_BIN) {
@@ -931,26 +1063,10 @@ fn mate_gene_hits(
     Ok(candidates)
 }
 
-fn sam_fields(resident: &Resident, index: usize) -> Result<Vec<&str>> {
-    let text = std::str::from_utf8(resident.record_bytes(resident.headers()[index]))?;
-    Ok(text.trim_end().split('\t').collect())
-}
-
-fn nh_is_multiple(fields: &[&str]) -> bool {
-    fields[11..]
-        .iter()
-        .find_map(|field| {
-            field
-                .strip_prefix("NH:i:")
-                .and_then(|value| value.parse::<u32>().ok())
-        })
-        .is_some_and(|nh| nh > 1)
-}
-
-fn aligned_blocks(pos: i32, cigar: &str) -> Vec<(i32, i32)> {
+fn aligned_blocks(pos: i32, cigar: &[(i32, char)]) -> Vec<(i32, i32)> {
     let mut reference = pos;
     let mut blocks = Vec::new();
-    for (length, op) in cigar_operations(cigar) {
+    for &(length, op) in cigar {
         match op {
             'M' | '=' | 'X' => {
                 blocks.push((reference, reference + length));
@@ -963,10 +1079,10 @@ fn aligned_blocks(pos: i32, cigar: &str) -> Vec<(i32, i32)> {
     blocks
 }
 
-fn genomecov_blocks(pos: i32, cigar: &str) -> Vec<(i32, i32)> {
+fn genomecov_blocks(pos: i32, cigar: &[(i32, char)]) -> Vec<(i32, i32)> {
     let mut reference = pos;
     let mut blocks = Vec::new();
-    for (length, op) in cigar_operations(cigar) {
+    for &(length, op) in cigar {
         match op {
             'M' | '=' | 'X' => {
                 blocks.push((reference, reference + length));
@@ -1019,8 +1135,8 @@ fn genomecov_tid(
         if fixed.flag & 0x4 != 0 {
             continue;
         }
-        let fields = sam_fields(resident, index)?;
-        for (start, end) in genomecov_blocks(fixed.pos, fields[5]) {
+        let cigar = bam_cigar(resident.record_bytes(fixed))?;
+        for (start, end) in genomecov_blocks(fixed.pos, &cigar) {
             let start = start.clamp(0, length);
             let end = end.clamp(0, length);
             if start < end {
@@ -1082,10 +1198,11 @@ fn write_timing(out: &Path, timing: &Timing) -> io::Result<()> {
     fs::write(
         out.join("timing.tsv"),
         format!(
-            "stage\tseconds\ndecode\t{:.6}\nsort\t{:.6}\nwrite_sorted\t{:.6}\nwrite_markdup\t{:.6}\nindex\t{:.6}\nfeaturecounts\t{:.6}\ngenomecov\t{:.6}\npeak_rss_bytes\t{}\n",
+            "stage\tseconds\ndecode\t{:.6}\nsort\t{:.6}\nwrite_sorted\t{:.6}\nmarkdup\t{:.6}\nwrite_markdup\t{:.6}\nindex\t{:.6}\nfeaturecounts\t{:.6}\ngenomecov\t{:.6}\npeak_rss_bytes\t{}\n",
             timing.decode.as_secs_f64(),
             timing.sort.as_secs_f64(),
             timing.write_sorted.as_secs_f64(),
+            timing.markdup.as_secs_f64(),
             timing.write_markdup.as_secs_f64(),
             timing.index.as_secs_f64(),
             timing.featurecounts.as_secs_f64(),

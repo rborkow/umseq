@@ -1,9 +1,9 @@
 stage	seconds
-decode	57.914015
-sort	1.266377
-write_sorted	57.150223
-write_markdup	147.695693
-index	27.430335
-featurecounts	25.538783
-genomecov	98.828192
-peak_rss_bytes	33910906880
+decode	57.671332
+sort	1.265009
+write_sorted	58.258133
+write_markdup	149.739962
+index	27.371419
+featurecounts	51.661028
+genomecov	61.512327
+peak_rss_bytes	33909743616

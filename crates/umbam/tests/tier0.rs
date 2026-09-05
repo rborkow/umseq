@@ -91,6 +91,31 @@ fn sorted_bam_gate() {
     stable_sort(&mut actual);
     stable_sort(&mut expected);
     assert_records_equal(&actual, &expected, "sorted.bam vs chr22.sorted.sam");
+
+    // The BAI must support the same representative region query as samtools' golden index.
+    let region = "chr22:20000000-20100000";
+    let view = |path: &Path| {
+        let output = Command::new("samtools")
+            .args(["view", path.to_str().unwrap(), region])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "samtools indexed region query failed"
+        );
+        let mut records = String::from_utf8(output.stdout)
+            .unwrap()
+            .lines()
+            .map(ToOwned::to_owned)
+            .collect::<Vec<_>>();
+        stable_sort(&mut records);
+        records
+    };
+    assert_eq!(
+        view(&output().join("sorted.bam")),
+        view(&fixture().join("chr22.sorted.bam")),
+        "sorted.bam indexed region differs from golden"
+    );
 }
 
 #[test]
