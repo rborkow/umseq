@@ -576,27 +576,15 @@ fn mark_duplicates(resident: &Resident) -> Result<MarkdupResult> {
         rank[i as usize] = r;
     }
     let mut metrics = DupMetrics::default();
-    let mut names = Vec::with_capacity(headers.len());
-    for (i, h) in headers.iter().enumerate() {
+    for h in headers {
         if h.flag & 0x900 != 0 {
             metrics.secondary_or_supplementary += 1;
         } else if h.flag & 4 != 0 {
             metrics.unmapped += 1;
-        } else {
-            names.push((h.name_hash, i));
         }
     }
-    names.par_sort_unstable();
-    let name = |i: usize| {
-        let body = resident.record_bytes(headers[i]);
-        &body[32..31 + usize::from(body[8])]
-    };
-    // Equal hashes are verified before pairing; collisions sort by actual name then table index.
-    for run in names.chunk_by_mut(|a, b| a.0 == b.0) {
-        if run.iter().any(|x| name(x.1) != name(run[0].1)) {
-            run.sort_unstable_by(|a, b| name(a.1).cmp(name(b.1)).then(a.1.cmp(&b.1)));
-        }
-    }
+    let names = primary_mapped_name_groups(resident);
+    let name = |i: usize| bam_name_bytes(resident.record_bytes(headers[i]));
     let data = headers
         .par_iter()
         .map(|h| -> Result<_> {
@@ -692,6 +680,28 @@ fn mark_duplicates(resident: &Resident) -> Result<MarkdupResult> {
         duplicates,
         metrics,
     })
+}
+
+/// Returns primary, mapped records ordered by their decoded name hash and then by their
+/// actual BAM name within a collision.  The latter is essential: a hash is only a fast
+/// grouping key, never an identity.
+fn primary_mapped_name_groups(resident: &Resident) -> Vec<(u64, usize)> {
+    let headers = resident.headers();
+    let mut names = headers
+        .iter()
+        .enumerate()
+        .filter(|(_, h)| h.flag & 0x904 == 0)
+        .map(|(index, h)| (h.name_hash, index))
+        .collect::<Vec<_>>();
+    names.par_sort_unstable();
+    let name = |index: usize| bam_name_bytes(resident.record_bytes(headers[index]));
+    // Equal hashes are verified before pairing; collisions sort by actual name then index.
+    for run in names.chunk_by_mut(|a, b| a.0 == b.0) {
+        if run.iter().any(|entry| name(entry.1) != name(run[0].1)) {
+            run.sort_unstable_by(|a, b| name(a.1).cmp(name(b.1)).then(a.1.cmp(&b.1)));
+        }
+    }
+    names
 }
 
 #[cfg(test)]
@@ -909,6 +919,12 @@ fn bam_name(body: &[u8]) -> Result<&str> {
         bail!("invalid BAM read name")
     }
     std::str::from_utf8(&body[32..31 + name_len]).context("BAM read name is UTF-8")
+}
+
+/// Decoding has already validated every resident record, so grouping hot paths can borrow
+/// the name bytes directly without repeating the layout and UTF-8 checks.
+fn bam_name_bytes(body: &[u8]) -> &[u8] {
+    &body[32..31 + usize::from(body[8])]
 }
 
 /// Stable FNV-1a lets later stages use the decoded read-name fingerprint without allocating.
@@ -1371,10 +1387,23 @@ struct Gene {
 /// than to every gene on a chromosome. Coordinates are zero-based half-open throughout.
 struct FeatureIndex {
     genes: Vec<Gene>,
-    by_tid: HashMap<i32, HashMap<i32, Vec<usize>>>,
+    by_tid: HashMap<i32, TidFeatures>,
 }
 
-const FEATURE_BIN: i32 = 16 * 1024;
+#[derive(Default)]
+struct TidFeatures {
+    intervals: Vec<FeatureInterval>,
+    /// Running maximum of `intervals[..=index].end`, enabling a lower-bound search for
+    /// intervals that can still overlap a query start.
+    prefix_max_end: Vec<i32>,
+}
+
+#[derive(Clone, Copy)]
+struct FeatureInterval {
+    start: i32,
+    end: i32,
+    gene: usize,
+}
 
 fn write_featurecounts(
     out: &Path,
@@ -1477,7 +1506,7 @@ fn read_features(gtf: &Path, header: &sam::Header) -> Result<FeatureIndex> {
         .enumerate()
         .map(|(tid, (name, _))| (name, tid as i32))
         .collect();
-    let mut by_tid: HashMap<i32, HashMap<i32, Vec<usize>>> = HashMap::new();
+    let mut by_tid = HashMap::<i32, TidFeatures>::new();
     for (index, gene) in genes.iter_mut().enumerate() {
         let mut sorted = gene.exons.clone();
         sorted.sort_unstable();
@@ -1491,15 +1520,24 @@ fn read_features(gtf: &Path, header: &sam::Header) -> Result<FeatureIndex> {
             }
         }
         if let Some(&tid) = names.get(&gene.chrom) {
-            let bins = by_tid.entry(tid).or_default();
+            let entries = &mut by_tid.entry(tid).or_default().intervals;
             for &(start, end) in &gene.merged {
-                for bin in start.div_euclid(FEATURE_BIN)..=(end - 1).div_euclid(FEATURE_BIN) {
-                    let entries = bins.entry(bin).or_default();
-                    if entries.last() != Some(&index) && !entries.contains(&index) {
-                        entries.push(index);
-                    }
-                }
+                entries.push(FeatureInterval {
+                    start,
+                    end,
+                    gene: index,
+                });
             }
+        }
+    }
+    for tid in by_tid.values_mut() {
+        tid.intervals
+            .sort_unstable_by_key(|interval| interval.start);
+        let mut max_end = i32::MIN;
+        tid.prefix_max_end.reserve(tid.intervals.len());
+        for interval in &tid.intervals {
+            max_end = max_end.max(interval.end);
+            tid.prefix_max_end.push(max_end);
         }
     }
     Ok(FeatureIndex { genes, by_tid })
@@ -1557,103 +1595,230 @@ fn records_by_tid(resident: &Resident) -> Vec<(i32, Vec<usize>)> {
 fn count_fragments(resident: &Resident, features: &FeatureIndex) -> Result<Vec<u64>> {
     // featureCounts votes separately for each mate before combining the votes.  Keeping
     // fragments global (rather than grouping by reference) also preserves chimeric pairs.
-    let mut fragments = HashMap::<String, ([Option<usize>; 2], bool)>::new();
-    for (index, fixed) in resident.headers().iter().copied().enumerate() {
-        if fixed.flag & 0x904 != 0 {
-            continue;
+    let names = primary_mapped_name_groups(resident);
+    let chunks = name_run_chunks(&names, resident, 4096);
+    chunks
+        .par_iter()
+        .try_fold(
+            || vec![0_u64; features.genes.len()],
+            |mut totals, range| {
+                let mut at = range.start;
+                while at < range.end {
+                    let end = next_name_run(&names, resident, at, range.end);
+                    count_name_run(&names[at..end], resident, features, &mut totals)?;
+                    at = end;
+                }
+                Ok(totals)
+            },
+        )
+        .try_reduce(
+            || vec![0_u64; features.genes.len()],
+            |mut left, right| {
+                for (total, count) in left.iter_mut().zip(right) {
+                    *total += count;
+                }
+                Ok(left)
+            },
+        )
+}
+
+/// Keep parallel work units modest without storing one range per fragment.  Boundaries are
+/// always between equal-name runs, so a run is never split between Rayon workers.
+fn name_run_chunks(
+    names: &[(u64, usize)],
+    resident: &Resident,
+    runs_per_chunk: usize,
+) -> Vec<std::ops::Range<usize>> {
+    let mut chunks = Vec::new();
+    let mut start = 0;
+    let mut at = 0;
+    let mut runs = 0;
+    while at < names.len() {
+        at = next_name_run(names, resident, at, names.len());
+        runs += 1;
+        if runs == runs_per_chunk {
+            chunks.push(start..at);
+            start = at;
+            runs = 0;
         }
+    }
+    if start < names.len() {
+        chunks.push(start..names.len());
+    }
+    chunks
+}
+
+fn next_name_run(names: &[(u64, usize)], resident: &Resident, start: usize, limit: usize) -> usize {
+    let name = bam_name_bytes(resident.record_bytes(resident.headers()[names[start].1]));
+    let mut end = start + 1;
+    while end < limit
+        && names[end].0 == names[start].0
+        && bam_name_bytes(resident.record_bytes(resident.headers()[names[end].1])) == name
+    {
+        end += 1;
+    }
+    end
+}
+
+fn count_name_run(
+    run: &[(u64, usize)],
+    resident: &Resident,
+    features: &FeatureIndex,
+    totals: &mut [u64],
+) -> Result<()> {
+    let headers = resident.headers();
+    let mut mates = [None, None];
+    let mut unique = true;
+    for &(_, index) in run {
+        let fixed = headers[index];
         let mate = match fixed.flag & 0xc0 {
             0x40 => 0,
             0x80 => 1,
             _ => continue,
         };
-        let entry = fragments
-            .entry(bam_name(resident.record_bytes(fixed))?.to_owned())
-            .or_insert(([None, None], true));
-        // Multiple primary records for the same mate are not a valid paired fragment;
-        // omit it just as featureCounts omits multi-mapping reads without -M.
-        if entry.0[mate].replace(index).is_some() {
-            entry.1 = false;
+        // Multiple primary records for one mate are omitted just as featureCounts omits
+        // multi-mapping reads without -M.  Retain the first index; it is immaterial once
+        // the entire fragment is invalid.
+        if mates[mate].replace(index).is_some() {
+            unique = false;
         }
-        entry.1 &= !bam_nh_is_multiple(resident.record_bytes(fixed))?;
+        unique &= !bam_nh_is_multiple(resident.record_bytes(fixed))?;
     }
-    let mut totals = vec![0_u64; features.genes.len()];
-    for (_name, ([first, second], is_unique)) in fragments {
-        if !is_unique || (first.is_none() && second.is_none()) {
-            continue;
-        }
-        let first = first
-            .map(|index| mate_gene_hits(index, resident, features))
-            .transpose()?
-            .unwrap_or_default();
-        let second = second
-            .map(|index| mate_gene_hits(index, resident, features))
-            .transpose()?
-            .unwrap_or_default();
-        let candidates = if !first.is_empty() && !second.is_empty() {
-            let intersection = first.intersection(&second).copied().collect::<HashSet<_>>();
-            if intersection.is_empty() {
-                first.union(&second).copied().collect()
-            } else {
-                intersection
-            }
-        } else if first.is_empty() {
-            second
+    if !unique || (mates[0].is_none() && mates[1].is_none()) {
+        return Ok(());
+    }
+    let first = mates[0]
+        .map(|index| mate_gene_hits(index, resident, features))
+        .transpose()?
+        .unwrap_or_default();
+    let second = mates[1]
+        .map(|index| mate_gene_hits(index, resident, features))
+        .transpose()?
+        .unwrap_or_default();
+    let candidate = one_fragment_gene(&first, &second);
+    if let Some(gene) = candidate {
+        totals[gene] += 1;
+    }
+    Ok(())
+}
+
+fn one_fragment_gene(first: &[usize], second: &[usize]) -> Option<usize> {
+    if first.is_empty() {
+        return if second.len() == 1 {
+            Some(second[0])
         } else {
-            first
+            None
         };
-        if candidates.len() == 1 {
-            let gene = *candidates.iter().next().expect("one candidate");
-            totals[gene] += 1;
+    }
+    if second.is_empty() {
+        return if first.len() == 1 {
+            Some(first[0])
+        } else {
+            None
+        };
+    }
+    let mut left = 0;
+    let mut right = 0;
+    let mut intersection = 0;
+    let mut candidate = 0;
+    while left < first.len() && right < second.len() {
+        match first[left].cmp(&second[right]) {
+            Ordering::Less => left += 1,
+            Ordering::Greater => right += 1,
+            Ordering::Equal => {
+                intersection += 1;
+                candidate = first[left];
+                if intersection > 1 {
+                    return None;
+                }
+                left += 1;
+                right += 1;
+            }
         }
     }
-    Ok(totals)
+    if intersection == 1 {
+        return Some(candidate);
+    }
+    let mut union = 0;
+    left = 0;
+    right = 0;
+    while left < first.len() || right < second.len() {
+        let next = match (first.get(left), second.get(right)) {
+            (Some(a), Some(b)) if a < b => {
+                left += 1;
+                *a
+            }
+            (Some(a), Some(b)) if b < a => {
+                right += 1;
+                *b
+            }
+            (Some(a), Some(_)) => {
+                left += 1;
+                right += 1;
+                *a
+            }
+            (Some(a), None) => {
+                left += 1;
+                *a
+            }
+            (None, Some(b)) => {
+                right += 1;
+                *b
+            }
+            (None, None) => unreachable!(),
+        };
+        union += 1;
+        candidate = next;
+        if union > 1 {
+            return None;
+        }
+    }
+    Some(candidate)
 }
 
 fn mate_gene_hits(
     index: usize,
     resident: &Resident,
     features: &FeatureIndex,
-) -> Result<HashSet<usize>> {
+) -> Result<Vec<usize>> {
     let fixed = resident.headers()[index];
-    let Some(bins) = features.by_tid.get(&fixed.tid) else {
-        return Ok(HashSet::new());
+    let Some(tid_features) = features.by_tid.get(&fixed.tid) else {
+        return Ok(Vec::new());
     };
-    let cigar = bam_cigar(resident.record_bytes(fixed))?;
-    let blocks = aligned_blocks(fixed.pos, &cigar);
-    let mut candidates = HashSet::<usize>::new();
-    for &(start, end) in &blocks {
-        for bin in start.div_euclid(FEATURE_BIN)..=(end - 1).div_euclid(FEATURE_BIN) {
-            if let Some(genes) = bins.get(&bin) {
-                candidates.extend(genes);
+    let body = resident.record_bytes(fixed);
+    let (name_len, cigar_count, _) = bam_layout(body)?;
+    let cigar = &body[32 + name_len..32 + name_len + cigar_count * 4];
+    let mut candidates = Vec::new();
+    let mut reference = fixed.pos;
+    for op in cigar.as_chunks::<4>().0 {
+        let value = le_u32(op);
+        let length = (value >> 4) as i32;
+        match value & 15 {
+            0 | 7 | 8 => {
+                let end = reference + length;
+                // `intervals` is sorted by start; prefix maxima gives the first earlier
+                // interval whose end can reach `reference`.  The remaining scan is only
+                // over exons that overlap this aligned block.
+                let limit = tid_features
+                    .intervals
+                    .partition_point(|interval| interval.start < end);
+                let start = tid_features.prefix_max_end[..limit]
+                    .partition_point(|&max_end| max_end <= reference);
+                for interval in &tid_features.intervals[start..limit] {
+                    if interval.end > reference {
+                        candidates.push(interval.gene);
+                    }
+                }
+                reference = end;
             }
+            2 | 3 => reference += length,
+            1 | 4 | 5 | 6 => {}
+            _ => bail!("invalid BAM CIGAR op"),
         }
     }
-    candidates.retain(|&gene| {
-        blocks.iter().any(|&(start, end)| {
-            features.genes[gene]
-                .merged
-                .iter()
-                .any(|&(a, b)| start < b && a < end)
-        })
-    });
+    candidates.sort_unstable();
+    candidates.dedup();
     Ok(candidates)
-}
-
-fn aligned_blocks(pos: i32, cigar: &[(i32, char)]) -> Vec<(i32, i32)> {
-    let mut reference = pos;
-    let mut blocks = Vec::new();
-    for &(length, op) in cigar {
-        match op {
-            'M' | '=' | 'X' => {
-                blocks.push((reference, reference + length));
-                reference += length;
-            }
-            'N' | 'D' => reference += length,
-            _ => {}
-        }
-    }
-    blocks
 }
 
 fn genomecov_blocks(pos: i32, cigar: &[(i32, char)]) -> Vec<(i32, i32)> {

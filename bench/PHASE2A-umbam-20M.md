@@ -1,4 +1,4 @@
-# Phase 2a — `umbam` CPU control arm on the Spark: 408 s → 79 s
+# Phase 2a — `umbam` CPU control arm on the Spark: 408 s → 55 s
 
 Commit: (this one). `umbam chain` at 6/6 Tier 0 byte-compat gates (sorted BAM, flagstat,
 idxstats, Picard markdup flags + metrics to 6 dp, featureCounts per-gene counts, bedtools
@@ -10,6 +10,33 @@ The first run (416 s, below) was accidentally given the StringTie *transcripts* 
 (4,853 rows) instead of GENCODE v49 filtered (78,899 genes, 3.7M exons, 3.3 GB); its
 featureCounts number is not comparable. Both runs in the "Perf pass" section use the
 correct GTF (`data/ref/gencode.v49.filtered.gtf` on the Spark).
+
+## Perf pass 4: 79 s → 55–58 s, outputs byte-identical — **target met**
+featureCounts counting rewritten over the shared sort-and-pair name grouping (parallel,
+no per-fragment allocations, per-tid sorted exons + prefix-max binary search). Three runs:
+**57.6 / 54.9 / 54.9 s**. All five text outputs, the 8,918,475 dup flags, and a region
+query through the direct BAI identical to v2.
+
+| stage | v5 | v6 (median) |
+|---|---|---|
+| decode | 9.3 | 9.0 |
+| sort | 1.2 | 1.2 |
+| write sorted | 9.9 | 9.6 |
+| markdup | 8.8 | 8.9 |
+| write markdup | 11.9 | 12.9 |
+| index | 1.6 | 1.7 |
+| gtf_parse | 1.8 | 1.9 |
+| featureCounts count | 28.6 | **5.6** |
+| genomecov | 2.4 | 2.4 |
+| **wall** | **79** | **55** |
+| peak RSS | 29.3 GB | 29.2 GB |
+
+**Versus the tool chain (samtools sort + index, Picard MarkDuplicates, samtools
+flagstat/idxstats, featureCounts, bedtools genomecov): ~450 s sequential → 55 s, 8.2×**,
+byte-compatible, from one decode. Nothing in this profile is memory-bandwidth-bound: the
+55 s is ~22 s of BGZF compression (level 6, two files), 9 s of decode (2 s inflate + 7 s
+record-table fill), 9 s markdup, and ~14 s of everything else. This is the bar a CUDA arm
+has to clear on the same table.
 
 ## Perf pass 3: 104 s → 79–85 s, outputs byte-identical
 Planned record-aligned BGZF blocks encoded+compressed in parallel (no burst structure),
