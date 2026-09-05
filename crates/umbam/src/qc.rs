@@ -16,6 +16,7 @@ use std::{
 pub(super) struct Timing {
     pub bam_stat: Duration,
     pub seq_duplication: Duration,
+    pub pos_duplication: Duration,
 }
 
 pub(super) fn write(
@@ -31,10 +32,48 @@ pub(super) fn write(
     let now = Instant::now();
     let seq = sequence_duplication(resident)?;
     fs::write(rseqc.join("seq.DupRate.xls"), render_histogram(&seq))?;
+    let seq_duplication = now.elapsed();
+    let now = Instant::now();
+    let pos = position_duplication(resident)?;
+    fs::write(rseqc.join("pos.DupRate.xls"), render_histogram(&pos))?;
     Ok(Timing {
         bam_stat,
-        seq_duplication: now.elapsed(),
+        seq_duplication,
+        pos_duplication: now.elapsed(),
     })
+}
+
+/// RSeQC's `readDupRate` deliberately keys on its buggy `fetch_exon` output.  In
+/// particular, soft clips consume reference coordinates, while `=` and `X` are
+/// ignored altogether.  Keep a structural key rather than rendering chrom:pos:text;
+/// chromosome identity is equivalent to the resident tid.
+fn position_duplication(resident: &Resident) -> Result<HashMap<u32, u64>> {
+    let mut positions = HashMap::<(i32, i32, Vec<(i32, i32)>), u32>::new();
+    for fixed in resident.headers() {
+        // Unlike the other RSeQC reductions, readDupRate retains secondary,
+        // supplementary, and duplicate records.
+        if fixed.flag & 0x204 != 0 || fixed.mapq < 30 {
+            continue;
+        }
+        let mut reference = fixed.pos;
+        let mut blocks = Vec::new();
+        for (length, op) in bam_cigar(resident.record_bytes(*fixed))? {
+            match op {
+                'M' => {
+                    blocks.push((reference, reference + length));
+                    reference += length;
+                }
+                'D' | 'N' | 'S' => reference += length,
+                _ => {}
+            }
+        }
+        *positions.entry((fixed.tid, fixed.pos, blocks)).or_default() += 1;
+    }
+    let mut result = HashMap::new();
+    for occurrence in positions.into_values() {
+        *result.entry(occurrence).or_insert(0) += 1;
+    }
+    Ok(result)
 }
 
 fn bam_stat(resident: &Resident, duplicates: &HashSet<usize>) -> Result<String> {

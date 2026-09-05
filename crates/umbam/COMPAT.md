@@ -2,17 +2,15 @@
 
 ## RSeQC `bam_stat` and sequence `read_duplication`
 
-`umbam chain --qc` writes byte-identical Tier 0 text for `rseqc/bam_stat.txt` and
-`rseqc/seq.DupRate.xls`.  Both reductions run against the resident mark-duplicate decision,
+`umbam chain --qc` writes byte-identical Tier 0 text for `rseqc/bam_stat.txt`,
+`rseqc/seq.DupRate.xls`, and `rseqc/pos.DupRate.xls`. These reductions run against the resident mark-duplicate decision,
 not the original input flags: the Tier 0 input is pre-markdup, so its 105,016 duplicate bits
 exist only after the resident markdup stage.
 
-`pos.DupRate.xls` is deliberately not emitted yet.  Its total (859,269) establishes that
-RSeQC includes duplicate reads but applies its MAPQ 30 filter; however, its position histogram
-does not match either `(tid, leftmost-pos, strand)` or a reverse-read 3′-endpoint key.  For
-example the golden's occurrence-one bucket is 266,495, versus 220,036 and 233,171 for those
-two candidates.  The exact RSeQC position-key source semantics need to be recovered before a
-compatibility gate can be added; emitting either candidate would mislead MultiQC.
+`pos.DupRate.xls` is also byte-identical. Its key mirrors RSeQC's `fetch_exon` bug: a soft
+clip advances the reference coordinate, while `=` and `X` contribute no exon block. It retains
+secondary, supplementary, and duplicate records, filtering only unmapped/QC-failed records and
+MAPQ below 30.
 
 ## featureCounts paired-end ambiguity
 

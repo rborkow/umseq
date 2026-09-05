@@ -72,3 +72,14 @@ fn rseqc_sequence_duplication_gate() {
         "RSeQC sequence duplication",
     );
 }
+
+#[test]
+#[ignore = "requires ~/uni-rnaseq-data/tier0/qc"]
+fn rseqc_position_duplication_gate() {
+    let root = fixture();
+    assert_bytes(
+        &output().join("rseqc/pos.DupRate.xls"),
+        &root.join("qc/rseqc/chr22.pos.DupRate.xls"),
+        "RSeQC position duplication",
+    );
+}
