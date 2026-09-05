@@ -19,8 +19,9 @@ PERL="$DK community.wave.seqera.io/library/perl:5.26.2--2a6adf51d600e047"
 # chr22-only GTF → BED12 via nf-core's gtf2bed (Perl), same script the pipeline ran.
 G2B=$(find $HOME/uni-rnaseq/runs/tier2a/work -path "*3a/419ce46ab6f6da637589cc99116901/.command.sh" | head -1)
 cp $G2B $Q/gtf2bed.pl
-sed -i "s#\$in = \".*\";#\$in = \"chr22.gtf\";#" $Q/gtf2bed.pl
-$PERL perl $Q/gtf2bed.pl > $Q/chr22.bed
+sed -i -e "s#\$in = \".*\";#\$in = \"chr22.gtf\";#" -e "s#my \$out_file = \".*\";#my \$out_file = \"qc/chr22.bed\";#" $Q/gtf2bed.pl
+$PERL perl $Q/gtf2bed.pl
+test -s $Q/chr22.bed || { echo "gtf2bed produced an empty BED"; exit 1; }
 
 BAM=chr22.markdup.bam
 # --- RSeQC (all default args, exactly as nf-core) ---
