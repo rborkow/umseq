@@ -38,3 +38,14 @@ Concrete case: two single-end reads at `chr1:101`, both `10M`, `RG`s with differ
 Picard 3.5.0 marks neither, `umbam` marks one. Tier 0 has a single library and cannot
 observe this. Preserved deliberately until a multi-library fixture exists; the metrics'
 `LIBRARY` column is likewise single-valued.
+
+## BGZF write layout and compression level
+
+The coordinate writer plans record-aligned BGZF blocks before launching parallel encoders.
+Normal BAM records are never split across blocks; BAI virtual offsets are derived from the
+completed block table. The production compression level is flate2 level 6 (the noodles
+default). On the 12-thread Tier 0 fixture, level 1 wrote sorted/markdup BAMs in 0.132/0.164 s
+at 82,242,545/82,408,612 bytes; level 3 in 0.178/0.213 s at 60,967,730/61,116,967 bytes; and
+level 6 in 0.247/0.262 s at 56,872,010/57,015,572 bytes. Level 1 is faster but grows output by
+44.6%, so it does not meet the less-than-10% size-growth criterion; level 6 remains selected.
+`UMBAM_BGZF_LEVEL` is a process-scoped benchmarking override only.

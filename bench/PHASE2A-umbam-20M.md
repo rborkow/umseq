@@ -1,4 +1,4 @@
-# Phase 2a — `umbam` CPU control arm on the Spark: 408 s → 104 s
+# Phase 2a — `umbam` CPU control arm on the Spark: 408 s → 79 s
 
 Commit: (this one). `umbam chain` at 6/6 Tier 0 byte-compat gates (sorted BAM, flagstat,
 idxstats, Picard markdup flags + metrics to 6 dp, featureCounts per-gene counts, bedtools
@@ -10,6 +10,30 @@ The first run (416 s, below) was accidentally given the StringTie *transcripts* 
 (4,853 rows) instead of GENCODE v49 filtered (78,899 genes, 3.7M exons, 3.3 GB); its
 featureCounts number is not comparable. Both runs in the "Perf pass" section use the
 correct GTF (`data/ref/gencode.v49.filtered.gtf` on the Spark).
+
+## Perf pass 3: 104 s → 79–85 s, outputs byte-identical
+Planned record-aligned BGZF blocks encoded+compressed in parallel (no burst structure),
+BAI parallel per reference with dense bin vectors, GTF parsed in parallel by line chunk,
+`gtf_parse` / `featurecounts_count` timing split. Level 6 kept (level 1 is +45% size on
+Tier 0 for <2× write speed).
+
+| stage | v4 | v5 a | v5 b |
+|---|---|---|---|
+| decode | 7.9 | 15.1 | 9.3 |
+| write sorted | 16.4 | **9.7** | **9.9** |
+| markdup | 8.9 | 9.1 | 8.8 |
+| write markdup | 20.7 | **11.8** | **11.9** |
+| index | 9.7 | **1.7** | **1.6** |
+| gtf_parse | — | 2.1 | 1.8 |
+| featureCounts count | — | **28.0** | **28.6** |
+| genomecov | 5.7 | **2.3** | **2.4** |
+| **total (wall)** | **104** | **85** | **79** |
+
+Decode varies 8–15 s run to run (page cache / THP state; first run after a build is
+slower). featureCounts is now the single biggest stage and it is the *counting*, not the
+parse: `count_fragments` groups mates via `HashMap<String, _>` over 39M primaries and
+builds two `HashSet<gene>` per fragment — the same pattern markdup had before the
+sort-and-pair rewrite. That is the next target, then decode.
 
 ## Perf pass 2 (d4013f7): 162 s → 104–110 s, outputs byte-identical
 Parallel Picard-exact markdup (sort-and-pair on 64-bit name hash + fragment-end tuples; the

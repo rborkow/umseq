@@ -64,6 +64,8 @@ struct Timing {
     markdup: Duration,
     write_markdup: Duration,
     index: Duration,
+    gtf_parse: Duration,
+    featurecounts_count: Duration,
     featurecounts: Duration,
     genomecov: Duration,
 }
@@ -113,7 +115,8 @@ pub fn chain(input: &Path, gtf: &Path, out_dir: &Path, threads: usize) -> Result
     write_flagstat_and_idxstats(out_dir, &resident)?;
     write_markdup_metrics(out_dir, &markdup_result.metrics)?;
     let now = Instant::now();
-    write_featurecounts(out_dir, input, gtf, &resident, &pool)?;
+    let (gtf_parse, featurecounts_count) =
+        write_featurecounts(out_dir, input, gtf, &resident, &pool)?;
     let featurecounts = now.elapsed();
     let now = Instant::now();
     write_genomecov(out_dir, &resident, &pool)?;
@@ -127,6 +130,8 @@ pub fn chain(input: &Path, gtf: &Path, out_dir: &Path, threads: usize) -> Result
             markdup: markdup_compute,
             write_markdup,
             index,
+            gtf_parse,
+            featurecounts_count,
             featurecounts,
             genomecov,
         },
@@ -261,90 +266,32 @@ fn compare_headers(a: &RecordHeader, b: &RecordHeader, a_index: u32, b_index: u3
 const OUTPUT_BLOCK_SIZE: usize = 65_280;
 struct BamLayout {
     records: Vec<u64>,
+    raw_records: Vec<u64>,
     blocks: Vec<u64>,
+    raw_blocks: Vec<u64>,
 }
-impl BamLayout {
-    fn virtual_offset(&self, offset: u64) -> u64 {
-        let block = offset as usize / OUTPUT_BLOCK_SIZE;
-        (self.blocks[block] << 16) | (offset % OUTPUT_BLOCK_SIZE as u64)
-    }
+fn compression_level() -> bgzf::io::writer::CompressionLevel {
+    static LEVEL: std::sync::OnceLock<bgzf::io::writer::CompressionLevel> =
+        std::sync::OnceLock::new();
+    *LEVEL.get_or_init(|| {
+        std::env::var("UMBAM_BGZF_LEVEL")
+            .ok()
+            .and_then(|value| value.parse::<u8>().ok())
+            .and_then(bgzf::io::writer::CompressionLevel::new)
+            .unwrap_or_default()
+    })
 }
 
 fn compress_block(raw: &[u8]) -> Result<Vec<u8>> {
-    let mut writer = bgzf::io::Writer::new(Vec::new());
+    // Level 6 is the production default. The environment override exists solely to make
+    // repeatable compression trade-off measurements without changing output semantics.
+    let mut writer = bgzf::io::writer::Builder::default()
+        .set_compression_level(compression_level())
+        .build_from_writer(Vec::new());
     writer.write_all(raw)?;
     // Flush without finish: each batch element is a data block, not a complete BGZF file.
     writer.flush()?;
     Ok(writer.into_inner())
-}
-
-struct BlockWriter {
-    file: io::BufWriter<File>,
-    pending: Vec<Vec<u8>>,
-    raw: Vec<u8>,
-    blocks: Vec<u64>,
-    compressed: u64,
-    uncompressed: u64,
-    batch_size: usize,
-}
-impl BlockWriter {
-    fn new(path: &Path, threads: usize) -> Result<Self> {
-        Ok(Self {
-            file: io::BufWriter::new(File::create(path)?),
-            pending: Vec::new(),
-            raw: Vec::with_capacity(OUTPUT_BLOCK_SIZE),
-            blocks: Vec::new(),
-            compressed: 0,
-            uncompressed: 0,
-            batch_size: threads.max(1) * 8,
-        })
-    }
-    fn append(&mut self, mut bytes: &[u8]) -> Result<()> {
-        self.uncompressed += bytes.len() as u64;
-        while !bytes.is_empty() {
-            let n = bytes.len().min(OUTPUT_BLOCK_SIZE - self.raw.len());
-            self.raw.extend_from_slice(&bytes[..n]);
-            bytes = &bytes[n..];
-            if self.raw.len() == OUTPUT_BLOCK_SIZE {
-                self.pending.push(std::mem::replace(
-                    &mut self.raw,
-                    Vec::with_capacity(OUTPUT_BLOCK_SIZE),
-                ));
-                if self.pending.len() >= self.batch_size {
-                    self.flush_batch()?;
-                }
-            }
-        }
-        Ok(())
-    }
-    fn flush_batch(&mut self) -> Result<()> {
-        let blocks = self
-            .pending
-            .par_iter()
-            .map(|raw| compress_block(raw))
-            .collect::<Result<Vec<_>>>()?;
-        for block in blocks {
-            self.blocks.push(self.compressed);
-            self.file.write_all(&block)?;
-            self.compressed += block.len() as u64;
-        }
-        self.pending.clear();
-        Ok(())
-    }
-    fn finish(mut self, records: Vec<u64>) -> Result<BamLayout> {
-        if !self.raw.is_empty() {
-            self.pending.push(std::mem::take(&mut self.raw));
-        }
-        self.flush_batch()?;
-        self.blocks.push(self.compressed);
-        let eof = bgzf::io::Writer::new(Vec::new()).finish()?;
-        self.file.write_all(&eof)?;
-        self.file.flush()?;
-        Ok(BamLayout {
-            records,
-            blocks: self.blocks,
-        })
-    }
 }
 
 fn write_bam(path: &Path, resident: &Resident, threads: usize) -> Result<BamLayout> {
@@ -365,24 +312,86 @@ fn write_bam_with_duplicates(
         .insert(SORT_ORDER, COORDINATE.into());
     let mut header_bytes = Vec::new();
     bam::io::Writer::from(&mut header_bytes).write_header(&header)?;
-    let mut writer = BlockWriter::new(path, threads)?;
-    writer.append(&header_bytes)?;
-    let mut records = Vec::with_capacity(resident.order.len() + 1);
-    for &index in &resident.order {
-        let fixed = resident.headers()[index as usize];
-        let bytes = resident.record_bytes(fixed);
-        records.push(writer.uncompressed);
-        writer.append(&fixed.len.to_le_bytes())?;
-        if duplicates.contains(&(index as usize)) {
-            writer.append(&bytes[..14])?;
-            writer.append(&(fixed.flag | 0x400).to_le_bytes())?;
-            writer.append(&bytes[16..])?;
-        } else {
-            writer.append(bytes)?;
+    // Plan all output chunks before encoding. Each ordinary BAM record lives entirely in
+    // one BGZF block, which lets every worker encode independently and makes virtual
+    // offsets a table lookup rather than per-record writer bookkeeping.
+    let mut ranges = Vec::new();
+    let mut raw_records = Vec::with_capacity(resident.order.len() + 1);
+    let mut raw_offset = 0u64;
+    let mut first = 0usize;
+    let mut used = header_bytes.len();
+    for (rank, &index) in resident.order.iter().enumerate() {
+        let len = resident.headers()[index as usize].len as usize + 4;
+        if len > OUTPUT_BLOCK_SIZE {
+            bail!("BAM record ({len} bytes) exceeds BGZF output block size")
         }
+        if used + len > OUTPUT_BLOCK_SIZE && (rank != first || !header_bytes.is_empty()) {
+            ranges.push((first, rank, raw_offset, raw_offset == 0));
+            raw_offset += used as u64;
+            first = rank;
+            used = 0;
+        }
+        raw_records.push(raw_offset + used as u64);
+        used += len;
     }
-    records.push(writer.uncompressed);
-    writer.finish(records)
+    ranges.push((first, resident.order.len(), raw_offset, raw_offset == 0));
+    raw_offset += used as u64;
+    raw_records.push(raw_offset);
+
+    let encoded = ranges
+        .par_iter()
+        .map(|&(first, last, _, includes_header)| -> Result<Vec<u8>> {
+            let mut raw = Vec::with_capacity(OUTPUT_BLOCK_SIZE);
+            if includes_header {
+                raw.extend_from_slice(&header_bytes);
+            }
+            for &index in &resident.order[first..last] {
+                let fixed = resident.headers()[index as usize];
+                let bytes = resident.record_bytes(fixed);
+                raw.extend_from_slice(&fixed.len.to_le_bytes());
+                if duplicates.contains(&(index as usize)) {
+                    raw.extend_from_slice(&bytes[..14]);
+                    raw.extend_from_slice(&(fixed.flag | 0x400).to_le_bytes());
+                    raw.extend_from_slice(&bytes[16..]);
+                } else {
+                    raw.extend_from_slice(bytes);
+                }
+            }
+            compress_block(&raw)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut file = io::BufWriter::new(File::create(path)?);
+    let mut blocks = Vec::with_capacity(encoded.len() + 1);
+    let mut raw_blocks = Vec::with_capacity(encoded.len() + 1);
+    let mut compressed = 0u64;
+    for ((_, _, raw_start, _), bytes) in ranges.into_iter().zip(encoded) {
+        blocks.push(compressed);
+        raw_blocks.push(raw_start);
+        file.write_all(&bytes)?;
+        compressed += bytes.len() as u64;
+    }
+    blocks.push(compressed);
+    raw_blocks.push(raw_offset);
+    file.write_all(&bgzf::io::Writer::new(Vec::new()).finish()?)?;
+    file.flush()?;
+    let records = raw_records
+        .iter()
+        .map(|&offset| {
+            if offset == raw_offset {
+                compressed << 16
+            } else {
+                let block = raw_blocks.partition_point(|&start| start <= offset) - 1;
+                (blocks[block] << 16) | (offset - raw_blocks[block])
+            }
+        })
+        .collect();
+    let _ = threads; // Rayon uses the caller's configured pool.
+    Ok(BamLayout {
+        records,
+        raw_records,
+        blocks,
+        raw_blocks,
+    })
 }
 
 fn write_markdup_reusing_blocks(
@@ -393,20 +402,20 @@ fn write_markdup_reusing_blocks(
     duplicates: &HashSet<usize>,
     layout: &BamLayout,
 ) -> Result<BamLayout> {
-    // Only the high byte of FLAG changes. A flag straddling two blocks therefore patches
-    // exactly one block; pre-existing duplicate bits require no recompression.
+    // Records are block-aligned by the writer, so a FLAG patch always stays within one
+    // independently compressed block.
     let mut patches = Vec::with_capacity(duplicates.len());
     for (rank, &index) in resident.order.iter().enumerate() {
         if duplicates.contains(&(index as usize))
             && resident.headers()[index as usize].flag & 0x400 == 0
         {
-            patches.push(layout.records[rank] + 4 + 15);
+            let offset = layout.raw_records[rank] + 4 + 15;
+            let block = layout.raw_blocks.partition_point(|&start| start <= offset) - 1;
+            patches.push((block, (offset - layout.raw_blocks[block]) as usize));
         }
     }
     let count = layout.blocks.len() - 1;
-    let affected = patches
-        .chunk_by(|a, b| a / OUTPUT_BLOCK_SIZE as u64 == b / OUTPUT_BLOCK_SIZE as u64)
-        .count();
+    let affected = patches.chunk_by(|a, b| a.0 == b.0).count();
     let full = affected * 5 > count * 4;
     let recompressed = if full { count } else { affected };
     let fraction = if count == 0 {
@@ -444,23 +453,21 @@ fn write_markdup_reusing_blocks(
             let mut bytes = vec![0; (layout.blocks[block + 1] - layout.blocks[block]) as usize];
             input.read_exact(&mut bytes)?;
             let begin = patch_at;
-            while patch_at < patches.len()
-                && patches[patch_at] / OUTPUT_BLOCK_SIZE as u64 == block as u64
-            {
+            while patch_at < patches.len() && patches[patch_at].0 == block {
                 patch_at += 1;
             }
             batch.push((block, bytes, &patches[begin..patch_at]));
         }
         let encoded = batch
             .into_par_iter()
-            .map(|(block, bytes, changes)| -> Result<_> {
+            .map(|(_block, bytes, changes)| -> Result<_> {
                 if changes.is_empty() {
                     return Ok(bytes);
                 }
                 let mut raw = Vec::with_capacity(OUTPUT_BLOCK_SIZE);
                 bgzf::io::Reader::new(&bytes[..]).read_to_end(&mut raw)?;
-                for &offset in changes {
-                    raw[offset as usize - block * OUTPUT_BLOCK_SIZE] |= 4;
+                for &(_, offset) in changes {
+                    raw[offset] |= 4;
                 }
                 compress_block(&raw)
             })
@@ -474,9 +481,23 @@ fn write_markdup_reusing_blocks(
     blocks.push(compressed_offset);
     output.write_all(&bgzf::io::Writer::new(Vec::new()).finish()?)?;
     output.flush()?;
+    let records = layout
+        .raw_records
+        .iter()
+        .map(|&offset| {
+            if offset == *layout.raw_blocks.last().expect("BGZF has an EOF offset") {
+                compressed_offset << 16
+            } else {
+                let block = layout.raw_blocks.partition_point(|&start| start <= offset) - 1;
+                (blocks[block] << 16) | (offset - layout.raw_blocks[block])
+            }
+        })
+        .collect();
     Ok(BamLayout {
-        records: layout.records.clone(),
+        records,
+        raw_records: layout.raw_records.clone(),
         blocks,
+        raw_blocks: layout.raw_blocks.clone(),
     })
 }
 
@@ -1046,7 +1067,7 @@ fn write_markdup_metrics(out: &Path, metrics: &DupMetrics) -> Result<()> {
 
 #[derive(Default)]
 struct BaiReference {
-    bins: BTreeMap<u32, Vec<(u64, u64)>>,
+    bins: Vec<Vec<(u64, u64)>>,
     linear: Vec<u64>,
     first: Option<u64>,
     last: u64,
@@ -1065,50 +1086,67 @@ fn reg2bin(start: u32, end: u32) -> u32 {
 }
 
 fn write_index(path: &Path, resident: &Resident, layout: &BamLayout) -> Result<()> {
-    let mut refs = (0..resident.header.reference_sequences().len())
-        .map(|_| BaiReference::default())
-        .collect::<Vec<_>>();
+    let reference_count = resident.header.reference_sequences().len();
+    let mut ranges = vec![(0usize, 0usize); reference_count];
     let mut no_coordinate = 0u64;
     for (rank, &index) in resident.order.iter().enumerate() {
-        let h = resident.headers()[index as usize];
-        if h.tid < 0 {
+        let tid = resident.headers()[index as usize].tid;
+        if tid < 0 {
             no_coordinate += 1;
-            continue;
-        }
-        let r = refs
-            .get_mut(h.tid as usize)
-            .context("BAM reference ID outside header")?;
-        let start = u32::try_from(h.pos).context("negative coordinate on reference")?;
-        let length = if h.flag & 4 != 0 { 1 } else { h.ref_len.max(1) };
-        let end = start
-            .checked_add(length)
-            .context("alignment end overflow")?;
-        if end > 1 << 29 {
-            bail!("alignment exceeds BAI coordinate limit");
-        }
-        let a = layout.virtual_offset(layout.records[rank]);
-        let b = layout.virtual_offset(layout.records[rank + 1]);
-        r.first.get_or_insert(a);
-        r.last = b;
-        if h.flag & 4 == 0 {
-            r.mapped += 1;
         } else {
-            r.unmapped += 1;
-        }
-        let chunks = r.bins.entry(reg2bin(start, end)).or_default();
-        if let Some(last) = chunks.last_mut()
-            && (last.1 >= a || last.1 >> 16 == a >> 16)
-        {
-            last.1 = b;
-        } else {
-            chunks.push((a, b));
-        }
-        let last = ((end - 1) >> 14) as usize;
-        r.linear.resize(r.linear.len().max(last + 1), u64::MAX);
-        for slot in &mut r.linear[(start >> 14) as usize..=last] {
-            *slot = (*slot).min(a);
+            let range = ranges
+                .get_mut(tid as usize)
+                .context("BAM reference ID outside header")?;
+            if range.0 == range.1 {
+                range.0 = rank;
+            }
+            range.1 = rank + 1;
         }
     }
+    let refs = ranges
+        .into_par_iter()
+        .map(|(first_rank, last_rank)| -> Result<BaiReference> {
+            let mut r = BaiReference {
+                bins: vec![Vec::new(); 37_450],
+                ..BaiReference::default()
+            };
+            for rank in first_rank..last_rank {
+                let index = resident.order[rank];
+                let h = resident.headers()[index as usize];
+                let start = u32::try_from(h.pos).context("negative coordinate on reference")?;
+                let length = if h.flag & 4 != 0 { 1 } else { h.ref_len.max(1) };
+                let end = start
+                    .checked_add(length)
+                    .context("alignment end overflow")?;
+                if end > 1 << 29 {
+                    bail!("alignment exceeds BAI coordinate limit");
+                }
+                let a = layout.records[rank];
+                let b = layout.records[rank + 1];
+                r.first.get_or_insert(a);
+                r.last = b;
+                if h.flag & 4 == 0 {
+                    r.mapped += 1;
+                } else {
+                    r.unmapped += 1;
+                }
+                let chunks = &mut r.bins[reg2bin(start, end) as usize];
+                if let Some(last) = chunks.last_mut()
+                    && (last.1 >= a || last.1 >> 16 == a >> 16)
+                {
+                    last.1 = b;
+                } else {
+                    chunks.push((a, b));
+                }
+                let last = ((end - 1) >> 14) as usize;
+                r.linear.resize(r.linear.len().max(last + 1), u64::MAX);
+                for slot in &mut r.linear[(start >> 14) as usize..=last] {
+                    *slot = (*slot).min(a);
+                }
+            }
+            Ok(r)
+        })
+        .collect::<Result<Vec<_>>>()?;
     let mut out = io::BufWriter::new(File::create(PathBuf::from(format!(
         "{}.bai",
         path.display()
@@ -1116,9 +1154,18 @@ fn write_index(path: &Path, resident: &Resident, layout: &BamLayout) -> Result<(
     out.write_all(b"BAI\x01")?;
     out.write_all(&(refs.len() as u32).to_le_bytes())?;
     for r in refs {
-        out.write_all(&((r.bins.len() + usize::from(r.first.is_some())) as u32).to_le_bytes())?;
-        for (bin, chunks) in r.bins {
-            out.write_all(&bin.to_le_bytes())?;
+        out.write_all(
+            &((r.bins.iter().filter(|chunks| !chunks.is_empty()).count()
+                + usize::from(r.first.is_some())) as u32)
+                .to_le_bytes(),
+        )?;
+        for (bin, chunks) in r
+            .bins
+            .into_iter()
+            .enumerate()
+            .filter(|(_, chunks)| !chunks.is_empty())
+        {
+            out.write_all(&(bin as u32).to_le_bytes())?;
             out.write_all(&(chunks.len() as u32).to_le_bytes())?;
             for (a, b) in chunks {
                 out.write_all(&a.to_le_bytes())?;
@@ -1335,9 +1382,13 @@ fn write_featurecounts(
     gtf: &Path,
     resident: &Resident,
     _pool: &rayon::ThreadPool,
-) -> Result<()> {
-    let features = read_features(gtf, &resident.header)?;
+) -> Result<(Duration, Duration)> {
+    let now = Instant::now();
+    let features = _pool.install(|| read_features(gtf, &resident.header))?;
+    let gtf_parse = now.elapsed();
+    let now = Instant::now();
     let totals = count_fragments(resident, &features)?;
+    let count = now.elapsed();
     let input = input.canonicalize().unwrap_or_else(|_| input.to_owned());
     let mut text = format!(
         "# Program:featureCounts v2.1.1; Command:\"umbam\"\nGeneid\tChr\tStart\tEnd\tStrand\tLength\t{}\n",
@@ -1369,39 +1420,57 @@ fn write_featurecounts(
         ));
     }
     fs::write(out.join("featureCounts.txt"), text)?;
-    Ok(())
+    Ok((gtf_parse, count))
+}
+
+struct ParsedExon {
+    chrom: String,
+    start: i32,
+    end: i32,
+    strand: String,
+    id: String,
 }
 
 fn read_features(gtf: &Path, header: &sam::Header) -> Result<FeatureIndex> {
+    let data = fs::read(gtf)?;
+    let threads = rayon::current_num_threads().max(1);
+    let mut starts = Vec::with_capacity(threads + 1);
+    starts.push(0);
+    for part in 1..threads {
+        let mut at = data.len() * part / threads;
+        while at < data.len() && data[at] != b'\n' {
+            at += 1;
+        }
+        starts.push((at + 1).min(data.len()));
+    }
+    starts.push(data.len());
+    let parsed = starts
+        .windows(2)
+        .collect::<Vec<_>>()
+        .into_par_iter()
+        .map(|range| {
+            data[range[0]..range[1]]
+                .split(|&byte| byte == b'\n')
+                .filter(|line| !line.is_empty() && line[0] != b'#')
+                .filter_map(parse_gtf_exon)
+                .collect::<Result<Vec<_>>>()
+        })
+        .collect::<Result<Vec<_>>>()?;
     let mut genes = Vec::<Gene>::new();
     let mut gene_ids = HashMap::<String, usize>::new();
-    for line in fs::read_to_string(gtf)?.lines() {
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let fields: Vec<_> = line.split('\t').collect();
-        if fields.len() != 9 || fields[2] != "exon" {
-            continue;
-        }
-        let id = fields[8]
-            .split(';')
-            .find_map(|field| field.trim().strip_prefix("gene_id "))
-            .and_then(|value| value.trim_matches('"').split('"').next())
-            .context("exon has no gene_id")?
-            .to_owned();
-        let start: i32 = fields[3].parse::<i32>()? - 1;
-        let end: i32 = fields[4].parse()?;
+    for exon in parsed.into_iter().flatten() {
+        let id = exon.id;
         let index = *gene_ids.entry(id.clone()).or_insert_with(|| {
             let index = genes.len();
             genes.push(Gene {
                 id,
-                chrom: fields[0].to_owned(),
-                strand: fields[6].to_owned(),
+                chrom: exon.chrom,
+                strand: exon.strand,
                 ..Gene::default()
             });
             index
         });
-        genes[index].exons.push((start, end));
+        genes[index].exons.push((exon.start, exon.end));
     }
     let names: HashMap<_, _> = header_sequences(header)?
         .into_iter()
@@ -1434,6 +1503,45 @@ fn read_features(gtf: &Path, header: &sam::Header) -> Result<FeatureIndex> {
         }
     }
     Ok(FeatureIndex { genes, by_tid })
+}
+
+fn parse_gtf_exon(line: &[u8]) -> Option<Result<ParsedExon>> {
+    let mut fields = line.split(|&byte| byte == b'\t');
+    let chrom = fields.next()?;
+    let _source = fields.next()?;
+    if fields.next()? != b"exon" {
+        return None;
+    }
+    let start = fields.next()?;
+    let end = fields.next()?;
+    let _score = fields.next()?;
+    let strand = fields.next()?;
+    let _frame = fields.next()?;
+    let attributes = fields.next()?;
+    if fields.next().is_some() {
+        return None;
+    }
+    Some((|| {
+        let id = attributes
+            .split(|&byte| byte == b';')
+            .find_map(|field| {
+                let field = field.trim_ascii();
+                field.strip_prefix(b"gene_id ").and_then(|value| {
+                    let value = value.trim_ascii();
+                    value
+                        .strip_prefix(b"\"")
+                        .and_then(|value| value.split(|&byte| byte == b'\"').next())
+                })
+            })
+            .context("exon has no gene_id")?;
+        Ok(ParsedExon {
+            chrom: std::str::from_utf8(chrom)?.to_owned(),
+            start: std::str::from_utf8(start)?.parse::<i32>()? - 1,
+            end: std::str::from_utf8(end)?.parse()?,
+            strand: std::str::from_utf8(strand)?.to_owned(),
+            id: std::str::from_utf8(id)?.to_owned(),
+        })
+    })())
 }
 
 fn records_by_tid(resident: &Resident) -> Vec<(i32, Vec<usize>)> {
@@ -1667,13 +1775,15 @@ fn write_timing(out: &Path, timing: &Timing) -> io::Result<()> {
     fs::write(
         out.join("timing.tsv"),
         format!(
-            "stage\tseconds\ndecode\t{:.6}\nsort\t{:.6}\nwrite_sorted\t{:.6}\nmarkdup\t{:.6}\nwrite_markdup\t{:.6}\nindex\t{:.6}\nfeaturecounts\t{:.6}\ngenomecov\t{:.6}\npeak_rss_bytes\t{}\n",
+            "stage\tseconds\ndecode\t{:.6}\nsort\t{:.6}\nwrite_sorted\t{:.6}\nmarkdup\t{:.6}\nwrite_markdup\t{:.6}\nindex\t{:.6}\ngtf_parse\t{:.6}\nfeaturecounts_count\t{:.6}\nfeaturecounts\t{:.6}\ngenomecov\t{:.6}\npeak_rss_bytes\t{}\n",
             timing.decode.as_secs_f64(),
             timing.sort.as_secs_f64(),
             timing.write_sorted.as_secs_f64(),
             timing.markdup.as_secs_f64(),
             timing.write_markdup.as_secs_f64(),
             timing.index.as_secs_f64(),
+            timing.gtf_parse.as_secs_f64(),
+            timing.featurecounts_count.as_secs_f64(),
             timing.featurecounts.as_secs_f64(),
             timing.genomecov.as_secs_f64(),
             peak_rss_bytes()
@@ -1831,17 +1941,17 @@ mod tests {
         bam::io::Writer::from(&mut header_bytes)
             .write_header(&r.header)
             .unwrap();
-        // Second FLAG's low byte is the last byte in block 0, high byte starts block 1.
+        // The second record does not fit in block 0, so its flag is wholly in block 1.
         let first_len = OUTPUT_BLOCK_SIZE - header_bytes.len() - 4 - 19;
         bodies[0].extend_from_slice(b"ZZZ");
         bodies[0].resize(first_len - 1, b'x');
         bodies[0].push(0);
         bodies[1].extend_from_slice(b"ZZZ");
-        bodies[1].resize(OUTPUT_BLOCK_SIZE * 4, b'y');
+        bodies[1].resize(4096, b'y');
         bodies[1].push(0);
         let r = resident_from_bodies(&bodies);
         let layout = write_bam(&sorted, &r, 4).unwrap();
-        assert_eq!((layout.records[1] + 19) % OUTPUT_BLOCK_SIZE as u64, 0);
+        assert_eq!(layout.records[1] >> 16, layout.blocks[1]);
         let duplicates = HashSet::from([1]);
         let changed =
             write_markdup_reusing_blocks(&sorted, &marked, &r, 4, &duplicates, &layout).unwrap();
