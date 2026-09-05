@@ -1,0 +1,95 @@
+=== T6 idle-box run Sat Sep  5 12:26:15 AM EDT 2026 ===
+ 00:26:15 up 13 days, 13:51,  2 users,  load average: 2.88, 2.04, 0.91
+
+##### bw_paths 4096 seed 1
+Device: NVIDIA GB10 sm_121 pageableMemoryAccess=1 concurrentManagedAccess=1 hostPageTables=1 directManagedHost=0
+Buffer: 4096 MiB, seed 1
+nvidia-smi (before):
+208 MHz, [N/A], 40, 4.89 W
+memory-class order: cudaMallocManaged plain malloc HMM/ATS cudaMallocHost pinned cudaMalloc device
+cudaMallocManaged                      first-wall   28.525 ms  device best/median   27.492/  27.939 ms  wall median   27.948 ms    153.73 GB/s  [sum 101010100000000]
+  random gather                        first-wall   60.289 ms  device best/median   33.791/  51.350 ms  wall median   51.358 ms      0.00 GB/s  [sum 1818181800000]
+plain malloc HMM/ATS                   first-wall  149.887 ms  device best/median  105.906/ 136.974 ms  wall median  136.983 ms     31.36 GB/s  [sum 141414140000000]
+  random gather                        first-wall  612.367 ms  device best/median  587.408/ 612.362 ms  wall median  612.367 ms      0.00 GB/s  [sum 1e1e1e1e00000]
+cudaMallocHost pinned                  first-wall   90.954 ms  device best/median   23.770/  25.582 ms  wall median   25.590 ms    167.89 GB/s  [sum c0c0c0c0000000]
+  random gather                        first-wall  809.701 ms  device best/median  681.099/ 809.699 ms  wall median  809.701 ms      0.00 GB/s  [sum 1212121200000]
+cudaMalloc device                      first-wall  128.651 ms  device best/median  112.459/ 128.350 ms  wall median  128.358 ms     33.46 GB/s  [sum 40404040000000]
+  random gather                        first-wall  735.838 ms  device best/median  734.268/ 736.007 ms  wall median  736.011 ms      0.00 GB/s  [sum 606060600000]
+CPU memcpy (consumed checksum 202020202020202): 54.80 GB/s
+nvidia-smi (after):
+2411 MHz, [N/A], 43, 11.08 W
+
+##### bw_paths 4096 seed 2
+Device: NVIDIA GB10 sm_121 pageableMemoryAccess=1 concurrentManagedAccess=1 hostPageTables=1 directManagedHost=0
+Buffer: 4096 MiB, seed 2
+nvidia-smi (before):
+2411 MHz, [N/A], 43, 11.17 W
+memory-class order: cudaMalloc device cudaMallocHost pinned plain malloc HMM/ATS cudaMallocManaged
+cudaMalloc device                      first-wall   20.859 ms  device best/median   17.958/  18.208 ms  wall median   18.212 ms    235.89 GB/s  [sum 40404040000000]
+  random gather                        first-wall    2.300 ms  device best/median    2.260/   2.306 ms  wall median    2.311 ms      0.00 GB/s  [sum 606060600000]
+cudaMallocHost pinned                  first-wall   21.803 ms  device best/median   21.799/  21.859 ms  wall median   21.871 ms    196.49 GB/s  [sum c0c0c0c0000000]
+  random gather                        first-wall  658.783 ms  device best/median  655.457/ 658.783 ms  wall median  658.783 ms      0.00 GB/s  [sum 1212121200000]
+plain malloc HMM/ATS                   first-wall   26.763 ms  device best/median   26.665/  26.739 ms  wall median   26.744 ms    160.63 GB/s  [sum 141414140000000]
+  random gather                        first-wall  367.787 ms  device best/median  366.314/ 368.039 ms  wall median  368.042 ms      0.00 GB/s  [sum 1e1e1e1e00000]
+cudaMallocManaged                      first-wall   26.469 ms  device best/median   26.465/  26.465 ms  wall median   26.470 ms    162.29 GB/s  [sum 101010100000000]
+  random gather                        first-wall    2.455 ms  device best/median    2.435/   2.440 ms  wall median    2.444 ms      0.00 GB/s  [sum 1818181800000]
+CPU memcpy (consumed checksum 202020202020202): 54.58 GB/s
+nvidia-smi (after):
+2411 MHz, [N/A], 43, 10.87 W
+
+##### bw_paths 16384 seed 3
+Terminated
+
+##### chase 4096
+Device NVIDIA GB10, 48 SMs
+
+memory class                WS(MiB) lat ns/hop (1 chain)   Mlk/s @64K T    Mlk/s @1M T
+cudaMalloc (device)              16                  138          15096          15166 [checksums 9e3779b97f62a5bd/f00e877fa1df3036/bcbb21312a6cb263]
+cudaMallocHost (pinned)          16                  379           3769           3763 [checksums 9e3779b97f62a5bd/f00e877fa1df3036/bcbb21312a6cb263]
+cudaMallocManaged                16                  136           6780           6785 [checksums 9e3779b97f62a5bd/f00e877fa1df3036/bcbb21312a6cb263]
+plain malloc (HMM/ATS)           16                  140           6367           6490 [checksums 9e3779b97f62a5bd/f00e877fa1df3036/bcbb21312a6cb263]
+cudaMalloc (device)              64                  140           3934           3915 [checksums 9e3779b97f5edcee/921fbdeb99421c4d/2c0f58594cc50289]
+cudaMallocHost (pinned)          64                  391           3434           3419 [checksums 9e3779b97f5edcee/921fbdeb99421c4d/2c0f58594cc50289]
+cudaMallocManaged                64                  136           2933           2944 [checksums 9e3779b97f5edcee/921fbdeb99421c4d/2c0f58594cc50289]
+plain malloc (HMM/ATS)           64                  140           2958           2995 [checksums 9e3779b97f5edcee/921fbdeb99421c4d/2c0f58594cc50289]
+cudaMalloc (device)             256                  140           3645           3625 [checksums 9e3779b981082f87/c40eb32555ff8d30/cf44746399bb54f5]
+cudaMallocHost (pinned)         256                  428           2083           2204 [checksums 9e3779b981082f87/c40eb32555ff8d30/cf44746399bb54f5]
+cudaMallocManaged               256                  136           2704           2724 [checksums 9e3779b981082f87/c40eb32555ff8d30/cf44746399bb54f5]
+plain malloc (HMM/ATS)          256                  174           1722           1823 [checksums 9e3779b981082f87/c40eb32555ff8d30/cf44746399bb54f5]
+cudaMalloc (device)            1024                  140           3504           3492 [checksums 9e3779b986908374/cf260dc85d36960/1589f786f7516446]
+cudaMallocHost (pinned)        1024                 1183             18             18 [checksums 9e3779b986908374/cf260dc85d36960/1589f786f7516446]
+cudaMallocManaged              1024                  139           2626           2649 [checksums 9e3779b986908374/cf260dc85d36960/1589f786f7516446]
+plain malloc (HMM/ATS)         1024                  777             23             23 [checksums 9e3779b986908374/cf260dc85d36960/1589f786f7516446]
+cudaMalloc (device)            4096                  167           2601           2744 [checksums 9e3779b988c9e24c/6ee699f9ad55001a/3454274d77d5ae98]
+cudaMallocHost (pinned)        4096                 1863             10             10 [checksums 9e3779b988c9e24c/6ee699f9ad55001a/3454274d77d5ae98]
+cudaMallocManaged              4096                  140           2604           2630 [checksums 9e3779b988c9e24c/6ee699f9ad55001a/3454274d77d5ae98]
+plain malloc (HMM/ATS)         4096                 1019             16             16 [checksums 9e3779b988c9e24c/6ee699f9ad55001a/3454274d77d5ae98]
+
+CPU single-thread dependent chase, 1024 MiB WS: 133 ns/hop (sink 46406332)
+
+##### chase_thp 4096 seed 1
+allocation order (seed 1): THP+collapse 4K THP
+MADV_COLLAPSE errno count: 0
+
+memory class                                 THP VMA   Mlk/s @64K T    Mlk/s @1M T
+MADV_HUGEPAGE + populate + MADV_COLLAPSE      100.0%           2605           2631 [sum 6ee699f9ad55001a/3454274d77d5ae98]
+mmap anon + MADV_NOHUGEPAGE (HMM)               0.0%             16             16 [sum 6ee699f9ad55001a/3454274d77d5ae98]
+mmap + MADV_HUGEPAGE (HMM, THP)               100.0%           2628           2631 [sum 6ee699f9ad55001a/3454274d77d5ae98]
+
+##### chase_thp 4096 seed 2
+allocation order (seed 2): 4K THP THP+collapse
+MADV_COLLAPSE errno count: 0
+
+memory class                                 THP VMA   Mlk/s @64K T    Mlk/s @1M T
+mmap anon + MADV_NOHUGEPAGE (HMM)               0.0%             16             16 [sum 6ee699f9ad55001a/3454274d77d5ae98]
+mmap + MADV_HUGEPAGE (HMM, THP)               100.0%           2589           2631 [sum 6ee699f9ad55001a/3454274d77d5ae98]
+MADV_HUGEPAGE + populate + MADV_COLLAPSE      100.0%           2620           2587 [sum 6ee699f9ad55001a/3454274d77d5ae98]
+
+##### chase_thp 12288 seed 3
+allocation order (seed 3): THP+collapse THP 4K
+MADV_COLLAPSE errno count: 0
+
+memory class                                 THP VMA   Mlk/s @64K T    Mlk/s @1M T
+MADV_HUGEPAGE + populate + MADV_COLLAPSE      100.0%           2599           2624 [sum e42a26fdba2a86cf/7d69416820af8d88]
+mmap + MADV_HUGEPAGE (HMM, THP)               100.0%           2595           2627 [sum e42a26fdba2a86cf/7d69416820af8d88]
+mmap anon + MADV_NOHUGEPAGE (HMM)               0.0%             15             15 [sum e42a26fdba2a86cf/7d69416820af8d88]

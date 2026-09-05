@@ -1,0 +1,67 @@
+{
+ "tier1": {
+  "run": "ERR188140",
+  "sample": "NA12716",
+  "sex": "M",
+  "reads": 78619701,
+  "gb": 10.19,
+  "ftp": "ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188140/ERR188140_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188140/ERR188140_2.fastq.gz",
+  "md5": "b7b1e35964c3460df9b8781901bd8730;d369863e1905c54f6f9fcc8af2e94fc9"
+ },
+ "tier2a": [
+  {
+   "run": "ERR204897",
+   "sample": "NA12399",
+   "sex": "M",
+   "reads": 73383941,
+   "gb": 10.66,
+   "ftp": "ftp.sra.ebi.ac.uk/vol1/fastq/ERR204/ERR204897/ERR204897_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR204/ERR204897/ERR204897_2.fastq.gz",
+   "md5": "0434eea1ead6d0963e83676cf551816c;95ac443b5f14865666fd9f4401594dac"
+  },
+  {
+   "run": "ERR188354",
+   "sample": "NA12775",
+   "sex": "M",
+   "reads": 48606058,
+   "gb": 7.0,
+   "ftp": "ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188354/ERR188354_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188354/ERR188354_2.fastq.gz",
+   "md5": "10c1e489d36e6ae680dd36f9ea9176e4;5c48d5e2d24c2149a06cc7531eb78f3c"
+  },
+  {
+   "run": "ERR188081",
+   "sample": "NA12814",
+   "sex": "M",
+   "reads": 44716873,
+   "gb": 6.42,
+   "ftp": "ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188081/ERR188081_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188081/ERR188081_2.fastq.gz",
+   "md5": "c2024b319ccea3b9bb056913d9268c2b;529a1515df4bde03bab7ad7a42f1e1dc"
+  },
+  {
+   "run": "ERR188339",
+   "sample": "NA12815",
+   "sex": "F",
+   "reads": 37142091,
+   "gb": 5.63,
+   "ftp": "ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188339/ERR188339_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188339/ERR188339_2.fastq.gz",
+   "md5": "f930355862263588aed02c4ad75d2ca5;28c7989f788a271850a5ac173d2d5ad4"
+  },
+  {
+   "run": "ERR188152",
+   "sample": "NA12751",
+   "sex": "F",
+   "reads": 36595779,
+   "gb": 5.22,
+   "ftp": "ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188152/ERR188152_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188152/ERR188152_2.fastq.gz",
+   "md5": "15ad7e6f24523c1700f14d873c8a77cb;cbd5026b8c9c06929c96e69e36da27b2"
+  },
+  {
+   "run": "ERR188217",
+   "sample": "NA11832",
+   "sex": "F",
+   "reads": 35038308,
+   "gb": 5.0,
+   "ftp": "ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188217/ERR188217_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR188/ERR188217/ERR188217_2.fastq.gz",
+   "md5": "d8e7a2f6fff63e5980fec7ec1bca7128;8fab0115597a9ed0a94bf7df256cff6e"
+  }
+ ]
+}

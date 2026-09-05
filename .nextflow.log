@@ -1,0 +1,1 @@
+Sep-04 19:57:38.324 [main] DEBUG nextflow.cli.Launcher - $> nextflow -q run hello -help

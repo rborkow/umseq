@@ -1,0 +1,17 @@
+# build artifacts
+target/
+bench/cuda/bw_paths
+bench/cuda/chase
+bench/cuda/chase_thp*
+bench/metal/probe_metal
+*.o
+*.metallib
+
+# data (lives on the Spark under ~/uni-rnaseq/data; Mac keeps Tier 0/1 only)
+data/
+
+# worker logs
+.hermes/cards/*.log
+
+# editor / os
+.DS_Store
