@@ -24,6 +24,8 @@ use std::{
 };
 use umem::{Allocation, Buf, Pod, Ro, Rw};
 
+mod qc;
+
 /// Fixed metadata shared by CPU and future GPU implementations.
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -68,10 +70,23 @@ struct Timing {
     featurecounts_count: Duration,
     featurecounts: Duration,
     genomecov: Duration,
+    qc_bam_stat: Duration,
+    qc_seq_duplication: Duration,
 }
 
 /// Runs the resident CPU control path.
 pub fn chain(input: &Path, gtf: &Path, out_dir: &Path, threads: usize) -> Result<()> {
+    chain_with_qc(input, gtf, out_dir, threads, false)
+}
+
+/// Runs the resident chain, optionally emitting the QC text artifacts consumed by MultiQC.
+pub fn chain_with_qc(
+    input: &Path,
+    gtf: &Path,
+    out_dir: &Path,
+    threads: usize,
+    run_qc: bool,
+) -> Result<()> {
     fs::create_dir_all(out_dir).with_context(|| format!("create {}", out_dir.display()))?;
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads.max(1))
@@ -121,6 +136,11 @@ pub fn chain(input: &Path, gtf: &Path, out_dir: &Path, threads: usize) -> Result
     let now = Instant::now();
     write_genomecov(out_dir, &resident, &pool)?;
     let genomecov = now.elapsed();
+    let qc_timing = if run_qc {
+        qc::write(out_dir, &resident, &markdup_result.duplicates)?
+    } else {
+        qc::Timing::default()
+    };
     write_timing(
         out_dir,
         &Timing {
@@ -134,6 +154,8 @@ pub fn chain(input: &Path, gtf: &Path, out_dir: &Path, threads: usize) -> Result
             featurecounts_count,
             featurecounts,
             genomecov,
+            qc_bam_stat: qc_timing.bam_stat,
+            qc_seq_duplication: qc_timing.seq_duplication,
         },
     )?;
     Ok(())
@@ -1940,7 +1962,7 @@ fn write_timing(out: &Path, timing: &Timing) -> io::Result<()> {
     fs::write(
         out.join("timing.tsv"),
         format!(
-            "stage\tseconds\ndecode\t{:.6}\nsort\t{:.6}\nwrite_sorted\t{:.6}\nmarkdup\t{:.6}\nwrite_markdup\t{:.6}\nindex\t{:.6}\ngtf_parse\t{:.6}\nfeaturecounts_count\t{:.6}\nfeaturecounts\t{:.6}\ngenomecov\t{:.6}\npeak_rss_bytes\t{}\n",
+            "stage\tseconds\ndecode\t{:.6}\nsort\t{:.6}\nwrite_sorted\t{:.6}\nmarkdup\t{:.6}\nwrite_markdup\t{:.6}\nindex\t{:.6}\ngtf_parse\t{:.6}\nfeaturecounts_count\t{:.6}\nfeaturecounts\t{:.6}\ngenomecov\t{:.6}\nqc_bam_stat\t{:.6}\nqc_seq_duplication\t{:.6}\npeak_rss_bytes\t{}\n",
             timing.decode.as_secs_f64(),
             timing.sort.as_secs_f64(),
             timing.write_sorted.as_secs_f64(),
@@ -1951,6 +1973,8 @@ fn write_timing(out: &Path, timing: &Timing) -> io::Result<()> {
             timing.featurecounts_count.as_secs_f64(),
             timing.featurecounts.as_secs_f64(),
             timing.genomecov.as_secs_f64(),
+            timing.qc_bam_stat.as_secs_f64(),
+            timing.qc_seq_duplication.as_secs_f64(),
             peak_rss_bytes()
         ),
     )

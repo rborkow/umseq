@@ -19,6 +19,9 @@ enum Command {
         out_dir: std::path::PathBuf,
         #[arg(long)]
         threads: Option<usize>,
+        /// Emit resident QC text outputs under the chain output directory.
+        #[arg(long)]
+        qc: bool,
     },
 }
 
@@ -30,7 +33,8 @@ fn main() -> anyhow::Result<()> {
             gtf,
             out_dir,
             threads,
-        } => umbam::chain(&input, &gtf, &out_dir, threads.unwrap_or_else(num_cpus)),
+            qc,
+        } => umbam::chain_with_qc(&input, &gtf, &out_dir, threads.unwrap_or_else(num_cpus), qc),
     }
 }
 
