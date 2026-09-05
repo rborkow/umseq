@@ -136,7 +136,55 @@ impl<M: Mode> Buf<M> {
     }
 }
 
+/// Types that are valid for any bit pattern and have no padding-dependent invariants, so a
+/// `[u8]` region can be viewed as `[T]`. Implement only for `#[repr(C)]` types made of
+/// integers/floats with no padding bytes that must be initialized (padding is zero-filled here).
+///
+/// # Safety
+/// `Self` must be `#[repr(C)]` or `#[repr(transparent)]`, contain no references, pointers,
+/// `bool`, `char`, enums, or other types with invalid bit patterns, and every byte of a valid
+/// value must be a plain integer/float byte.
+pub unsafe trait Pod: Copy + 'static {}
+// SAFETY: primitive integers/floats are valid for all bit patterns.
+unsafe impl Pod for u8 {}
+// SAFETY: as above.
+unsafe impl Pod for u16 {}
+// SAFETY: as above.
+unsafe impl Pod for u32 {}
+// SAFETY: as above.
+unsafe impl Pod for u64 {}
+// SAFETY: as above.
+unsafe impl Pod for i8 {}
+// SAFETY: as above.
+unsafe impl Pod for i16 {}
+// SAFETY: as above.
+unsafe impl Pod for i32 {}
+// SAFETY: as above.
+unsafe impl Pod for i64 {}
+// SAFETY: as above.
+unsafe impl Pod for f32 {}
+// SAFETY: as above.
+unsafe impl Pod for f64 {}
+
+impl<M: Mode> Buf<M> {
+    /// Views the buffer as a slice of `T`. Requires the mapping base to be aligned for `T`
+    /// (always true: mappings are page-aligned) and returns the largest whole-`T` prefix.
+    pub fn as_pod_slice<T: Pod>(&self) -> &[T] {
+        let n = self.len() / std::mem::size_of::<T>();
+        // SAFETY: T: Pod ⇒ any bytes are a valid T; base is page-aligned ⇒ aligned for T; the
+        // CPU exclusively owns this Buf so no GPU write can race; length is a whole-T prefix.
+        unsafe { std::slice::from_raw_parts(self.inner.mapping.ptr().cast::<T>(), n) }
+    }
+}
+
 impl Buf<Rw> {
+    /// Mutable typed view; see [`Buf::as_pod_slice`].
+    pub fn as_pod_mut_slice<T: Pod>(&mut self) -> &mut [T] {
+        let n = self.len() / std::mem::size_of::<T>();
+        // SAFETY: as `as_pod_slice`, plus `&mut self` proves exclusive CPU access.
+        unsafe { std::slice::from_raw_parts_mut(self.inner.mapping.ptr().cast::<T>(), n) }
+    }
+
     /// Returns the CPU-writable byte slice.
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
         // SAFETY: &mut Buf proves exclusive CPU access, and mapping lives through the borrow.
@@ -445,6 +493,64 @@ pub struct ContextMismatch {
     pub expected: ContextId,
     /// Context found on the offending lease.
     pub found: ContextId,
+}
+
+/// A bump allocator over a `Buf<Rw>`: append byte payloads, get back `(offset, len)` handles
+/// that remain valid for the life of the arena and are meaningful to a GPU consumer of the
+/// same buffer. Never reallocates; `push` fails when full. Not thread-safe by design — fill it
+/// from one thread (or shard into several arenas) and read it from many.
+pub struct Arena {
+    buf: Buf<Rw>,
+    used: usize,
+}
+
+/// A handle into an [`Arena`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Span {
+    /// Byte offset from the arena base.
+    pub offset: u64,
+    /// Byte length.
+    pub len: u32,
+}
+
+impl Arena {
+    /// Wraps a buffer; existing contents are ignored and overwritten.
+    pub fn new(buf: Buf<Rw>) -> Self {
+        Self { buf, used: 0 }
+    }
+    /// Capacity in bytes.
+    pub fn capacity(&self) -> usize {
+        self.buf.len()
+    }
+    /// Bytes used so far.
+    pub fn used(&self) -> usize {
+        self.used
+    }
+    /// Appends `bytes`, returning a handle, or `None` if it would not fit or exceeds `u32`.
+    pub fn push(&mut self, bytes: &[u8]) -> Option<Span> {
+        let len = u32::try_from(bytes.len()).ok()?;
+        let end = self.used.checked_add(bytes.len())?;
+        if end > self.buf.len() {
+            return None;
+        }
+        self.buf.as_mut_slice()[self.used..end].copy_from_slice(bytes);
+        let span = Span {
+            offset: self.used as u64,
+            len,
+        };
+        self.used = end;
+        Some(span)
+    }
+    /// Resolves a handle. Panics on an out-of-range span (a logic error, not user input).
+    pub fn get(&self, span: Span) -> &[u8] {
+        let start = span.offset as usize;
+        &self.buf.as_slice()[start..start + span.len as usize]
+    }
+    /// Consumes the arena, returning the underlying buffer (and the used length) so it can be
+    /// leased to a GPU. Bytes past `used` are unspecified.
+    pub fn into_buf(self) -> (Buf<Rw>, usize) {
+        (self.buf, self.used)
+    }
 }
 
 static_assertions::assert_impl_all!(Buf<Ro>: Send, Sync);

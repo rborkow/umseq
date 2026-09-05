@@ -1,0 +1,21 @@
+[package]
+name = "umbam"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+noodles-bam = "0.95"
+noodles-bgzf = "0.45"
+noodles-core = "0.20"
+noodles-gff = "0.62"
+noodles-gtf = "0.57"
+noodles-sam = "0.90"
+rayon = "1"
+libc = "0.2"
+thiserror = "2"
+umem = { path = "../umem" }
+
+[dev-dependencies]
+tempfile = "3"

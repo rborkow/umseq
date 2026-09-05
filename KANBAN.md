@@ -21,6 +21,7 @@ Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / 
 - P0-BENCH-T5 — ext4 large-folio test for a read-only mmap'd file with GPU chase (me; decides whether file-backed BAM ever gets the random-access path — not needed before Phase 1.5)
 
 ## In Progress
+- **P2A-UMBAM-PERF** — umbam performance pass: parse/write/index/genomecov, target <60 s on 20M BAM, gates byte-identical (Terra)
 - P1-TIER2A-THROUGHPUT — 6 CEU samples full depth, one run, QC overlapped → samples/day (`runs/tier2a/`, started 2026-09-05 ~09:30, est. 4-6 h). Also the Tier 2A DE input.
 - P1-PROFILE-SPARK — `perf` unlocked (paranoid=1); next: perf record on picard/samtools/STAR standalone
 
@@ -31,6 +32,8 @@ Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / 
 - P0-SPARK — luna done. Verified: rustup 1.98.1, micromamba env `rnaseq`, nextflow 26.04.6 w/ user-local JDK 17, nvCOMP CUDA13 sbsa at `~/.local/opt/nvcomp`, docker GPU smoke test OK. Corrections by me: bioconda STAR was 2.7.3a (linux-aarch64 lag) → built 2.7.11b from source with `-march=native`, symlinked at `~/.local/bin/STAR`; worker missed `cub.cuh` which exists at `/usr/local/cuda/targets/sbsa-linux/include/cccl/cub/` (CUDA 13 moved it under `cccl/`) — not a blocker.
 
 ## Done
+- **P2A-UMBAM-CPU** — CPU control arm, 6/6 Tier 0 gates, 416 s on 20M BAM (parity; profile in bench/PHASE2A-umbam-20M.md)
+- **P2-TIER2A** — 6×78M overlapped on Spark: 208 min, 41.5 samples/day, 32% util; QC single-thread = 58% (bench/PHASE2-tier2a-throughput.md)
 - P2-UMEM-IMPL — `crates/umem`, terra + 2 review rounds (mine, astra `docs/review-umem-impl-astra.md`). Fixed from astra pass: **B1** panic in `Fence::wait`/destructor could free storage before completion → `RetentionGuard` field-order trick (guard declared before fence; `completed` flag set only on observed success; anything else quarantines on unwind), proven by two catch_unwind tests; **B2** file contract now covers all writers, all derived leases/submissions, forgotten device work; **S1** file EOF padding vs page-rounded VMA; **S2** `Poll::{Ready,Pending,Failed}` replaces panicking retry; **S3** populate distinguishes EINVAL (fallback) from ENOMEM/EFAULT (error); **S5** real PROT_NONE guard pages owned on both sides (prevents VMA merge; smaps now accepts exact contiguous tiling for the split case); **S6** `Submission` owns `Vec<AnyLease>` + one fence + one context (`unsafe fn new` with `ContextMismatch` returning leases), `AnyBuf` preserves Ro/Rw, `GpuLease::len()` for wrapper bounds. Nits: `huge:false` → MADV_NOHUGEPAGE control; `FilePmdMapped` counted; checked KiB parse. 11/11 tests both boxes; THP 100% @4 GiB in 0.06 s ×3.
 - P1-NFCORE-SPARK-FULL — 78M pairs: 105 min wall, 160 cpu-min. Everything scales linearly with depth; Qualimap 33 min + Picard 18 min single-threaded = critical path; GPU-shaped share 21% serial. Cost row: ~14/day serial, est. 25-35/day overlapped (`bench/PHASE1-depth-scaling.md`)
 - P1-NFCORE-SPARK-20M — 54 min wall (28 min/sample amortized); STAR 5.8 min @32% eff; QC/BAM chain single-threaded ~22 min (`bench/trace-spark-tier1-20M.txt`)
