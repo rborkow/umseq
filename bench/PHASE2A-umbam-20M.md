@@ -1,4 +1,4 @@
-# Phase 2a — `umbam` CPU control arm on the Spark: 408 s → 162 s
+# Phase 2a — `umbam` CPU control arm on the Spark: 408 s → 104 s
 
 Commit: (this one). `umbam chain` at 6/6 Tier 0 byte-compat gates (sorted BAM, flagstat,
 idxstats, Picard markdup flags + metrics to 6 dp, featureCounts per-gene counts, bedtools
@@ -11,7 +11,31 @@ The first run (416 s, below) was accidentally given the StringTie *transcripts* 
 featureCounts number is not comparable. Both runs in the "Perf pass" section use the
 correct GTF (`data/ref/gencode.v49.filtered.gtf` on the Spark).
 
-## Perf pass 1 (commit after 3272754): 408 s → 162 s, outputs byte-identical
+## Perf pass 2 (d4013f7): 162 s → 104–110 s, outputs byte-identical
+Parallel Picard-exact markdup (sort-and-pair on 64-bit name hash + fragment-end tuples; the
+old implementation kept as a `#[cfg(test)]` oracle with an equivalence test), BAI built from
+in-memory virtual offsets with `ref_len` stored in `RecordHeader` at decode, block-reuse path
+for `markdup.bam` (94.5% of blocks contain a patched flag on Tier 0 → full parallel
+recompression). Two runs:
+
+| stage | v2 | v4 run a | v4 run b |
+|---|---|---|---|
+| decode | 7.5 | 11.2 | 7.9 |
+| sort | 1.2 | 1.2 | 1.3 |
+| write sorted | 10.0 | 16.3 | 16.4 |
+| markdup | 58.7 | **8.8** | **8.9** |
+| write markdup | 17.9 | 21.5 | 20.7 |
+| index | 27.6 | **10.0** | **9.7** |
+| featureCounts | 32.0 | 32.8 | 32.6 |
+| genomecov | 5.7 | 7.0 | 5.7 |
+| **total (wall)** | **162** | **110** | **104** |
+
+Region queries through the direct BAI match the samtools-built index (md5 of
+`chr22:20000000-20100000` and `chr1:150000000-150100000` identical). The sorted write
+regressed 10 → 16 s between v2 and v3 — the same commit added virtual-offset capture per
+record; worth a look. Remaining: writes 37 s, featureCounts 33 s, index 10 s.
+
+## Perf pass 1 (420064e): 408 s → 162 s, outputs byte-identical
 Same input, same GTF, same box, 20 threads. flagstat/idxstats/featureCounts/genomecov
 byte-identical between builds; markdup flags identical (8,918,475 records × 0x400), metrics
 identical (4,447,593 pair dups, 22.96%).
