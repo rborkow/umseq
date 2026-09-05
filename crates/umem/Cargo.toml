@@ -1,0 +1,17 @@
+[package]
+name = "umem"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+libc = "0.2"
+thiserror = "2"
+static_assertions = "1"
+
+[dev-dependencies]
+trybuild = "1"
+criterion = "0.5"
+
+[[bench]]
+name = "allocation"
+harness = false

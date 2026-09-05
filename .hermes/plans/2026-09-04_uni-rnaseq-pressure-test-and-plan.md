@@ -311,6 +311,26 @@ The single experiment that most directly re-litigates the old PoC.
 
 ### Phase 2a — BAM-chain harness (1–2 weeks)
 
+**Rev 3 (2026-09-05), after Phase 1 profiles.** The BAM chain is parallelism-bound, not
+bandwidth-bound: decode is ~2 s, Picard/Qualimap/dupRadar/RSeQC are 39% of task time at one
+core, GPU-shaped work is 21% of serial time. Any GPU kernel must therefore beat a *good
+multi-threaded CPU implementation of the same one-pass design*, not Picard. So:
+
+1. **Control arm first: `umbam-cpu`.** Same `umem` buffers, same single resident decode, same
+   sort → markdup → stats → count → coverage pass, Rayon over records, 20 threads. Byte-compatible
+   with samtools/picard/featureCounts on Tier 0. This is the honest baseline for every GPU
+   number and may be the result on its own.
+2. **CUDA arm second**, on the Spark, against that control.
+3. **Metal arm demoted** to after the M5 Ultra arrives and the CPU arm exists. Kernel-dev on a
+   24 GB box against a workload that isn't bandwidth-bound is effort in the wrong place.
+4. **Phase 1.5 (GPU inflate) is a measurement, not a gate** — nvCOMP is a library call; run it
+   when the CUDA arm exists, report the number, move on.
+5. **Phase 2b (seed search)** keeps its slot as the one experiment where the GPU has a structural
+   advantage the CPU can't match (batched random access into a 30 GB index at 2.6 G lookups/s),
+   but sequences after 2a since STAR is 10% of time and it's the hardest code.
+
+Gate for the CUDA arm: ≥2× over `umbam-cpu` at 20 threads on the same box, same outputs.
+
 ```
 bench/harness/
   umem.{h,cc}               hugepage/plain mmap, both OSes

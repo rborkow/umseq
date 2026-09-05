@@ -1,0 +1,9 @@
+error[E0382]: borrow of moved value: `buffer`
+ --> tests/ui/slice_after_lease.rs:6:18
+  |
+4 |     let buffer = Buf::<Rw>::allocate(4096, Allocation::Anon { huge: false, require_huge: false }).unwrap();
+  |         ------ move occurs because `buffer` has type `Buf<umem::Rw>`, which does not implement the `Copy` trait
+5 |     let lease = buffer.lease(&Context::new(ContextId(1)));
+  |                 ------ value moved here
+6 |     let _slice = buffer.as_slice();
+  |                  ^^^^^^ value borrowed here after move
