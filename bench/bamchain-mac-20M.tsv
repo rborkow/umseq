@@ -1,0 +1,12 @@
+stage	wall_s	user_s	sys_s	peak_rss_gb	threads	out_bytes
+samtools_sort_12t	62.2	216.26	42.75	12.35	12	2726427373
+samtools_sort_1t	184.2	180.97	1.98	4.80	1	2726427373
+samtools_index_12t	2.1	10.90	2.58	0.03	12	2696992
+samtools_view_decode_12t	1.9	10.55	2.52	0.01	12	0
+samtools_view_decode_1t	8.7	10.09	1.49	0.00	1	0
+samtools_stats_1t	21.3	28.84	1.69	0.01	1	0
+samtools_flagstat_12t	2.0	10.87	2.55	0.01	12	0
+picard_markdup	292.4	320.70	5.10	7.09	1	2867854966
+samtools_markdup_12t	0.0	0.00	0.00	0.01	12	3986
+featurecounts_12t	29.1	94.12	63.76	1.00	12	97139449
+bedtools_genomecov	81.5	55.46	25.64	1.86	1	443820368

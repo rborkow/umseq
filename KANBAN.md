@@ -4,8 +4,9 @@ Plan: `.hermes/plans/2026-09-04_uni-rnaseq-pressure-test-and-plan.md`. Card brie
 Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / inkling (routine) / me.
 
 ## Backlog
-- P1-NFCORE-SPARK — nf-core/rnaseq Tier 0/1 on Spark, `-with-trace` (bg job; me)
-- P1-NFCORE-MAC — nf-core/rnaseq Tier 0/1 on Mac, native/conda profile (bg job; me)
+- P1-MARKDUP-SWAP — nf-core `--skip_markduplicates` + samtools markdup path or umbam later; 4× on Spark today, zero engineering (me)
+- P1-MAC-IO — Mac sys-time overhead on sort/featureCounts (42 s / 64 s vs 8 / 3 on Spark); check APFS/page-cache before blaming hardware (luna)
+- P1-MAC-MARKDUP — samtools markdup pipeline errored on Mac 1.22.1; upgrade + rerun (luna)
 - P1-PROFILE-SPARK — `perf` profiles of STAR/salmon/samtools/picard/featureCounts on Tier 1 (me runs; astra analyses)
 - P1-PROFILE-MAC — `xctrace` same (me runs; astra analyses)
 - P1-COST-DATAPOINT — 1 cold + 6 batched samples, CPU-only, both boxes → samples/day (me)
@@ -20,11 +21,19 @@ Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / 
 - P0-BENCH-T5 — ext4 large-folio test for a read-only mmap'd file with GPU chase (me; decides whether file-backed BAM ever gets the random-access path — not needed before Phase 1.5)
 
 ## In Progress
+- P1-TIER2A-THROUGHPUT — 6 CEU samples full depth, one run, QC overlapped → samples/day (`runs/tier2a/`, started 2026-09-05 ~09:30, est. 4-6 h). Also the Tier 2A DE input.
+- P1-PROFILE-SPARK — `perf` unlocked (paranoid=1); next: perf record on picard/samtools/STAR standalone
+
+## Review
+- P1-BAMCHAIN-20M — standalone BAM-chain profile both boxes (`bench/PHASE1-bamchain-20M.md`). Key: decode ≈ 2 s (not the bottleneck → **Phase 1.5 demoted from gate to measurement**); Picard MarkDup 279 s single-thread is the wall; samtools markdup 4× for free; single-thread perf identical Spark vs Mac; chain re-reads BAM 5-6×. **Amdahl: 22% of serial latency, 57% of CPU-heavy throughput → proceed to 2a on throughput grounds.**
 
 ## Review
 - P0-SPARK — luna done. Verified: rustup 1.98.1, micromamba env `rnaseq`, nextflow 26.04.6 w/ user-local JDK 17, nvCOMP CUDA13 sbsa at `~/.local/opt/nvcomp`, docker GPU smoke test OK. Corrections by me: bioconda STAR was 2.7.3a (linux-aarch64 lag) → built 2.7.11b from source with `-march=native`, symlinked at `~/.local/bin/STAR`; worker missed `cub.cuh` which exists at `/usr/local/cuda/targets/sbsa-linux/include/cccl/cub/` (CUDA 13 moved it under `cccl/`) — not a blocker.
 
 ## Done
+- P1-NFCORE-SPARK-FULL — 78M pairs: 105 min wall, 160 cpu-min. Everything scales linearly with depth; Qualimap 33 min + Picard 18 min single-threaded = critical path; GPU-shaped share 21% serial. Cost row: ~14/day serial, est. 25-35/day overlapped (`bench/PHASE1-depth-scaling.md`)
+- P1-NFCORE-SPARK-20M — 54 min wall (28 min/sample amortized); STAR 5.8 min @32% eff; QC/BAM chain single-threaded ~22 min (`bench/trace-spark-tier1-20M.txt`)
+- P1-NFCORE-MAC-20M — **abandoned**: STAR OOM at 20 GB container cap even with sparse-3 index. M4 Pro = kernel-dev box, Ultra = pipeline box. Mac profiles use Spark-produced BAMs.
 - **PHASE 0 CLOSED 2026-09-05 00:40**
 - P0-BENCH-T6 — repaired benchmarks on idle Spark (`bench/RESULTS-T6-summary.md`): THP 100% deterministic w/ aligned mmap (3 seeds, 4+12 GiB); **cudaMalloc hits the same cliff when allocated late** → umem owns all large allocs; DVFS warmup needed; GPU dependent latency = CPU (~137 ns); pinned 2.8× worse latency
 - P0-BENCH-FIX — luna; reviewed, clang-formatted, compiled, run in T6
