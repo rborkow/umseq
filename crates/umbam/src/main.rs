@@ -22,6 +22,12 @@ enum Command {
         /// Emit resident QC text outputs under the chain output directory.
         #[arg(long)]
         qc: bool,
+        /// BED12 gene model for the RSeQC-style outputs (nf-core `gtf2bed` output).
+        #[arg(long)]
+        bed: Option<std::path::PathBuf>,
+        /// Sample name used as the RSeQC output prefix.
+        #[arg(long, default_value = "chr22")]
+        sample: String,
     },
 }
 
@@ -34,7 +40,17 @@ fn main() -> anyhow::Result<()> {
             out_dir,
             threads,
             qc,
-        } => umbam::chain_with_qc(&input, &gtf, &out_dir, threads.unwrap_or_else(num_cpus), qc),
+            bed,
+            sample,
+        } => umbam::chain_full(
+            &input,
+            &gtf,
+            &out_dir,
+            threads.unwrap_or_else(num_cpus),
+            qc,
+            bed.as_deref(),
+            &sample,
+        ),
     }
 }
 

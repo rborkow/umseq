@@ -29,12 +29,23 @@ pub(super) struct Timing {
     pub qualimap: Duration,
 }
 
+/// Optional inputs the RSeQC-style outputs need beyond the BAM + GTF.
+pub struct QcInputs<'a> {
+    /// BED12 gene model (nf-core's `gtf2bed` output). Defaults to `<gtf dir>/qc/chr22.bed`
+    /// for the Tier 0 fixture layout.
+    pub bed: Option<&'a Path>,
+    /// Output-file stem RSeQC would have used (`-o` prefix). Defaults to `chr22`.
+    pub sample: &'a str,
+}
+
 pub(super) fn write(
     out: &Path,
     gtf: &Path,
     resident: &Resident,
     duplicates: &HashSet<usize>,
+    inputs: &QcInputs<'_>,
 ) -> Result<Timing> {
+    let sample = inputs.sample;
     let rseqc = out.join("rseqc");
     fs::create_dir_all(&rseqc)?;
     let now = Instant::now();
@@ -49,11 +60,14 @@ pub(super) fn write(
     fs::write(rseqc.join("pos.DupRate.xls"), render_histogram(&pos))?;
     let pos_duplication = pos_started.elapsed();
     let read_distribution_started = Instant::now();
-    let bed = gtf
-        .parent()
-        .map(|parent| parent.join("qc/chr22.bed"))
-        .filter(|path| path.exists())
-        .ok_or_else(|| anyhow::anyhow!("RSeQC QC requires sibling qc/chr22.bed"))?;
+    let bed = match inputs.bed {
+        Some(path) => path.to_path_buf(),
+        None => gtf
+            .parent()
+            .map(|parent| parent.join("qc/chr22.bed"))
+            .filter(|path| path.exists())
+            .ok_or_else(|| anyhow::anyhow!("RSeQC QC requires --bed or sibling qc/chr22.bed"))?,
+    };
     let model = BedModel::read(&bed)?;
     fs::write(
         rseqc.join("read_distribution.txt"),
@@ -61,14 +75,18 @@ pub(super) fn write(
     )?;
     let read_distribution = read_distribution_started.elapsed();
     let junction_started = Instant::now();
-    let (junction_xls, junction_log) = junction_annotation(resident, duplicates, &model)?;
-    fs::write(rseqc.join("chr22.junction.xls"), junction_xls)?;
-    fs::write(rseqc.join("chr22.junction_annotation.log"), junction_log)?;
+    let (junction_xls, junction_log) =
+        junction_annotation(resident, duplicates, &model, &bed.display().to_string())?;
+    fs::write(rseqc.join(format!("{sample}.junction.xls")), junction_xls)?;
+    fs::write(
+        rseqc.join(format!("{sample}.junction_annotation.log")),
+        junction_log,
+    )?;
     let junction_annotation = junction_started.elapsed();
     let saturation_started = Instant::now();
     fs::write(
-        rseqc.join("chr22.junctionSaturation_plot.r"),
-        junction_saturation(resident, duplicates, &model)?,
+        rseqc.join(format!("{sample}.junctionSaturation_plot.r")),
+        junction_saturation(resident, duplicates, &model, sample)?,
     )?;
     let junction_saturation = saturation_started.elapsed();
     let infer_started = Instant::now();
@@ -78,7 +96,7 @@ pub(super) fn write(
     )?;
     let inner_started = Instant::now();
     fs::write(
-        rseqc.join("chr22.inner_distance_freq.txt"),
+        rseqc.join(format!("{sample}.inner_distance_freq.txt")),
         inner_distance(resident, duplicates, &model)?,
     )?;
     let features = read_features(gtf, &resident.header)?;
@@ -991,6 +1009,7 @@ fn junction_annotation(
     resident: &Resident,
     duplicates: &HashSet<usize>,
     model: &BedModel,
+    bed_path: &str,
 ) -> Result<(String, String)> {
     let mut total_events = 0_u64;
     let mut known_events = 0_u64;
@@ -1084,7 +1103,7 @@ fn junction_annotation(
         ));
     }
     let log = format!(
-        "Reading reference bed file:  /home/rborkows/uni-rnaseq-data/tier0/qc/chr22.bed  ...  Done\nLoad BAM file ...  Done\n\n===================================================================\nTotal splicing  Events:\t{}\nKnown Splicing Events:\t{}\nPartial Novel Splicing Events:\t{}\nNovel Splicing Events:\t{}\nFiltered Splicing Events:\t{}\n\nTotal splicing  Junctions:\t{}\nKnown Splicing Junctions:\t{}\nPartial Novel Splicing Junctions:\t{}\nNovel Splicing Junctions:\t{}\n\n===================================================================\nCreate BED file ...\nCreate Interact file ...\n",
+        "Reading reference bed file:  {bed_path}  ...  Done\nLoad BAM file ...  Done\n\n===================================================================\nTotal splicing  Events:\t{}\nKnown Splicing Events:\t{}\nPartial Novel Splicing Events:\t{}\nNovel Splicing Events:\t{}\nFiltered Splicing Events:\t{}\n\nTotal splicing  Junctions:\t{}\nKnown Splicing Junctions:\t{}\nPartial Novel Splicing Junctions:\t{}\nNovel Splicing Junctions:\t{}\n\n===================================================================\nCreate BED file ...\nCreate Interact file ...\n",
         total_events,
         known_events,
         partial_events,
@@ -1105,6 +1124,7 @@ fn junction_saturation(
     resident: &Resident,
     duplicates: &HashSet<usize>,
     model: &BedModel,
+    sample: &str,
 ) -> Result<String> {
     let mut events = Vec::<(String, i32, i32)>::new();
     for &record_index in resident.coordinate_order() {
@@ -1156,7 +1176,7 @@ fn junction_saturation(
     }
     let csv = |v: &[usize]| v.iter().map(usize::to_string).collect::<Vec<_>>().join(",");
     Ok(format!(
-        "pdf('chr22.junctionSaturation_plot.pdf')\nx=c(5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100)\ny=c({})\nz=c({})\nw=c({})\nm=max({},{},{})\nn=min({},{},{})\nplot(x,z/1000,xlab='percent of total reads',ylab='Number of splicing junctions (x1000)',type='o',col='blue',ylim=c(n,m))\npoints(x,y/1000,type='o',col='red')\npoints(x,w/1000,type='o',col='green')\nlegend(5,{}, legend=c(\"All junctions\",\"known junctions\", \"novel junctions\"),col=c(\"blue\",\"red\",\"green\"),lwd=1,pch=1)\ndev.off()\n",
+        "pdf('{sample}.junctionSaturation_plot.pdf')\nx=c(5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100)\ny=c({})\nz=c({})\nw=c({})\nm=max({},{},{})\nn=min({},{},{})\nplot(x,z/1000,xlab='percent of total reads',ylab='Number of splicing junctions (x1000)',type='o',col='blue',ylim=c(n,m))\npoints(x,y/1000,type='o',col='red')\npoints(x,w/1000,type='o',col='green')\nlegend(5,{}, legend=c(\"All junctions\",\"known junctions\", \"novel junctions\"),col=c(\"blue\",\"red\",\"green\"),lwd=1,pch=1)\ndev.off()\n",
         csv(&known),
         csv(&all),
         csv(&novel),

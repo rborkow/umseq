@@ -95,6 +95,21 @@ pub fn chain_with_qc(
     threads: usize,
     run_qc: bool,
 ) -> Result<()> {
+    chain_full(input, gtf, out_dir, threads, run_qc, None, "chr22")
+}
+
+/// Full entry point: `bed` is the BED12 gene model for the RSeQC-style outputs (defaults
+/// to the Tier 0 fixture layout when `None`); `sample` is the RSeQC `-o` prefix used in
+/// output filenames.
+pub fn chain_full(
+    input: &Path,
+    gtf: &Path,
+    out_dir: &Path,
+    threads: usize,
+    run_qc: bool,
+    bed: Option<&Path>,
+    sample: &str,
+) -> Result<()> {
     fs::create_dir_all(out_dir).with_context(|| format!("create {}", out_dir.display()))?;
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads.max(1))
@@ -145,7 +160,13 @@ pub fn chain_with_qc(
     write_genomecov(out_dir, &resident, &pool)?;
     let genomecov = now.elapsed();
     let qc_timing = if run_qc {
-        qc::write(out_dir, gtf, &resident, &markdup_result.duplicates)?
+        qc::write(
+            out_dir,
+            gtf,
+            &resident,
+            &markdup_result.duplicates,
+            &qc::QcInputs { bed, sample },
+        )?
     } else {
         qc::Timing::default()
     };

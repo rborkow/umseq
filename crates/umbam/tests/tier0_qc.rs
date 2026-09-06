@@ -99,11 +99,21 @@ fn rseqc_read_distribution_gate() {
 #[ignore = "requires ~/uni-rnaseq-data/tier0/qc"]
 fn rseqc_junction_annotation_log_gate() {
     let root = fixture();
-    assert_bytes(
-        &output().join("rseqc/chr22.junction_annotation.log"),
-        &root.join("qc/rseqc/chr22.junction_annotation.log"),
-        "RSeQC junction annotation log",
+    // The first line echoes the BED path RSeQC was given (the golden was produced on
+    // another host); every other line is a QC result and must match byte-for-byte.
+    let strip_path_echo = |text: String| -> String {
+        text.lines()
+            .filter(|l| !l.starts_with("Reading reference bed file:"))
+            .map(|l| format!("{l}\n"))
+            .collect()
+    };
+    let actual = strip_path_echo(
+        fs::read_to_string(output().join("rseqc/chr22.junction_annotation.log")).unwrap(),
     );
+    let expected = strip_path_echo(
+        fs::read_to_string(root.join("qc/rseqc/chr22.junction_annotation.log")).unwrap(),
+    );
+    assert_eq!(actual, expected, "RSeQC junction annotation log");
 }
 
 #[test]
