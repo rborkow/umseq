@@ -150,7 +150,9 @@ pub fn chain_full(
     write_index(&sorted, &resident, &sorted_layout)?;
     write_index(&markdup, &resident, &marked_layout)?;
     let index = now.elapsed();
-    write_flagstat_and_idxstats(out_dir, &resident)?;
+    // nf-core runs flagstat after markdup.  Keep the pre-markdup rendering too: the
+    // original Tier 0 fixture was made from sorted.bam and uses it as its golden.
+    write_flagstat_and_idxstats(out_dir, &resident, &markdup_result.duplicates)?;
     write_markdup_metrics(out_dir, &markdup_result.metrics)?;
     let now = Instant::now();
     let (gtf_parse, featurecounts_count) =
@@ -1321,13 +1323,23 @@ fn write_index(path: &Path, resident: &Resident, layout: &BamLayout) -> Result<(
     Ok(())
 }
 
-fn write_flagstat_and_idxstats(out: &Path, resident: &Resident) -> Result<()> {
+fn write_flagstat_and_idxstats(
+    out: &Path,
+    resident: &Resident,
+    duplicates: &HashSet<usize>,
+) -> Result<()> {
     let mut counters = Flagstat::default();
+    let mut pre_markdup = Flagstat::default();
     let mut idxstats = vec![(0_u64, 0_u64); resident.header.reference_sequences().len()];
     let mut no_coordinate = 0_u64;
 
-    for fixed in resident.headers() {
-        counters.add(*fixed);
+    for (index, fixed) in resident.headers().iter().enumerate() {
+        pre_markdup.add(*fixed);
+        let mut marked = *fixed;
+        if duplicates.contains(&index) {
+            marked.flag |= 0x400;
+        }
+        counters.add(marked);
         if fixed.tid < 0 {
             no_coordinate += 1;
         } else if let Some(counts) = idxstats.get_mut(fixed.tid as usize) {
@@ -1340,6 +1352,7 @@ fn write_flagstat_and_idxstats(out: &Path, resident: &Resident) -> Result<()> {
     }
 
     fs::write(out.join("flagstat.txt"), counters.render())?;
+    fs::write(out.join("flagstat.pre_markdup.txt"), pre_markdup.render())?;
     let sequences = header_sequences(&resident.header)?;
     let mut text = String::new();
     for ((name, length), (mapped, unmapped)) in sequences.into_iter().zip(idxstats) {

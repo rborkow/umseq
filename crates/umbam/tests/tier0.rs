@@ -180,7 +180,7 @@ fn flagstat_and_idxstats_gate() {
         }
     }
     assert_eq!(
-        fs::read(output().join("flagstat.txt")).unwrap(),
+        fs::read(output().join("flagstat.pre_markdup.txt")).unwrap(),
         fs::read(root.join("chr22.flagstat.txt")).unwrap(),
         "flagstat differs"
     );
