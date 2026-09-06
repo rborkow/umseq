@@ -1,0 +1,65 @@
+# Phase 2a — `umbam chain --qc` at full depth vs nf-core (NA11832_F, 78M pairs)
+
+The first run of the complete resident chain on a real sample, diffed against the same
+sample's nf-core/rnaseq 3.26.0 outputs from `runs/tier2a` (the real-scale golden). Spark,
+20 threads, 6.67 GB / 76.1M-record STAR BAM, GENCODE v49. Script: `scripts/tier1_validate.sh`.
+
+## Correctness — what matched, what didn't, and why
+| output | vs nf-core | class |
+|---|---|---|
+| idxstats | **identical** | |
+| dup-flag count (17,192,968) | **identical** | |
+| Picard metrics (all 8 numeric columns) | **identical** (ours prints 6 dp, Picard 5) | format |
+| RSeQC bam_stat | **identical** | |
+| RSeQC infer_experiment | **identical** | |
+| RSeQC pos.DupRate / seq.DupRate | **identical** | |
+| junction_annotation (all counts) | **identical** (only the echoed BED path line differs) | format |
+| flagstat | differs: duplicates lines | **our `flagstat` runs pre-markdup**; nf-core's runs post. Same records, 0x400 not yet set. Move flagstat after markdup or emit both. Fix. |
+| genomecov (24,127,300 lines) | **identical** after `LC_ALL=C sort -k1,1 -k2,2n` (nf-core pipes bedtools through that sort; ours is in header order) | format |
+| read_distribution | 10 of 10 tag counts identical; **6 `Total_bases` differ** (TSS/TES intervals, e.g. 26,850,235 vs 26,849,677) | interval-merge of the up/down-stream windows at chromosome edges or overlapping genes — a `process_gene_model` detail not exercised by chr22. Fix. |
+| inner_distance | histogram shape same, **totals 22.5M vs 0.94M** | **`sample_size = 1,000,000`** pairs cap: RSeQC stops after 1M accepted pairs (counts skipped pairs? — 941,753 accepted suggests it counts attempts). Tier 0 had < 1M so never hit. Fix: honour the cap the way the source does. |
+| dupRadar | 78,884 / 78,900 genes identical; **15 `allCountsMulti` and 6 `filteredCountsMulti` differ by ±1–5** | `countMultiMappingReads = TRUE` with `-p` in Rsubread: a multi-mapping *fragment* whose mates' alignments pair up differently across NH copies. Small (0.02% of genes). Investigate with `-R CORE` on one gene. |
+
+Nothing here is a wrong-algorithm bug: one is pre/post-markdup ordering, one is a
+missing sampling cap, one is an interval-merge edge case, and one is a multi-mapper
+pairing subtlety in 21 genes. The Tier 0 fixture
+did its job (chr22 caught all the semantics), and the full-depth sample caught the four
+things chr22 structurally can't (sampling caps, chromosome-edge windows, multi-tid
+multimappers, post-markdup stats).
+
+## Timing — 17 min 10 s, 41 GB peak RSS
+```
+decode            45.8     (6.7 GB; 2× the 20M file's per-byte rate — page-cache cold)
+sort               1.8
+write_sorted      13.4
+markdup            9.1
+write_markdup     18.7
+index              2.0
+featurecounts      8.4
+genomecov          3.9
+--- chain subtotal ~103 s ---
+qc_bam_stat       12.0
+qc_seq_dup        35.9     (76M sequence-string hash inserts)
+qc_pos_dup        31.2
+qc_read_dist      32.8
+qc_junction_ann   17.8
+qc_infer_exp     771.9  <-- 
+qc_junction_sat   22.5
+qc_inner_dist    769.0  <--
+qc_dupradar      125.4     (4 featureCounts passes; should be ~4 × 8 s)
+qc_qualimap       31.0
+```
+**The chain is 103 s for what nf-core spends ~50 min of task-wall on** (STAR excluded).
+Two QC stages are pathological: `infer_experiment` and `inner_distance` at ~770 s each
+are doing a per-read BED lookup through something O(n) — each was 2.5 s on Tier 0 (1M
+records, 1.6 MB BED) and is now 300× slower on 76M records against a 69 MB BED, i.e.
+scaling with BED size × record count. Both need the per-tid sorted-interval structure the
+other stages already use. dupRadar at 125 s is 4× the featureCounts cost and should be
+one pass with four counters. With those three fixed the whole `--qc` chain should land
+around 4–5 min per full-depth sample — versus ~58 min of single-threaded nf-core QC
+task-wall.
+
+## Next
+1. Fix the four correctness items above (all small, all now have a real-scale golden).
+2. Fix the three pathological QC stages.
+3. Re-run this script; every row should read IDENTICAL except the two format rows.
