@@ -25,6 +25,8 @@ pub(super) struct Timing {
     pub pos_duplication: Duration,
     pub seq_duplication_gpu: Duration,
     pub pos_duplication_gpu: Duration,
+    /// Parsing the BED12 gene model and building the interval/tid maps (once, shared).
+    pub bed_parse: Duration,
     pub read_distribution: Duration,
     pub junction_annotation: Duration,
     pub infer_experiment: Duration,
@@ -85,7 +87,7 @@ pub(super) fn write(
     let pos = position_duplication(resident)?;
     fs::write(rseqc.join("pos.DupRate.xls"), render_histogram(&pos))?;
     let pos_duplication = pos_started.elapsed();
-    let read_distribution_started = Instant::now();
+    let bed_parse_started = Instant::now();
     let bed = match inputs.bed {
         Some(path) => path.to_path_buf(),
         None => gtf
@@ -96,6 +98,8 @@ pub(super) fn write(
     };
     let model = BedModel::read(&bed)?;
     let tid_model = model.for_tids(&chromosome_names(resident));
+    let bed_parse = bed_parse_started.elapsed();
+    let read_distribution_started = Instant::now();
     fs::write(
         rseqc.join("read_distribution.txt"),
         read_distribution(resident, duplicates, &model, &tid_model)?,
@@ -160,6 +164,7 @@ pub(super) fn write(
         } else {
             Duration::ZERO
         },
+        bed_parse,
         read_distribution,
         junction_annotation,
         infer_experiment: infer_experiment_time,
@@ -1455,10 +1460,12 @@ fn subtract(
         for x in std::mem::take(items) {
             let mut cursor = x.start;
             if let Some(cuts) = b.get(chr) {
-                for y in cuts {
-                    if y.end <= cursor {
-                        continue;
-                    }
+                // `cuts` is normalized (sorted, non-overlapping), so every interval that
+                // could cut `x` lies at or after the first one whose end exceeds `x.start`.
+                // Starting there instead of at index 0 turns this from O(|a|·|b|) per
+                // chromosome into O(|a| log |b| + overlaps).
+                let first = cuts.partition_point(|y| y.end <= cursor);
+                for y in &cuts[first..] {
                     if y.start >= x.end {
                         break;
                     }
