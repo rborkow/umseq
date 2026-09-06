@@ -90,8 +90,37 @@ now each 10–100 s and mostly single-threaded sweeps; the next pass is parallel
 over tid like the chain stages (they share the resident table) — plausible target ~90 s
 for all of `--qc`.
 
+## Run 3 (after P2A-UMQC-PERF): 4 min 30 s; every gated output identical (dupRadar-Multi residual unchanged)
+```
+qc_bam_stat               0.9   (was 12.8)
+qc_seq_duplication       35.9   (42.1)
+qc_pos_duplication       25.1   (31.6)
+qc_read_distribution     13.3   (33.4)
+qc_junction_annotation   18.0   (18.2)
+qc_infer_experiment      75.7   (102.6)  <-- see below
+qc_junction_saturation   22.8   (21.3)
+qc_inner_distance        75.6   (102.4)  <-- see below
+qc_dupradar              60.7   (61.9)
+qc_qualimap              12.6   (32.3)
+wall                     270 s   (340)
+```
+**Timing attribution bug found by perf, not by the numbers.** `infer_experiment` and
+`inner_distance` are ~1 s each on Tier 0 and ~70 s at both 20M *and* 78M — a fixed cost,
+not a per-record one. `perf` on the 20M run shows 56% of all samples in `zlib_rs::deflate`
+and `infer_experiment`/`inner_distance` themselves at 0.02–0.05%. The `Timing` struct
+computes `infer_experiment: infer_started.elapsed()` and `inner_distance:
+inner_started.elapsed()` *at the end of `qc::write`* — after dupRadar and Qualimap have
+run — so each row absorbs everything that follows it. The "70 s" is dupRadar (61 s) +
+Qualimap + file writes, counted three times. Real cost of those two stages is ~1 s.
+Corrected `--qc` breakdown: ~180 s of which dupRadar 61, seq-dup 36, pos-dup 25,
+saturation 23, junctions 18, read_dist 13, qualimap 13. dupRadar's four featureCounts
+passes and the two hash-histogram stages (which the GPU card is replacing) are the
+remaining targets.
+
 ## Next
-1. Parallelize the `qc_*` sweeps (they're the last single-threaded code in the chain).
+1. Fix the `Timing` attribution (`elapsed()` captured at each stage's end, not at return).
+2. dupRadar 61 s → one pass, four accumulators (it's 4 × featureCounts' 5 s + overhead).
+3. Parallelize the `qc_*` sweeps (they're the last single-threaded code in the chain).
 2. dupRadar-Multi residual: COMPAT note; revisit only if someone needs those columns exact.
 3. Then: this is the CPU control arm, done. Phase 2b/2c (CUDA) starts from here.
 
