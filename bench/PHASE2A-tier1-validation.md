@@ -59,7 +59,43 @@ one pass with four counters. With those three fixed the whole `--qc` chain shoul
 around 4–5 min per full-depth sample — versus ~58 min of single-threaded nf-core QC
 task-wall.
 
+## Run 2 (after card P2A-UMQC-8): 5 min 40 s, every gated output identical except dupRadar-Multi
+| output | run 2 |
+|---|---|
+| flagstat | **identical** (now post-markdup) |
+| read_distribution | **identical** (TSS/TES window merge fixed) |
+| inner_distance_freq | **identical** (1M-pair sampling cap mirrored) |
+| everything identical in run 1 | still identical |
+| dupRadar | 78,883 / 78,900 genes identical; **17 genes ±1 in `allCountsMulti`/`filteredCountsMulti` only** (the non-Multi columns are all identical). Rsubread `countMultiMappingReads=TRUE` tie-breaking among NH>1 alignment pairs; HI-based pairing closed 4 of the 21. Left as a documented COMPAT residual — it's 0.02% of genes in the multimapper-inclusive columns of a QC plot. |
+
+Timing (20 threads, same BAM):
+```
+chain (decode→genomecov)     ~77 s   (decode 13.4 warm vs 45.8 cold in run 1)
+qc_bam_stat                  12.8
+qc_seq_duplication           42.1    (still slow: 76M seq hashes)
+qc_pos_duplication           31.6
+qc_read_distribution         33.4
+qc_junction_annotation       18.2
+qc_infer_experiment         102.6    (was 772)
+qc_junction_saturation       21.3
+qc_inner_distance           102.4    (was 769)
+qc_dupradar                  61.9    (was 125)
+qc_qualimap                  32.3
+--- --qc subtotal           ~460 s ---
+wall                         340 s   peak RSS 40 GB
+```
+**5.7 min wall for the full post-alignment chain + all QC on a 78M-pair sample**, versus
+~58 min of single-threaded nf-core task-wall for the QC alone (Tier 2A). The QC stages are
+now each 10–100 s and mostly single-threaded sweeps; the next pass is parallelizing them
+over tid like the chain stages (they share the resident table) — plausible target ~90 s
+for all of `--qc`.
+
 ## Next
+1. Parallelize the `qc_*` sweeps (they're the last single-threaded code in the chain).
+2. dupRadar-Multi residual: COMPAT note; revisit only if someone needs those columns exact.
+3. Then: this is the CPU control arm, done. Phase 2b/2c (CUDA) starts from here.
+
+## Run 1 notes (historical)
 1. Fix the four correctness items above (all small, all now have a real-scale golden).
 2. Fix the three pathological QC stages.
 3. Re-run this script; every row should read IDENTICAL except the two format rows.

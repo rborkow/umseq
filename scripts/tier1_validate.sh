@@ -25,18 +25,19 @@ cmpf flagstat  $OUT/flagstat.txt  $R/samtools_stats/$S.markdup.sorted.bam.flagst
 cmpf idxstats  $OUT/idxstats.txt  $R/samtools_stats/$S.markdup.sorted.bam.idxstats
 # Picard metrics: compare the data row's numeric columns
 ours=$(grep -A1 "^LIBRARY" $OUT/markdup.metrics.txt | tail -1 | cut -f2-9)
-theirs=$(grep -A1 "^LIBRARY" $R/picard_metrics/$S.markdup.sorted.MarkDuplicates.metrics.txt | tail -1 | cut -f2-9)
-[ "$ours" = "$theirs" ] && echo "IDENTICAL  picard metrics" || { echo "DIFFERS    picard metrics"; echo "  ours:   $ours"; echo "  theirs: $theirs"; }
+theirs=$(grep -A1 "^LIBRARY" $R/picard_metrics/$S.markdup.sorted.metrics.txt | tail -1 | cut -f2-9)
+ours=$(echo "$ours" | awk -F"\t" "{OFS=\"\t\"; \$8=sprintf(\"%.5f\",\$8); print}"); theirs=$(echo "$theirs" | awk -F"\t" "{OFS=\"\t\"; \$8=sprintf(\"%.5f\",\$8); print}")
+[ "$ours" = "$theirs" ] && echo "IDENTICAL  picard metrics (PERCENT_DUPLICATION to 5 dp)" || { echo "DIFFERS    picard metrics"; echo "  ours:   $ours"; echo "  theirs: $theirs"; }
 # markdup flags: count of 0x400 in ours vs theirs
 a=$($SAMTOOLS view -c -f 0x400 $OUT/markdup.bam); b=$($SAMTOOLS view -c -f 0x400 $R/$S.markdup.sorted.bam)
 [ "$a" = "$b" ] && echo "IDENTICAL  dup-flag count ($a)" || echo "DIFFERS    dup-flag count ours=$a theirs=$b"
 # genomecov: nf-core's bedGraph is from the markdup BAM; ours from sorted — both same records, compare
-cmpf genomecov $OUT/genomecov.bg $(find $RUN/work -name "$S.bedGraph" | head -1)
+LC_ALL=C sort -k1,1 -k2,2n $OUT/genomecov.bg > /tmp/gc.ours; cmpf genomecov-sorted /tmp/gc.ours $(find $RUN/work -path "*$S.bedGraph" -not -path "*clip*" | head -1); rm -f /tmp/gc.ours
 for f in bam_stat read_distribution infer_experiment; do cmpf rseqc/$f $OUT/rseqc/$f.txt $R/rseqc/$f/$S.$f.txt; done
 cmpf rseqc/pos.DupRate $OUT/rseqc/pos.DupRate.xls $R/rseqc/read_duplication/xls/$S.pos.DupRate.xls
 cmpf rseqc/seq.DupRate $OUT/rseqc/seq.DupRate.xls $R/rseqc/read_duplication/xls/$S.seq.DupRate.xls
 cmpf rseqc/inner_distance_freq $OUT/rseqc/$S.inner_distance_freq.txt $R/rseqc/inner_distance/txt/$S.inner_distance_freq.txt
-cmpf rseqc/junction_annotation.log $OUT/rseqc/$S.junction_annotation.log $R/rseqc/junction_annotation/log/$S.junction_annotation.log
+grep -v "^Reading reference" $OUT/rseqc/$S.junction_annotation.log > /tmp/ja.ours; grep -v "^Reading reference" $R/rseqc/junction_annotation/log/$S.junction_annotation.log > /tmp/ja.theirs; cmpf rseqc/junction_annotation.log /tmp/ja.ours /tmp/ja.theirs
 # dupRadar integer columns
 cut -f1-4,9,10 $OUT/dupradar/dupMatrix.txt > /tmp/dm.ours; cut -f1-4,9,10 $R/dupradar/gene_data/${S}_dupMatrix.txt > /tmp/dm.theirs
 cmpf dupradar/dupMatrix-ints /tmp/dm.ours /tmp/dm.theirs

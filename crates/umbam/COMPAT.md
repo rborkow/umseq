@@ -112,3 +112,12 @@ also remains incompatible: the resident union-exon assignment finds the same 859
 mapped primary reads but categorizes 704,856 / 130,307 / 24,106 rather than Qualimap's
 734,257 / 83,587 / 41,425 (gene / ambiguous / no-feature).  Consequently no Qualimap golden
 gate is enabled yet.
+
+## dupRadar multimapper columns (known ±1 residual at full depth)
+
+With `countMultiMappingReads = TRUE`, Rsubread pairs the NH>1 alignments of a fragment and
+lets each pair vote. `umbam` pairs by `HI` (hit index) and matches Tier 0 exactly, but on a
+78M-pair sample 17 of 78,900 genes differ by exactly ±1 in `allCountsMulti` /
+`filteredCountsMulti` (the primary-only columns are identical). This is a tie-break inside
+Rsubread's multi-mapper pairing that HI alone does not reproduce. Accepted: these columns
+feed only the multimapper variant of the dupRadar plot.

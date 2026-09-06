@@ -1,0 +1,23 @@
+=== NA11832_F: 6.66812 GB, Sun Sep  6 12:48:21 AM EDT 2026 ===
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 5:39.84
+	Maximum resident set size (kbytes): 39998780
+stage	seconds decode	13.410078 sort	1.880781 write_sorted	13.410374 markdup	8.976134 write_markdup	18.461831 index	1.935160 gtf_parse	1.885937 featurecounts_count	5.099060 featurecounts	7.572387 genomecov	3.948215 qc_bam_stat	12.770909 qc_seq_duplication	42.054449 qc_pos_duplication	31.616904 qc_read_distribution	33.373063 qc_junction_annotation	18.175325 qc_infer_experiment	102.598946 qc_junction_saturation	21.257848 qc_inner_distance	102.448863 qc_dupradar	61.865225 qc_qualimap	32.314469 peak_rss_bytes	40958750720 
+=== vs nf-core ===
+IDENTICAL  flagstat
+IDENTICAL  idxstats
+DIFFERS    picard metrics
+  ours:   70785	33830383	8368583	0	53430	8569769	0	0.253840
+  theirs: 
+grep: runs/tier2a/results/star_salmon/picard_metrics/NA11832_F.markdup.sorted.MarkDuplicates.metrics.txt: No such file or directory
+IDENTICAL  dup-flag count (17192968)
+DIFFERS    genomecov  (24127300 vs 24127300 lines; first diff: < chr1	11606	11674	1)
+IDENTICAL  rseqc/bam_stat
+IDENTICAL  rseqc/read_distribution
+IDENTICAL  rseqc/infer_experiment
+IDENTICAL  rseqc/pos.DupRate
+IDENTICAL  rseqc/seq.DupRate
+IDENTICAL  rseqc/inner_distance_freq
+DIFFERS    rseqc/junction_annotation.log  (18 vs 18 lines; first diff: < Reading reference bed file:  runs/tier2a/work/44/43d248fe1b54bd27b61fd6d1dae01b/gencode.v49.primary_assembly.annotatio)
+DIFFERS    dupradar/dupMatrix-ints  (78900 vs 78900 lines; first diff: < ENSG00000157152.17	6329	13	14	11	11)
+=== done Sun Sep  6 12:58:37 AM EDT 2026 ===
+VALIDATE-DONE 21:58
