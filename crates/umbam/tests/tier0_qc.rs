@@ -140,3 +140,14 @@ fn rseqc_junction_saturation_100_percent_gate() {
         );
     }
 }
+
+#[test]
+#[ignore = "requires ~/uni-rnaseq-data/tier0/qc"]
+fn rseqc_inner_distance_gate() {
+    let root = fixture();
+    assert_bytes(
+        &output().join("rseqc/chr22.inner_distance_freq.txt"),
+        &root.join("qc/rseqc/chr22.inner_distance_freq.txt"),
+        "RSeQC mRNA inner distance",
+    );
+}

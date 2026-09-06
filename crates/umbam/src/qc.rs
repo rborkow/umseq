@@ -21,6 +21,7 @@ pub(super) struct Timing {
     pub junction_annotation: Duration,
     pub infer_experiment: Duration,
     pub junction_saturation: Duration,
+    pub inner_distance: Duration,
 }
 
 pub(super) fn write(
@@ -70,6 +71,11 @@ pub(super) fn write(
         rseqc.join("infer_experiment.txt"),
         infer_experiment(resident, duplicates, &model)?,
     )?;
+    let inner_started = Instant::now();
+    fs::write(
+        rseqc.join("chr22.inner_distance_freq.txt"),
+        inner_distance(resident, duplicates, &model)?,
+    )?;
     Ok(Timing {
         bam_stat,
         seq_duplication,
@@ -78,7 +84,100 @@ pub(super) fn write(
         junction_annotation,
         infer_experiment: infer_started.elapsed(),
         junction_saturation,
+        inner_distance: inner_started.elapsed(),
     })
+}
+
+/// RSeQC `inner_distance.py` invokes mRNA_inner_distance with -250..250 in five-base
+/// windows.  Its bx interval query makes those windows `(left, right]`, not `[left,right)`.
+fn inner_distance(
+    resident: &Resident,
+    duplicates: &HashSet<usize>,
+    model: &BedModel,
+) -> Result<String> {
+    let mut distances = Vec::<i32>::new();
+    for &record_index in resident.coordinate_order() {
+        let index = record_index as usize;
+        let fixed = resident.headers()[index];
+        if fixed.flag & 0x704 != 0
+            || duplicates.contains(&index)
+            || fixed.flag & 0x1 == 0
+            || fixed.flag & 0x8 != 0
+            || fixed.mapq < 30
+        {
+            continue;
+        }
+        let read1_start = fixed.pos;
+        let read2_start = fixed.mate_pos;
+        if read2_start < read1_start || (read2_start == read1_start && fixed.flag & 0x40 != 0) {
+            continue;
+        }
+        // pair_num is incremented here by RSeQC, before the different-chromosome check.
+        if fixed.tid != fixed.mate_tid {
+            continue;
+        }
+        let chrom = resident
+            .header
+            .reference_sequences()
+            .get_index(fixed.tid as usize)
+            .map(|(name, _)| name.to_string().to_ascii_uppercase())
+            .unwrap_or_default();
+        let cigar = bam_cigar(resident.record_bytes(fixed))?;
+        // pysam's qlen is query_alignment_length: M/I/=/X, specifically excluding S.
+        let qlen: i32 = cigar
+            .iter()
+            .filter(|(_, op)| matches!(*op, 'M' | 'I' | '=' | 'X'))
+            .map(|(n, _)| *n)
+            .sum();
+        let introns: i32 = cigar
+            .iter()
+            .filter(|(_, op)| *op == 'N')
+            .map(|(n, _)| *n)
+            .sum();
+        let read1_end = read1_start + qlen + introns;
+        let genomic = if read2_start >= read1_end {
+            read2_start - read1_end
+        } else {
+            // fetch_exon uses only M and (unusually) lets soft clips advance reference.
+            let mut exon_positions = Vec::new();
+            for ex in cigar_exons(resident, fixed)? {
+                exon_positions.extend((ex.start + 1)..=ex.end);
+            }
+            -(exon_positions
+                .into_iter()
+                .filter(|&p| p > read2_start && p <= read1_end)
+                .count() as i32)
+        };
+        let common_transcript = model.transcripts.get(&chrom).is_some_and(|ranges| {
+            ranges.iter().any(|r| {
+                r.start < read1_end
+                    && r.end > read1_end - 1
+                    && ranges.iter().any(|s| {
+                        s.name == r.name && s.start < read2_start + 1 && s.end > read2_start
+                    })
+            })
+        });
+        let distance = if common_transcript && genomic > 0 {
+            let size: i32 = model
+                .exons
+                .get(&chrom)
+                .into_iter()
+                .flatten()
+                .map(|ex| (ex.end.min(read2_start) - ex.start.max(read1_end)).max(0))
+                .sum();
+            if size > 0 { size } else { genomic }
+        } else {
+            genomic
+        };
+        distances.push(distance);
+    }
+    Ok((-250..250)
+        .step_by(5)
+        .map(|st| {
+            let count = distances.iter().filter(|&&d| st < d && d <= st + 5).count();
+            format!("{st}\t{}\t{count}\n", st + 5)
+        })
+        .collect())
 }
 
 /// RSeQC's `readDupRate` deliberately keys on its buggy `fetch_exon` output.  In
@@ -214,6 +313,13 @@ struct Interval {
     end: i32,
 }
 
+#[derive(Clone)]
+struct NamedInterval {
+    start: i32,
+    end: i32,
+    name: String,
+}
+
 #[derive(Default)]
 struct BedModel {
     cds: HashMap<String, Vec<Interval>>,
@@ -230,6 +336,8 @@ struct BedModel {
     intron_ends: HashMap<String, HashSet<i32>>,
     genes: HashMap<String, Vec<(Interval, char)>>,
     known_junctions: HashSet<(String, i32, i32)>,
+    exons: HashMap<String, Vec<Interval>>,
+    transcripts: HashMap<String, Vec<NamedInterval>>,
 }
 
 impl BedModel {
@@ -267,6 +375,18 @@ impl BedModel {
                     end: txs + s + n,
                 })
                 .collect();
+            raw.exons
+                .entry(chrom.clone())
+                .or_default()
+                .extend(exons.iter().copied());
+            raw.transcripts
+                .entry(chrom.clone())
+                .or_default()
+                .push(NamedInterval {
+                    start: txs,
+                    end: txe,
+                    name: f[3].to_owned(),
+                });
             raw.genes.entry(chrom.clone()).or_default().push((
                 Interval {
                     start: txs,
@@ -375,12 +495,16 @@ impl BedModel {
             intron_ends: raw.ends,
             genes: raw.genes,
             known_junctions: raw.known_junctions,
+            exons: normalize(raw.exons),
+            transcripts: raw.transcripts,
         })
     }
 }
 #[derive(Default)]
 struct RawBed {
     cds: HashMap<String, Vec<Interval>>,
+    exons: HashMap<String, Vec<Interval>>,
+    transcripts: HashMap<String, Vec<NamedInterval>>,
     intron: HashMap<String, Vec<Interval>>,
     utr5: HashMap<String, Vec<Interval>>,
     utr3: HashMap<String, Vec<Interval>>,
