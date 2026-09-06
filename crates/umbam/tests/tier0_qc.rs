@@ -151,3 +151,28 @@ fn rseqc_inner_distance_gate() {
         "RSeQC mRNA inner distance",
     );
 }
+
+#[test]
+#[ignore = "requires ~/uni-rnaseq-data/tier0/qc"]
+fn dupradar_matrix_integer_gate() {
+    let root = fixture();
+    let actual = fs::read_to_string(output().join("dupradar/dupMatrix.txt")).unwrap();
+    let expected = fs::read_to_string(root.join("qc/dupradar/chr22_dupMatrix.txt")).unwrap();
+    for (line, golden) in actual.lines().zip(expected.lines()) {
+        let left: Vec<_> = line.split('\t').collect();
+        let right: Vec<_> = golden.split('\t').collect();
+        assert_eq!(left[0], right[0], "gene ID");
+        for &column in &[1, 2, 3, 8, 9] {
+            assert_eq!(left[column], right[column], "{} column {column}", left[0]);
+        }
+        for &column in &[4, 6, 7, 10, 12, 13] {
+            let a: f64 = left[column].parse().unwrap_or(f64::NAN);
+            let b: f64 = right[column].parse().unwrap_or(f64::NAN);
+            assert!(
+                a.is_nan() && b.is_nan() || (a - b).abs() <= 1e-6 * b.abs().max(1.0),
+                "{} column {column}",
+                left[0]
+            );
+        }
+    }
+}

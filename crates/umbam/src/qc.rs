@@ -3,7 +3,10 @@
 //! These routines deliberately borrow the native BAM bodies from `Resident`: no SAM text or
 //! record allocation is constructed while collecting counters.
 
-use super::{Resident, bam_cigar, bam_layout, le_i32};
+use super::{
+    FeatureIndex, Resident, bam_aux_i32, bam_cigar, bam_layout, bam_name_bytes, le_i32,
+    mate_gene_hits, one_fragment_gene, read_features,
+};
 use anyhow::Result;
 use std::{
     collections::{HashMap, HashSet},
@@ -22,6 +25,8 @@ pub(super) struct Timing {
     pub infer_experiment: Duration,
     pub junction_saturation: Duration,
     pub inner_distance: Duration,
+    pub dupradar: Duration,
+    pub qualimap: Duration,
 }
 
 pub(super) fn write(
@@ -76,6 +81,22 @@ pub(super) fn write(
         rseqc.join("chr22.inner_distance_freq.txt"),
         inner_distance(resident, duplicates, &model)?,
     )?;
+    let features = read_features(gtf, &resident.header)?;
+    let dupradar_started = Instant::now();
+    let dupradar = out.join("dupradar");
+    fs::create_dir_all(&dupradar)?;
+    fs::write(
+        dupradar.join("dupMatrix.txt"),
+        dup_radar(resident, duplicates, &features)?,
+    )?;
+    let dupradar_time = dupradar_started.elapsed();
+    let qualimap_started = Instant::now();
+    let qualimap = out.join("qualimap");
+    fs::create_dir_all(&qualimap)?;
+    fs::write(
+        qualimap.join("rnaseq_qc_results.txt"),
+        qualimap_report(resident, &features)?,
+    )?;
     Ok(Timing {
         bam_stat,
         seq_duplication,
@@ -85,7 +106,228 @@ pub(super) fn write(
         infer_experiment: infer_started.elapsed(),
         junction_saturation,
         inner_distance: inner_started.elapsed(),
+        dupradar: dupradar_time,
+        qualimap: qualimap_started.elapsed(),
     })
+}
+
+/// The four calls made by dupRadar differ only in their multi-map and duplicate filters.
+/// Rsubread pairs alignments bearing the same HI tag; STAR also emits HI in a stable order,
+/// so the ordinal fallback covers BAMs without it.
+fn dup_radar(
+    resident: &Resident,
+    duplicates: &HashSet<usize>,
+    features: &FeatureIndex,
+) -> Result<String> {
+    let all_multi = subread_counts(resident, duplicates, features, true, false)?;
+    let filtered_multi = subread_counts(resident, duplicates, features, true, true)?;
+    let all = subread_counts(resident, duplicates, features, false, false)?;
+    let filtered = subread_counts(resident, duplicates, features, false, true)?;
+    // featureCounts' summary total is computed before its -M / --ignoreDup
+    // assignment filters, hence every dupRadar invocation shares this N.
+    let processed = all_multi.n;
+    let width: Vec<u64> = features
+        .genes
+        .iter()
+        .map(|g| g.merged.iter().map(|(a, b)| (b - a) as u64).sum())
+        .collect();
+    let mut text = String::from(
+        "ID\tgeneLength\tallCountsMulti\tfilteredCountsMulti\tdupRateMulti\tdupsPerIdMulti\tRPKMulti\tPKMMulti\tallCounts\tfilteredCounts\tdupRate\tdupsPerId\tRPK\tRPKM\n",
+    );
+    for (i, &gene_width) in width.iter().enumerate() {
+        let rate = |a: u64, b: u64| {
+            if a == 0 {
+                "NA".to_owned()
+            } else {
+                format!("{}", (a - b) as f64 / a as f64)
+            }
+        };
+        let rpk = |n: u64| n as f64 * 1000.0 / gene_width as f64;
+        // Rsubread's N is the number of mapped fragments examined in that invocation.
+        let rpkm = |n: u64, total: u64| {
+            if n == 0 || total == 0 {
+                0.0
+            } else {
+                rpk(n) * 1e6 / total as f64
+            }
+        };
+        text.push_str(&format!(
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            features.genes[i].id,
+            gene_width,
+            all_multi.counts[i],
+            filtered_multi.counts[i],
+            rate(all_multi.counts[i], filtered_multi.counts[i]),
+            all_multi.counts[i] - filtered_multi.counts[i],
+            rpk(all_multi.counts[i]),
+            rpkm(all_multi.counts[i], processed),
+            all.counts[i],
+            filtered.counts[i],
+            rate(all.counts[i], filtered.counts[i]),
+            all.counts[i] - filtered.counts[i],
+            rpk(all.counts[i]),
+            rpkm(all.counts[i], processed),
+        ));
+    }
+    Ok(text)
+}
+
+struct SubreadCounts {
+    counts: Vec<u64>,
+    n: u64,
+}
+
+fn subread_counts(
+    resident: &Resident,
+    duplicates: &HashSet<usize>,
+    features: &FeatureIndex,
+    multi: bool,
+    ignore_dup: bool,
+) -> Result<SubreadCounts> {
+    let mut records: Vec<usize> = resident
+        .headers()
+        .iter()
+        .enumerate()
+        .filter_map(|(i, h)| {
+            let body = resident.record_bytes(*h);
+            // `primaryOnly=FALSE` is the Rsubread default: secondary alignments
+            // participate in -M runs, while supplementary and unmapped records do not.
+            let keep = h.flag & 0x804 == 0
+                && (!ignore_dup || !duplicates.contains(&i))
+                && (multi || !super::bam_nh_is_multiple(body).ok()?);
+            keep.then_some(i)
+        })
+        .collect();
+    records.sort_unstable_by(|&a, &b| {
+        bam_name_bytes(resident.record_bytes(resident.headers()[a]))
+            .cmp(bam_name_bytes(resident.record_bytes(resident.headers()[b])))
+    });
+    let mut counts = vec![0; features.genes.len()];
+    let mut n = 0;
+    let mut at = 0;
+    while at < records.len() {
+        let name = bam_name_bytes(resident.record_bytes(resident.headers()[records[at]]));
+        let end = records[at..]
+            .iter()
+            .position(|&i| bam_name_bytes(resident.record_bytes(resident.headers()[i])) != name)
+            .map_or(records.len(), |x| at + x);
+        let mut left = Vec::new();
+        let mut right = Vec::new();
+        for &i in &records[at..end] {
+            match resident.headers()[i].flag & 0xc0 {
+                0x40 => left.push(i),
+                0x80 => right.push(i),
+                _ => {}
+            }
+        }
+        let with_hi = |items: &mut Vec<usize>| -> Result<()> {
+            let mut keyed = items
+                .iter()
+                .map(|&i| {
+                    Ok((
+                        bam_aux_i32(resident.record_bytes(resident.headers()[i]), *b"HI")?
+                            .unwrap_or(i as i32),
+                        i,
+                    ))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            keyed.sort_unstable();
+            *items = keyed.into_iter().map(|(_, i)| i).collect();
+            Ok(())
+        };
+        with_hi(&mut left)?;
+        with_hi(&mut right)?;
+        let pairs = left.len().max(right.len());
+        for k in 0..pairs {
+            let a = left
+                .get(k)
+                .map(|&i| mate_gene_hits(i, resident, features))
+                .transpose()?
+                .unwrap_or_default();
+            let b = right
+                .get(k)
+                .map(|&i| mate_gene_hits(i, resident, features))
+                .transpose()?
+                .unwrap_or_default();
+            // `stat[,2] - Unassigned_Unmapped` includes fragments which are
+            // mapped but do not overlap an annotated exon.
+            n += 1;
+            if let Some(gene) = one_fragment_gene(&a, &b) {
+                counts[gene] += 1;
+            }
+        }
+        at = end;
+    }
+    Ok(SubreadCounts { counts, n })
+}
+
+fn qualimap_report(resident: &Resident, features: &FeatureIndex) -> Result<String> {
+    let mut left = 0_u64;
+    let mut right = 0_u64;
+    let mut pairs = HashSet::new();
+    let mut secondary = 0_u64;
+    let mut non_unique = 0_u64;
+    let mut gene = 0_u64;
+    let mut ambiguous = 0_u64;
+    let mut no_feature = 0_u64;
+    for (i, h) in resident.headers().iter().enumerate() {
+        if h.flag & 0x100 != 0 {
+            secondary += 1;
+        }
+        // Qualimap reports non-unique supplementary records but not secondaries.
+        if h.flag & 0x100 == 0 && super::bam_nh_is_multiple(resident.record_bytes(*h))? {
+            non_unique += 1;
+        }
+        if h.flag & 0x904 == 0 {
+            if h.flag & 0x40 != 0 {
+                left += 1;
+                if h.flag & 0x2 != 0 {
+                    pairs.insert(bam_name_bytes(resident.record_bytes(*h)).to_vec());
+                }
+            }
+            if h.flag & 0x80 != 0 {
+                right += 1;
+            }
+        }
+        if h.flag & 0x904 != 0 || super::bam_nh_is_multiple(resident.record_bytes(*h))? {
+            continue;
+        }
+        let hits = mate_gene_hits(i, resident, features)?;
+        match hits.len() {
+            0 => no_feature += 1,
+            1 => gene += 1,
+            _ => ambiguous += 1,
+        }
+    }
+    let denom = gene + ambiguous + no_feature;
+    let pct = |n| n as f64 * 100.0 / denom as f64;
+    let commas = |n: u64| {
+        let s = n.to_string();
+        let first = s.len() % 3;
+        s.char_indices().fold(String::new(), |mut out, (i, c)| {
+            if i >= first && i != 0 && (i - first).is_multiple_of(3) {
+                out.push(',');
+            }
+            out.push(c);
+            out
+        })
+    };
+    Ok(format!(
+        "RNA-Seq QC report\n-----------------------------------\n\n>>>>>>> Input\n\n    bam file = markdup.bam\n    gff file = annotation.gtf\n    counting algorithm = uniquely-mapped-reads\n    protocol = non-strand-specific\n    5'-3' bias region size = 100\n    5'-3' bias number of top transcripts = 1000\n\n\n>>>>>>> Reads alignment\n\n    reads aligned (left/right) = {} / {}\n    read pairs aligned  = {}\n    total alignments = {}\n    secondary alignments = {}\n    non-unique alignments = {}\n    aligned to genes  = {}\n    ambiguous alignments = {}\n    no feature assigned = {}\n    not aligned = 0\n    SSP estimation (fwd/rev) = 0.5 / 0.5\n\n\n>>>>>>> Reads genomic origin\n\n    exonic =  {} ({:.2}%)\n    intronic = 0 (0.00%)\n    intergenic = {} ({:.2}%)\n    overlapping exon = 0 (0.00%)\n\n",
+        commas(left),
+        commas(right),
+        commas(pairs.len() as u64),
+        commas(resident.headers().len() as u64),
+        commas(secondary),
+        commas(non_unique),
+        commas(gene),
+        commas(ambiguous),
+        commas(no_feature),
+        commas(gene),
+        pct(gene),
+        commas(no_feature),
+        pct(no_feature)
+    ))
 }
 
 /// RSeQC `inner_distance.py` invokes mRNA_inner_distance with -250..250 in five-base

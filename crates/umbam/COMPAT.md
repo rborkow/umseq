@@ -92,3 +92,23 @@ at 82,242,545/82,408,612 bytes; level 3 in 0.178/0.213 s at 60,967,730/61,116,96
 level 6 in 0.247/0.262 s at 56,872,010/57,015,572 bytes. Level 1 is faster but grows output by
 44.6%, so it does not meet the less-than-10% size-growth criterion; level 6 remains selected.
 `UMBAM_BGZF_LEVEL` is a process-scoped benchmarking override only.
+
+## dupRadar
+
+`umbam chain --qc` writes `dupradar/dupMatrix.txt`.  It reproduces dupRadar 1.38's four
+Rsubread calls over the resident mark-duplicate decisions, including secondary alignments in
+the multi-mapping calls and `HI`-paired secondary mates.  Tier 0 IDs, merged exon lengths, and
+the four count columns are byte-identical.  The numeric gate compares rates and RPK/RPKM values
+at six significant digits: R's `write.table` and Rust's float renderer select different final
+decimal digits despite equivalent IEEE-754 values.
+
+## Qualimap RNA-seq
+
+`qualimap/rnaseq_qc_results.txt` currently emits the deterministic alignment and exon-assignment
+reduction, but does not claim Qualimap 2.3 parity.  The Tier 0 report's transcript profile needs
+the top-1,000 transcript coverage sweep, and its junction motif distribution needs the reference
+sequence, neither of which is resident in the BAM/GTF inputs.  The genomic-origin subdivision
+also remains incompatible: the resident union-exon assignment finds the same 859,269 uniquely
+mapped primary reads but categorizes 704,856 / 130,307 / 24,106 rather than Qualimap's
+734,257 / 83,587 / 41,425 (gene / ambiguous / no-feature).  Consequently no Qualimap golden
+gate is enabled yet.

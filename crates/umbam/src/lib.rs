@@ -78,6 +78,8 @@ struct Timing {
     qc_infer_experiment: Duration,
     qc_junction_saturation: Duration,
     qc_inner_distance: Duration,
+    qc_dupradar: Duration,
+    qc_qualimap: Duration,
 }
 
 /// Runs the resident CPU control path.
@@ -168,6 +170,8 @@ pub fn chain_with_qc(
             qc_infer_experiment: qc_timing.infer_experiment,
             qc_junction_saturation: qc_timing.junction_saturation,
             qc_inner_distance: qc_timing.inner_distance,
+            qc_dupradar: qc_timing.dupradar,
+            qc_qualimap: qc_timing.qualimap,
         },
     )?;
     Ok(())
@@ -1059,6 +1063,55 @@ fn bam_nh_is_multiple(body: &[u8]) -> Result<bool> {
         }
     }
     Ok(false)
+}
+
+/// Return an integer BAM auxiliary tag without materialising a SAM record.
+fn bam_aux_i32(body: &[u8], wanted: [u8; 2]) -> Result<Option<i32>> {
+    let (name_len, cigar_count, _) = bam_layout(body)?;
+    let sequence_len = le_i32(&body[16..20]) as usize;
+    let mut at = 32 + name_len + cigar_count * 4 + sequence_len.div_ceil(2) + sequence_len;
+    while at + 3 <= body.len() {
+        let tag = [body[at], body[at + 1]];
+        let kind = body[at + 2];
+        at += 3;
+        let (value, size) = match kind {
+            b'c' => (i32::from(body[at] as i8), 1),
+            b'C' => (i32::from(body[at]), 1),
+            b's' => (
+                i32::from(i16::from_le_bytes(body[at..at + 2].try_into()?)),
+                2,
+            ),
+            b'S' => (
+                i32::from(u16::from_le_bytes(body[at..at + 2].try_into()?)),
+                2,
+            ),
+            b'i' | b'I' => (i32::from_le_bytes(body[at..at + 4].try_into()?), 4),
+            b'A' => (i32::from(body[at]), 1),
+            b'f' => (0, 4),
+            b'Z' | b'H' => {
+                let end = body[at..]
+                    .iter()
+                    .position(|&x| x == 0)
+                    .context("unterminated BAM aux string")?;
+                (0, end + 1)
+            }
+            b'B' => {
+                let n = u32::from_le_bytes(body[at + 1..at + 5].try_into()?) as usize;
+                let width = match body[at] {
+                    b'c' | b'C' | b'A' => 1,
+                    b's' | b'S' => 2,
+                    _ => 4,
+                };
+                (0, 5 + n * width)
+            }
+            _ => bail!("invalid BAM aux type"),
+        };
+        if tag == wanted {
+            return Ok(Some(value));
+        }
+        at += size;
+    }
+    Ok(None)
 }
 
 /// Picard `SUM_OF_BASE_QUALITIES` scoring: highest score wins. On a tie Picard keeps the
@@ -1978,7 +2031,7 @@ fn write_timing(out: &Path, timing: &Timing) -> io::Result<()> {
     fs::write(
         out.join("timing.tsv"),
         format!(
-            "stage\tseconds\ndecode\t{:.6}\nsort\t{:.6}\nwrite_sorted\t{:.6}\nmarkdup\t{:.6}\nwrite_markdup\t{:.6}\nindex\t{:.6}\ngtf_parse\t{:.6}\nfeaturecounts_count\t{:.6}\nfeaturecounts\t{:.6}\ngenomecov\t{:.6}\nqc_bam_stat\t{:.6}\nqc_seq_duplication\t{:.6}\nqc_pos_duplication\t{:.6}\nqc_read_distribution\t{:.6}\nqc_junction_annotation\t{:.6}\nqc_infer_experiment\t{:.6}\nqc_junction_saturation\t{:.6}\nqc_inner_distance\t{:.6}\npeak_rss_bytes\t{}\n",
+            "stage\tseconds\ndecode\t{:.6}\nsort\t{:.6}\nwrite_sorted\t{:.6}\nmarkdup\t{:.6}\nwrite_markdup\t{:.6}\nindex\t{:.6}\ngtf_parse\t{:.6}\nfeaturecounts_count\t{:.6}\nfeaturecounts\t{:.6}\ngenomecov\t{:.6}\nqc_bam_stat\t{:.6}\nqc_seq_duplication\t{:.6}\nqc_pos_duplication\t{:.6}\nqc_read_distribution\t{:.6}\nqc_junction_annotation\t{:.6}\nqc_infer_experiment\t{:.6}\nqc_junction_saturation\t{:.6}\nqc_inner_distance\t{:.6}\nqc_dupradar\t{:.6}\nqc_qualimap\t{:.6}\npeak_rss_bytes\t{}\n",
             timing.decode.as_secs_f64(),
             timing.sort.as_secs_f64(),
             timing.write_sorted.as_secs_f64(),
@@ -1997,6 +2050,8 @@ fn write_timing(out: &Path, timing: &Timing) -> io::Result<()> {
             timing.qc_infer_experiment.as_secs_f64(),
             timing.qc_junction_saturation.as_secs_f64(),
             timing.qc_inner_distance.as_secs_f64(),
+            timing.qc_dupradar.as_secs_f64(),
+            timing.qc_qualimap.as_secs_f64(),
             peak_rss_bytes()
         ),
     )
