@@ -116,3 +116,27 @@ fn rseqc_infer_experiment_gate() {
         "RSeQC infer experiment",
     );
 }
+
+#[test]
+#[ignore = "requires ~/uni-rnaseq-data/tier0/qc"]
+fn rseqc_junction_saturation_100_percent_gate() {
+    let actual =
+        fs::read_to_string(output().join("rseqc/chr22.junctionSaturation_plot.r")).unwrap();
+    let expected =
+        fs::read_to_string(fixture().join("qc/rseqc/chr22.junctionSaturation_plot.r")).unwrap();
+    let last = |text: &str, name: &str| {
+        text.lines()
+            .find(|line| line.starts_with(&format!("{name}=c(")))
+            .and_then(|line| line.strip_suffix(')'))
+            .and_then(|line| line.split(',').next_back())
+            .unwrap()
+            .to_owned()
+    };
+    for name in ["y", "z", "w"] {
+        assert_eq!(
+            last(&actual, name),
+            last(&expected, name),
+            "{name} 100% total"
+        );
+    }
+}

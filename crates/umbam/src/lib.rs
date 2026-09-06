@@ -76,6 +76,7 @@ struct Timing {
     qc_read_distribution: Duration,
     qc_junction_annotation: Duration,
     qc_infer_experiment: Duration,
+    qc_junction_saturation: Duration,
 }
 
 /// Runs the resident CPU control path.
@@ -164,6 +165,7 @@ pub fn chain_with_qc(
             qc_read_distribution: qc_timing.read_distribution,
             qc_junction_annotation: qc_timing.junction_annotation,
             qc_infer_experiment: qc_timing.infer_experiment,
+            qc_junction_saturation: qc_timing.junction_saturation,
         },
     )?;
     Ok(())
@@ -1974,7 +1976,7 @@ fn write_timing(out: &Path, timing: &Timing) -> io::Result<()> {
     fs::write(
         out.join("timing.tsv"),
         format!(
-            "stage\tseconds\ndecode\t{:.6}\nsort\t{:.6}\nwrite_sorted\t{:.6}\nmarkdup\t{:.6}\nwrite_markdup\t{:.6}\nindex\t{:.6}\ngtf_parse\t{:.6}\nfeaturecounts_count\t{:.6}\nfeaturecounts\t{:.6}\ngenomecov\t{:.6}\nqc_bam_stat\t{:.6}\nqc_seq_duplication\t{:.6}\nqc_pos_duplication\t{:.6}\nqc_read_distribution\t{:.6}\nqc_junction_annotation\t{:.6}\nqc_infer_experiment\t{:.6}\npeak_rss_bytes\t{}\n",
+            "stage\tseconds\ndecode\t{:.6}\nsort\t{:.6}\nwrite_sorted\t{:.6}\nmarkdup\t{:.6}\nwrite_markdup\t{:.6}\nindex\t{:.6}\ngtf_parse\t{:.6}\nfeaturecounts_count\t{:.6}\nfeaturecounts\t{:.6}\ngenomecov\t{:.6}\nqc_bam_stat\t{:.6}\nqc_seq_duplication\t{:.6}\nqc_pos_duplication\t{:.6}\nqc_read_distribution\t{:.6}\nqc_junction_annotation\t{:.6}\nqc_infer_experiment\t{:.6}\nqc_junction_saturation\t{:.6}\npeak_rss_bytes\t{}\n",
             timing.decode.as_secs_f64(),
             timing.sort.as_secs_f64(),
             timing.write_sorted.as_secs_f64(),
@@ -1991,6 +1993,7 @@ fn write_timing(out: &Path, timing: &Timing) -> io::Result<()> {
             timing.qc_read_distribution.as_secs_f64(),
             timing.qc_junction_annotation.as_secs_f64(),
             timing.qc_infer_experiment.as_secs_f64(),
+            timing.qc_junction_saturation.as_secs_f64(),
             peak_rss_bytes()
         ),
     )

@@ -20,6 +20,7 @@ pub(super) struct Timing {
     pub read_distribution: Duration,
     pub junction_annotation: Duration,
     pub infer_experiment: Duration,
+    pub junction_saturation: Duration,
 }
 
 pub(super) fn write(
@@ -58,6 +59,12 @@ pub(super) fn write(
     fs::write(rseqc.join("chr22.junction.xls"), junction_xls)?;
     fs::write(rseqc.join("chr22.junction_annotation.log"), junction_log)?;
     let junction_annotation = junction_started.elapsed();
+    let saturation_started = Instant::now();
+    fs::write(
+        rseqc.join("chr22.junctionSaturation_plot.r"),
+        junction_saturation(resident, duplicates, &model)?,
+    )?;
+    let junction_saturation = saturation_started.elapsed();
     let infer_started = Instant::now();
     fs::write(
         rseqc.join("infer_experiment.txt"),
@@ -70,6 +77,7 @@ pub(super) fn write(
         read_distribution,
         junction_annotation,
         infer_experiment: infer_started.elapsed(),
+        junction_saturation,
     })
 }
 
@@ -221,6 +229,7 @@ struct BedModel {
     intron_starts: HashMap<String, HashSet<i32>>,
     intron_ends: HashMap<String, HashSet<i32>>,
     genes: HashMap<String, Vec<(Interval, char)>>,
+    known_junctions: HashSet<(String, i32, i32)>,
 }
 
 impl BedModel {
@@ -279,6 +288,8 @@ impl BedModel {
                         .entry(chrom.clone())
                         .or_default()
                         .insert(pair[1].start);
+                    raw.known_junctions
+                        .insert((chrom.clone(), pair[0].end, pair[1].start));
                 }
             }
             for e in &exons {
@@ -363,6 +374,7 @@ impl BedModel {
             intron_starts: raw.starts,
             intron_ends: raw.ends,
             genes: raw.genes,
+            known_junctions: raw.known_junctions,
         })
     }
 }
@@ -381,6 +393,7 @@ struct RawBed {
     starts: HashMap<String, HashSet<i32>>,
     ends: HashMap<String, HashSet<i32>>,
     genes: HashMap<String, Vec<(Interval, char)>>,
+    known_junctions: HashSet<(String, i32, i32)>,
 }
 fn normalize(mut maps: HashMap<String, Vec<Interval>>) -> HashMap<String, Vec<Interval>> {
     for v in maps.values_mut() {
@@ -717,6 +730,78 @@ fn junction_annotation(
         jc[2]
     );
     Ok((xls, log))
+}
+
+/// RSeQC's source shuffles individual splice events before accumulating 5% chunks.  The
+/// final chunk necessarily contains every event, so its three totals are deterministic.  We
+/// use a documented, local Fisher--Yates seed for the intentionally non-golden earlier points.
+fn junction_saturation(
+    resident: &Resident,
+    duplicates: &HashSet<usize>,
+    model: &BedModel,
+) -> Result<String> {
+    let mut events = Vec::<(String, i32, i32)>::new();
+    for &record_index in resident.coordinate_order() {
+        let index = record_index as usize;
+        let fixed = resident.headers()[index];
+        if fixed.flag & 0x304 != 0 || duplicates.contains(&index) || fixed.mapq < 30 {
+            continue;
+        }
+        let chr = resident
+            .header
+            .reference_sequences()
+            .get_index(fixed.tid as usize)
+            .map(|(n, _)| n.to_string())
+            .unwrap_or_default()
+            .to_ascii_uppercase();
+        for intron in cigar_introns(resident, fixed)? {
+            if intron.end - intron.start >= 50 {
+                events.push((chr.clone(), intron.start, intron.end));
+            }
+        }
+    }
+    // xorshift64* is deliberately tiny and stable across Rust releases.  This is only for
+    // RSeQC's inherently random 5--95% samples; the 100% point is independent of it.
+    let mut state = 0x5253_4551_435f_5341_u64;
+    for i in (1..events.len()).rev() {
+        state ^= state >> 12;
+        state ^= state << 25;
+        state ^= state >> 27;
+        let j = (state.wrapping_mul(0x2545_f491_4f6c_dd1d) as usize) % (i + 1);
+        events.swap(i, j);
+    }
+    let mut seen = HashMap::<(String, i32, i32), u64>::new();
+    let mut known = Vec::new();
+    let mut all = Vec::new();
+    let mut novel = Vec::new();
+    for percent in (5..=100).step_by(5) {
+        let begin = events.len() * (percent - 5) / 100;
+        let end = events.len() * percent / 100;
+        for event in &events[begin..end] {
+            *seen.entry(event.clone()).or_default() += 1;
+        }
+        all.push(seen.len());
+        known.push(
+            seen.keys()
+                .filter(|key| model.known_junctions.contains(*key))
+                .count(),
+        );
+        novel.push(all.last().copied().unwrap() - known.last().copied().unwrap());
+    }
+    let csv = |v: &[usize]| v.iter().map(usize::to_string).collect::<Vec<_>>().join(",");
+    Ok(format!(
+        "pdf('chr22.junctionSaturation_plot.pdf')\nx=c(5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100)\ny=c({})\nz=c({})\nw=c({})\nm=max({},{},{})\nn=min({},{},{})\nplot(x,z/1000,xlab='percent of total reads',ylab='Number of splicing junctions (x1000)',type='o',col='blue',ylim=c(n,m))\npoints(x,y/1000,type='o',col='red')\npoints(x,w/1000,type='o',col='green')\nlegend(5,{}, legend=c(\"All junctions\",\"known junctions\", \"novel junctions\"),col=c(\"blue\",\"red\",\"green\"),lwd=1,pch=1)\ndev.off()\n",
+        csv(&known),
+        csv(&all),
+        csv(&novel),
+        known[19] / 1000,
+        all[19] / 1000,
+        novel[19] / 1000,
+        known[0] / 1000,
+        all[0] / 1000,
+        novel[0] / 1000,
+        all[19] / 1000
+    ))
 }
 
 fn infer_experiment(
