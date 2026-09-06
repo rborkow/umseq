@@ -174,6 +174,10 @@ impl Resident {
         self.table.as_pod_slice()
     }
 
+    fn coordinate_order(&self) -> &[u32] {
+        &self.order
+    }
+
     fn record_bytes(&self, fixed: RecordHeader) -> &[u8] {
         let start = fixed.offset as usize;
         let end = start + fixed.len as usize;

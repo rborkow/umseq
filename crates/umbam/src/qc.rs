@@ -6,7 +6,7 @@
 use super::{Resident, bam_cigar, bam_layout, le_i32};
 use anyhow::Result;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     fs,
     path::Path,
     time::{Duration, Instant},
@@ -121,7 +121,9 @@ fn bam_stat(resident: &Resident, duplicates: &HashSet<usize>) -> Result<String> 
     let mut splice = 0_u64;
     let mut proper = 0_u64;
     let mut proper_different = 0_u64;
-    for (index, fixed) in resident.headers().iter().enumerate() {
+    for &record_index in resident.coordinate_order() {
+        let index = record_index as usize;
+        let fixed = resident.headers()[index];
         total += 1;
         // RSeQC's bam_stat uses this precedence, so its headline categories form a
         // partition even when a record carries more than one of these flags.
@@ -150,7 +152,7 @@ fn bam_stat(resident: &Resident, duplicates: &HashSet<usize>) -> Result<String> 
         read2 += u64::from(fixed.flag & 0x80 != 0);
         plus += u64::from(fixed.flag & 0x10 == 0);
         minus += u64::from(fixed.flag & 0x10 != 0);
-        let cigar = bam_cigar(resident.record_bytes(*fixed))?;
+        let cigar = bam_cigar(resident.record_bytes(fixed))?;
         splice += u64::from(cigar.iter().any(|(_, op)| *op == 'N'));
         if fixed.flag & 0x2 != 0 {
             proper += 1;
@@ -447,7 +449,10 @@ fn subtract_many(
 }
 fn contains(map: &HashMap<String, Vec<Interval>>, chr: &str, p: i32) -> bool {
     map.get(chr).is_some_and(|v| {
-        let n = v.partition_point(|x| x.start <= p);
+        // `bx.intervals.Intersecter.find(p, p)` treats the zero-width query
+        // as an open point: an interval hits only when `start < p < end`.
+        // This is deliberately not normal half-open membership (`start <= p`).
+        let n = v.partition_point(|x| x.start < p);
         n > 0 && v[n - 1].end > p
     })
 }
@@ -503,7 +508,9 @@ fn read_distribution(
     let mut tags = 0_i64;
     let mut unassigned = 0_i64;
     let mut reads = 0_i64;
-    for (index, fixed) in resident.headers().iter().enumerate() {
+    for &record_index in resident.coordinate_order() {
+        let index = record_index as usize;
+        let fixed = resident.headers()[index];
         if fixed.flag & 0x304 != 0 || duplicates.contains(&index) {
             continue;
         }
@@ -515,7 +522,7 @@ fn read_distribution(
             .map(|(n, _)| n.to_string())
             .unwrap_or_default()
             .to_ascii_uppercase();
-        for ex in cigar_exons(resident, *fixed)? {
+        for ex in cigar_exons(resident, fixed)? {
             tags += 1;
             let p = ex.start + (ex.end - ex.start) / 2;
             let group = if contains(&model.cds, &chr, p) {
@@ -611,8 +618,13 @@ fn junction_annotation(
     let mut partial_events = 0_u64;
     let mut novel_events = 0_u64;
     let mut filtered_events = 0_u64;
-    let mut junctions = BTreeMap::<(String, i32, i32), u64>::new();
-    for (index, fixed) in resident.headers().iter().enumerate() {
+    // Python 3 dictionaries retain insertion order, and RSeQC writes these in
+    // the order that each distinct junction is first encountered in the BAM.
+    let mut junctions = Vec::<((String, i32, i32), u64)>::new();
+    let mut junction_indices = HashMap::<(String, i32, i32), usize>::new();
+    for &record_index in resident.coordinate_order() {
+        let index = record_index as usize;
+        let fixed = resident.headers()[index];
         if fixed.flag & 0x304 != 0 || duplicates.contains(&index) || fixed.mapq < 30 {
             continue;
         }
@@ -623,13 +635,20 @@ fn junction_annotation(
             .map(|(n, _)| n.to_string())
             .unwrap_or_default()
             .to_ascii_uppercase();
-        for x in cigar_introns(resident, *fixed)? {
+        for x in cigar_introns(resident, fixed)? {
             total_events += 1;
             if x.end - x.start < 50 {
                 filtered_events += 1;
                 continue;
             }
-            *junctions.entry((chr.clone(), x.start, x.end)).or_default() += 1;
+            let key = (chr.clone(), x.start, x.end);
+            if let Some(&index) = junction_indices.get(&key) {
+                junctions[index].1 += 1;
+            } else {
+                let index = junctions.len();
+                junction_indices.insert(key.clone(), index);
+                junctions.push((key, 1));
+            }
             if model
                 .intron_starts
                 .get(&chr)
@@ -706,7 +725,13 @@ fn infer_experiment(
     model: &BedModel,
 ) -> Result<String> {
     let mut counts = HashMap::<String, u64>::new();
-    for (index, fixed) in resident.headers().iter().enumerate() {
+    let mut sampled = 0_u64;
+    for &record_index in resident.coordinate_order() {
+        if sampled >= 200_000 {
+            break;
+        }
+        let index = record_index as usize;
+        let fixed = resident.headers()[index];
         if fixed.flag & 0x304 != 0 || duplicates.contains(&index) || fixed.mapq < 30 {
             continue;
         }
@@ -717,7 +742,7 @@ fn infer_experiment(
             .map(|(n, _)| n.to_string())
             .unwrap_or_default()
             .to_ascii_uppercase();
-        let end = fixed.pos + le_i32(&resident.record_bytes(*fixed)[16..20]);
+        let end = fixed.pos + le_i32(&resident.record_bytes(fixed)[16..20]);
         let strands: HashSet<char> = model
             .genes
             .get(&chr)
@@ -729,10 +754,14 @@ fn infer_experiment(
         if strands.is_empty() {
             continue;
         }
+        sampled += 1;
         let gene = if strands.len() == 1 {
             strands.iter().next().unwrap().to_string()
         } else {
-            "+:-".to_owned()
+            // RSeQC uses `':'.join(set(...))`; on its reference runtime the
+            // two-strand case is `-:+`, which is deliberately not one of the
+            // recognized protocol buckets below.
+            "-:+".to_owned()
         };
         let rid = if fixed.flag & 0x40 != 0 { '1' } else { '2' };
         let map = if fixed.flag & 0x10 != 0 { '-' } else { '+' };

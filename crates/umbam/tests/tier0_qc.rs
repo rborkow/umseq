@@ -83,3 +83,36 @@ fn rseqc_position_duplication_gate() {
         "RSeQC position duplication",
     );
 }
+
+#[test]
+#[ignore = "requires ~/uni-rnaseq-data/tier0/qc"]
+fn rseqc_read_distribution_gate() {
+    let root = fixture();
+    assert_bytes(
+        &output().join("rseqc/read_distribution.txt"),
+        &root.join("qc/rseqc/read_distribution.txt"),
+        "RSeQC read distribution",
+    );
+}
+
+#[test]
+#[ignore = "requires ~/uni-rnaseq-data/tier0/qc"]
+fn rseqc_junction_annotation_log_gate() {
+    let root = fixture();
+    assert_bytes(
+        &output().join("rseqc/chr22.junction_annotation.log"),
+        &root.join("qc/rseqc/chr22.junction_annotation.log"),
+        "RSeQC junction annotation log",
+    );
+}
+
+#[test]
+#[ignore = "requires ~/uni-rnaseq-data/tier0/qc"]
+fn rseqc_infer_experiment_gate() {
+    let root = fixture();
+    assert_bytes(
+        &output().join("rseqc/infer_experiment.txt"),
+        &root.join("qc/rseqc/infer_experiment.txt"),
+        "RSeQC infer experiment",
+    );
+}

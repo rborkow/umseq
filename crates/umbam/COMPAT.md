@@ -12,6 +12,23 @@ clip advances the reference coordinate, while `=` and `X` contribute no exon blo
 secondary, supplementary, and duplicate records, filtering only unmapped/QC-failed records and
 MAPQ below 30.
 
+## RSeQC `read_distribution`, junction annotation, and infer experiment
+
+`read_distribution.txt` is byte-identical on Tier 0. Its midpoint lookup deliberately mirrors
+`bx-python`'s zero-width `Intersecter.find(mid, mid)` query: an interval is a hit only when
+`start < mid < end`. In particular, a midpoint exactly at a BED interval start is unassigned;
+ordinary half-open point membership would be wrong here. BED chromosomes and read chromosomes
+are both normalized to uppercase, as RSeQC's `build_bitsets` and read path do.
+
+The deterministic `chr22.junction_annotation.log` and `infer_experiment.txt` outputs are also
+byte-identical. `infer_experiment` scans coordinate order and stops after RSeQC's default
+200,000 usable gene-overlapping reads. Mixed-strand gene overlaps retain RSeQC's reference
+runtime spelling (`-:+`), which therefore falls into its failed-to-determine bucket.
+
+`junctionSaturation_plot.r` is not emitted: RSeQC calls an unseeded `random.shuffle`, so its
+5–95% samples are inherently run-dependent. Its 100% totals can be derived from the junction
+event set, but there is no stable byte-level golden to gate.
+
 ## featureCounts paired-end ambiguity
 
 Measured against Subread 2.1.1 (`featureCounts -p --countReadPairs -R CORE`),
