@@ -4,6 +4,7 @@ use super::*;
 
 /// Chunks per nvCOMP launch. Temp workspace is ~1.2 MB/chunk at algorithm 4, so 2048
 /// chunks (~128 MB uncompressed) keeps the workspace at ~2.5 GB.
+#[cfg(feature = "nvcomp")]
 const DEFLATE_BATCH_CHUNKS: usize = 2048;
 
 #[cfg(feature = "nvcomp")]
