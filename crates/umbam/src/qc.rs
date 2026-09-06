@@ -8,6 +8,7 @@ use super::{
     mate_gene_hits, one_fragment_gene, read_features,
 };
 use anyhow::Result;
+use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -335,44 +336,69 @@ fn subread_pairs(
 }
 
 fn qualimap_report(resident: &Resident, features: &FeatureIndex) -> Result<String> {
-    let mut left = 0_u64;
-    let mut right = 0_u64;
-    let mut pairs = HashSet::new();
-    let mut secondary = 0_u64;
-    let mut non_unique = 0_u64;
-    let mut gene = 0_u64;
-    let mut ambiguous = 0_u64;
-    let mut no_feature = 0_u64;
-    for (i, h) in resident.headers().iter().enumerate() {
-        if h.flag & 0x100 != 0 {
-            secondary += 1;
-        }
-        // Qualimap reports non-unique supplementary records but not secondaries.
-        if h.flag & 0x100 == 0 && super::bam_nh_is_multiple(resident.record_bytes(*h))? {
-            non_unique += 1;
-        }
-        if h.flag & 0x904 == 0 {
-            if h.flag & 0x40 != 0 {
-                left += 1;
-                if h.flag & 0x2 != 0 {
-                    pairs.insert(bam_name_bytes(resident.record_bytes(*h)).to_vec());
+    #[derive(Default)]
+    struct Counts {
+        left: u64,
+        right: u64,
+        pairs: HashSet<Vec<u8>>,
+        secondary: u64,
+        non_unique: u64,
+        gene: u64,
+        ambiguous: u64,
+        no_feature: u64,
+    }
+    let partials: Vec<Counts> = resident
+        .headers()
+        .par_chunks(16_384)
+        .enumerate()
+        .map(|(chunk_index, chunk)| -> Result<_> {
+            let mut out = Counts::default();
+            for (offset, h) in chunk.iter().enumerate() {
+                let i = chunk_index * 16_384 + offset;
+                if h.flag & 0x100 != 0 {
+                    out.secondary += 1;
+                }
+                // Qualimap reports non-unique supplementary records but not secondaries.
+                if h.flag & 0x100 == 0 && super::bam_nh_is_multiple(resident.record_bytes(*h))? {
+                    out.non_unique += 1;
+                }
+                if h.flag & 0x904 == 0 {
+                    if h.flag & 0x40 != 0 {
+                        out.left += 1;
+                        if h.flag & 0x2 != 0 {
+                            out.pairs
+                                .insert(bam_name_bytes(resident.record_bytes(*h)).to_vec());
+                        }
+                    }
+                    if h.flag & 0x80 != 0 {
+                        out.right += 1;
+                    }
+                }
+                if h.flag & 0x904 != 0 || super::bam_nh_is_multiple(resident.record_bytes(*h))? {
+                    continue;
+                }
+                let hits = mate_gene_hits(i, resident, features)?;
+                match hits.len() {
+                    0 => out.no_feature += 1,
+                    1 => out.gene += 1,
+                    _ => out.ambiguous += 1,
                 }
             }
-            if h.flag & 0x80 != 0 {
-                right += 1;
-            }
-        }
-        if h.flag & 0x904 != 0 || super::bam_nh_is_multiple(resident.record_bytes(*h))? {
-            continue;
-        }
-        let hits = mate_gene_hits(i, resident, features)?;
-        match hits.len() {
-            0 => no_feature += 1,
-            1 => gene += 1,
-            _ => ambiguous += 1,
-        }
+            Ok(out)
+        })
+        .collect::<Result<_>>()?;
+    let mut counts = Counts::default();
+    for mut part in partials {
+        counts.left += part.left;
+        counts.right += part.right;
+        counts.secondary += part.secondary;
+        counts.non_unique += part.non_unique;
+        counts.gene += part.gene;
+        counts.ambiguous += part.ambiguous;
+        counts.no_feature += part.no_feature;
+        counts.pairs.extend(part.pairs.drain());
     }
-    let denom = gene + ambiguous + no_feature;
+    let denom = counts.gene + counts.ambiguous + counts.no_feature;
     let pct = |n| n as f64 * 100.0 / denom as f64;
     let commas = |n: u64| {
         let s = n.to_string();
@@ -387,19 +413,19 @@ fn qualimap_report(resident: &Resident, features: &FeatureIndex) -> Result<Strin
     };
     Ok(format!(
         "RNA-Seq QC report\n-----------------------------------\n\n>>>>>>> Input\n\n    bam file = markdup.bam\n    gff file = annotation.gtf\n    counting algorithm = uniquely-mapped-reads\n    protocol = non-strand-specific\n    5'-3' bias region size = 100\n    5'-3' bias number of top transcripts = 1000\n\n\n>>>>>>> Reads alignment\n\n    reads aligned (left/right) = {} / {}\n    read pairs aligned  = {}\n    total alignments = {}\n    secondary alignments = {}\n    non-unique alignments = {}\n    aligned to genes  = {}\n    ambiguous alignments = {}\n    no feature assigned = {}\n    not aligned = 0\n    SSP estimation (fwd/rev) = 0.5 / 0.5\n\n\n>>>>>>> Reads genomic origin\n\n    exonic =  {} ({:.2}%)\n    intronic = 0 (0.00%)\n    intergenic = {} ({:.2}%)\n    overlapping exon = 0 (0.00%)\n\n",
-        commas(left),
-        commas(right),
-        commas(pairs.len() as u64),
+        commas(counts.left),
+        commas(counts.right),
+        commas(counts.pairs.len() as u64),
         commas(resident.headers().len() as u64),
-        commas(secondary),
-        commas(non_unique),
-        commas(gene),
-        commas(ambiguous),
-        commas(no_feature),
-        commas(gene),
-        pct(gene),
-        commas(no_feature),
-        pct(no_feature)
+        commas(counts.secondary),
+        commas(counts.non_unique),
+        commas(counts.gene),
+        commas(counts.ambiguous),
+        commas(counts.no_feature),
+        commas(counts.gene),
+        pct(counts.gene),
+        commas(counts.no_feature),
+        pct(counts.no_feature)
     ))
 }
 
@@ -410,7 +436,9 @@ fn inner_distance(
     duplicates: &HashSet<usize>,
     model: &BedModel,
 ) -> Result<String> {
-    let mut distances = Vec::<i32>::new();
+    // The one-million-pair cap is defined in coordinate order, so establish that
+    // prefix serially.  Distance calculation itself has no ordering dependency.
+    let mut accepted = Vec::new();
     let mut pair_num = 0_u64;
     for &record_index in resident.coordinate_order() {
         if pair_num >= 1_000_000 {
@@ -437,55 +465,62 @@ fn inner_distance(
         if fixed.tid != fixed.mate_tid {
             continue;
         }
-        let chrom = resident
-            .header
-            .reference_sequences()
-            .get_index(fixed.tid as usize)
-            .map(|(name, _)| name.to_string().to_ascii_uppercase())
-            .unwrap_or_default();
-        let cigar = bam_cigar(resident.record_bytes(fixed))?;
-        // pysam's qlen is query_alignment_length: M/I/=/X, specifically excluding S.
-        let qlen: i32 = cigar
-            .iter()
-            .filter(|(_, op)| matches!(*op, 'M' | 'I' | '=' | 'X'))
-            .map(|(n, _)| *n)
-            .sum();
-        let introns: i32 = cigar
-            .iter()
-            .filter(|(_, op)| *op == 'N')
-            .map(|(n, _)| *n)
-            .sum();
-        let read1_end = read1_start + qlen + introns;
-        let genomic = if read2_start >= read1_end {
-            read2_start - read1_end
-        } else {
-            // fetch_exon uses only M and (unusually) lets soft clips advance reference.
-            let mut exon_positions = Vec::new();
-            for ex in cigar_exons(resident, fixed)? {
-                exon_positions.extend((ex.start + 1)..=ex.end);
-            }
-            -(exon_positions
-                .into_iter()
-                .filter(|&p| p > read2_start && p <= read1_end)
-                .count() as i32)
-        };
-        let read1_genes = transcript_names_at(model, &chrom, read1_end - 1);
-        let read2_genes = transcript_names_at(model, &chrom, read2_start);
-        let common_transcript = read1_genes.iter().any(|name| read2_genes.contains(name));
-        let distance = if common_transcript && genomic > 0 {
-            let size: i32 = model
-                .exons
-                .get(&chrom)
-                .into_iter()
-                .flatten()
-                .map(|ex| (ex.end.min(read2_start) - ex.start.max(read1_end)).max(0))
-                .sum();
-            if size > 0 { size } else { genomic }
-        } else {
-            genomic
-        };
-        distances.push(distance);
+        accepted.push(fixed);
     }
+    let chroms = chromosome_names(resident);
+    let distances: Vec<i32> = accepted
+        .par_iter()
+        .map(|fixed| -> Result<_> {
+            let read1_start = fixed.pos;
+            let read2_start = fixed.mate_pos;
+            let chrom = chroms
+                .get(fixed.tid as usize)
+                .map(String::as_str)
+                .unwrap_or("");
+            let cigar = bam_cigar(resident.record_bytes(*fixed))?;
+            // pysam's qlen is query_alignment_length: M/I/=/X, specifically excluding S.
+            let qlen: i32 = cigar
+                .iter()
+                .filter(|(_, op)| matches!(*op, 'M' | 'I' | '=' | 'X'))
+                .map(|(n, _)| *n)
+                .sum();
+            let introns: i32 = cigar
+                .iter()
+                .filter(|(_, op)| *op == 'N')
+                .map(|(n, _)| *n)
+                .sum();
+            let read1_end = read1_start + qlen + introns;
+            let genomic = if read2_start >= read1_end {
+                read2_start - read1_end
+            } else {
+                // fetch_exon uses only M and (unusually) lets soft clips advance reference.
+                let mut exon_positions = Vec::new();
+                for ex in cigar_exons(resident, *fixed)? {
+                    exon_positions.extend((ex.start + 1)..=ex.end);
+                }
+                -(exon_positions
+                    .into_iter()
+                    .filter(|&p| p > read2_start && p <= read1_end)
+                    .count() as i32)
+            };
+            let read1_genes = transcript_names_at(model, chrom, read1_end - 1);
+            let read2_genes = transcript_names_at(model, chrom, read2_start);
+            let common_transcript = read1_genes.iter().any(|name| read2_genes.contains(name));
+            let distance = if common_transcript && genomic > 0 {
+                let size: i32 = model
+                    .exons
+                    .get(chrom)
+                    .into_iter()
+                    .flatten()
+                    .map(|ex| (ex.end.min(read2_start) - ex.start.max(read1_end)).max(0))
+                    .sum();
+                if size > 0 { size } else { genomic }
+            } else {
+                genomic
+            };
+            Ok(distance)
+        })
+        .collect::<Result<_>>()?;
     Ok((-250..250)
         .step_by(5)
         .map(|st| {
@@ -500,26 +535,41 @@ fn inner_distance(
 /// ignored altogether.  Keep a structural key rather than rendering chrom:pos:text;
 /// chromosome identity is equivalent to the resident tid.
 fn position_duplication(resident: &Resident) -> Result<HashMap<u32, u64>> {
-    let mut positions = HashMap::<(i32, i32, Vec<(i32, i32)>), u32>::new();
-    for fixed in resident.headers() {
-        // Unlike the other RSeQC reductions, readDupRate retains secondary,
-        // supplementary, and duplicate records.
-        if fixed.flag & 0x204 != 0 || fixed.mapq < 30 {
-            continue;
-        }
-        let mut reference = fixed.pos;
-        let mut blocks = Vec::new();
-        for (length, op) in bam_cigar(resident.record_bytes(*fixed))? {
-            match op {
-                'M' => {
-                    blocks.push((reference, reference + length));
-                    reference += length;
+    // Hashing the read shapes is independent.  Keep the (rather large) maps local to
+    // Rayon workers: a shared map was measurably worse than the old serial sweep.
+    let maps: Vec<HashMap<PositionKey, u32>> = resident
+        .headers()
+        .par_chunks(16_384)
+        .map(|chunk| -> Result<_> {
+            let mut positions = HashMap::<PositionKey, u32>::new();
+            for fixed in chunk {
+                // Unlike the other RSeQC reductions, readDupRate retains secondary,
+                // supplementary, and duplicate records.
+                if fixed.flag & 0x204 != 0 || fixed.mapq < 30 {
+                    continue;
                 }
-                'D' | 'N' | 'S' => reference += length,
-                _ => {}
+                let mut reference = fixed.pos;
+                let mut blocks = Vec::new();
+                for (length, op) in bam_cigar(resident.record_bytes(*fixed))? {
+                    match op {
+                        'M' => {
+                            blocks.push((reference, reference + length));
+                            reference += length;
+                        }
+                        'D' | 'N' | 'S' => reference += length,
+                        _ => {}
+                    }
+                }
+                *positions.entry((fixed.tid, fixed.pos, blocks)).or_default() += 1;
             }
+            Ok(positions)
+        })
+        .collect::<Result<_>>()?;
+    let mut positions = HashMap::<PositionKey, u32>::new();
+    for map in maps {
+        for (key, count) in map {
+            *positions.entry(key).or_default() += count;
         }
-        *positions.entry((fixed.tid, fixed.pos, blocks)).or_default() += 1;
     }
     let mut result = HashMap::new();
     for occurrence in positions.into_values() {
@@ -529,61 +579,103 @@ fn position_duplication(resident: &Resident) -> Result<HashMap<u32, u64>> {
 }
 
 fn bam_stat(resident: &Resident, duplicates: &HashSet<usize>) -> Result<String> {
-    let mut total = 0_u64;
-    let mut qc_fail = 0_u64;
-    let mut duplicate = 0_u64;
-    let mut non_primary = 0_u64;
-    let mut unmapped = 0_u64;
-    let mut low_mapq = 0_u64;
-    let mut unique = 0_u64;
-    let mut read1 = 0_u64;
-    let mut read2 = 0_u64;
-    let mut plus = 0_u64;
-    let mut minus = 0_u64;
-    let mut splice = 0_u64;
-    let mut proper = 0_u64;
-    let mut proper_different = 0_u64;
-    for &record_index in resident.coordinate_order() {
-        let index = record_index as usize;
-        let fixed = resident.headers()[index];
-        total += 1;
-        // RSeQC's bam_stat uses this precedence, so its headline categories form a
-        // partition even when a record carries more than one of these flags.
-        if fixed.flag & 0x200 != 0 {
-            qc_fail += 1;
-            continue;
-        }
-        if fixed.flag & 0x400 != 0 || duplicates.contains(&index) {
-            duplicate += 1;
-            continue;
-        }
-        if fixed.flag & 0x100 != 0 {
-            non_primary += 1;
-            continue;
-        }
-        if fixed.flag & 0x4 != 0 {
-            unmapped += 1;
-            continue;
-        }
-        if fixed.mapq < 30 {
-            low_mapq += 1;
-            continue;
-        }
-        unique += 1;
-        read1 += u64::from(fixed.flag & 0x40 != 0);
-        read2 += u64::from(fixed.flag & 0x80 != 0);
-        plus += u64::from(fixed.flag & 0x10 == 0);
-        minus += u64::from(fixed.flag & 0x10 != 0);
-        let cigar = bam_cigar(resident.record_bytes(fixed))?;
-        splice += u64::from(cigar.iter().any(|(_, op)| *op == 'N'));
-        if fixed.flag & 0x2 != 0 {
-            proper += 1;
-            proper_different += u64::from(fixed.tid != fixed.mate_tid);
-        }
+    #[derive(Default)]
+    struct Counts {
+        total: u64,
+        qc_fail: u64,
+        duplicate: u64,
+        non_primary: u64,
+        unmapped: u64,
+        low_mapq: u64,
+        unique: u64,
+        read1: u64,
+        read2: u64,
+        plus: u64,
+        minus: u64,
+        splice: u64,
+        proper: u64,
+        proper_different: u64,
+    }
+    let counts: Vec<Counts> = resident
+        .coordinate_order()
+        .par_chunks(16_384)
+        .map(|chunk| -> Result<_> {
+            let mut c = Counts::default();
+            for &record_index in chunk {
+                let index = record_index as usize;
+                let fixed = resident.headers()[index];
+                c.total += 1;
+                // RSeQC's bam_stat uses this precedence, so its headline categories form a
+                // partition even when a record carries more than one of these flags.
+                if fixed.flag & 0x200 != 0 {
+                    c.qc_fail += 1;
+                    continue;
+                }
+                if fixed.flag & 0x400 != 0 || duplicates.contains(&index) {
+                    c.duplicate += 1;
+                    continue;
+                }
+                if fixed.flag & 0x100 != 0 {
+                    c.non_primary += 1;
+                    continue;
+                }
+                if fixed.flag & 0x4 != 0 {
+                    c.unmapped += 1;
+                    continue;
+                }
+                if fixed.mapq < 30 {
+                    c.low_mapq += 1;
+                    continue;
+                }
+                c.unique += 1;
+                c.read1 += u64::from(fixed.flag & 0x40 != 0);
+                c.read2 += u64::from(fixed.flag & 0x80 != 0);
+                c.plus += u64::from(fixed.flag & 0x10 == 0);
+                c.minus += u64::from(fixed.flag & 0x10 != 0);
+                let cigar = bam_cigar(resident.record_bytes(fixed))?;
+                c.splice += u64::from(cigar.iter().any(|(_, op)| *op == 'N'));
+                if fixed.flag & 0x2 != 0 {
+                    c.proper += 1;
+                    c.proper_different += u64::from(fixed.tid != fixed.mate_tid);
+                }
+            }
+            Ok(c)
+        })
+        .collect::<Result<_>>()?;
+    let mut c = Counts::default();
+    for x in counts {
+        c.total += x.total;
+        c.qc_fail += x.qc_fail;
+        c.duplicate += x.duplicate;
+        c.non_primary += x.non_primary;
+        c.unmapped += x.unmapped;
+        c.low_mapq += x.low_mapq;
+        c.unique += x.unique;
+        c.read1 += x.read1;
+        c.read2 += x.read2;
+        c.plus += x.plus;
+        c.minus += x.minus;
+        c.splice += x.splice;
+        c.proper += x.proper;
+        c.proper_different += x.proper_different;
     }
     Ok(format!(
         "\n#==================================================\n#All numbers are READ count\n#==================================================\n\nTotal records:                          {total}\n\nQC failed:                              {qc_fail}\nOptical/PCR duplicate:                  {duplicate}\nNon primary hits                        {non_primary}\nUnmapped reads:                         {unmapped}\nmapq < mapq_cut (non-unique):           {low_mapq}\n\nmapq >= mapq_cut (unique):              {unique}\nRead-1:                                 {read1}\nRead-2:                                 {read2}\nReads map to '+':                       {plus}\nReads map to '-':                       {minus}\nNon-splice reads:                       {}\nSplice reads:                           {splice}\nReads mapped in proper pairs:           {proper}\nProper-paired reads map to different chrom:{proper_different}\n",
-        unique - splice
+        c.unique - c.splice,
+        total = c.total,
+        qc_fail = c.qc_fail,
+        duplicate = c.duplicate,
+        non_primary = c.non_primary,
+        unmapped = c.unmapped,
+        low_mapq = c.low_mapq,
+        unique = c.unique,
+        read1 = c.read1,
+        read2 = c.read2,
+        plus = c.plus,
+        minus = c.minus,
+        splice = c.splice,
+        proper = c.proper,
+        proper_different = c.proper_different,
     ))
 }
 
@@ -591,22 +683,50 @@ fn sequence_duplication(resident: &Resident) -> Result<HashMap<u32, u64>> {
     // A decoded String/Vec for every alignment is needlessly expensive on deep BAMs.
     // Keep a 64-bit fingerprint, and verify equal fingerprints against one borrowed BAM
     // body so a (very unlikely) hash collision can never change the histogram.
+    let maps: Vec<HashMap<u64, Vec<(usize, u32)>>> = resident
+        .headers()
+        .par_chunks(16_384)
+        .enumerate()
+        .map(|(chunk_index, chunk)| -> Result<_> {
+            let mut sequence = HashMap::<u64, Vec<(usize, u32)>>::new();
+            for (offset, fixed) in chunk.iter().enumerate() {
+                let index = chunk_index * 16_384 + offset;
+                // RSeQC applies its default MAPQ cutoff before histogramming, but does retain
+                // marked duplicates (the metric is intended to quantify them).
+                if fixed.flag & 0x904 != 0 || fixed.mapq < 30 {
+                    continue;
+                }
+                let body = resident.record_bytes(*fixed);
+                let hash = bam_sequence_hash(body)?;
+                let entries = sequence.entry(hash).or_default();
+                if let Some((_, count)) = entries.iter_mut().find(|(other, _)| {
+                    sequence_equal(body, resident.record_bytes(resident.headers()[*other]))
+                }) {
+                    *count += 1;
+                } else {
+                    entries.push((index, 1));
+                }
+            }
+            Ok(sequence)
+        })
+        .collect::<Result<_>>()?;
     let mut sequence = HashMap::<u64, Vec<(usize, u32)>>::new();
-    for (index, fixed) in resident.headers().iter().enumerate() {
-        // RSeQC applies its default MAPQ cutoff before histogramming, but does retain
-        // marked duplicates (the metric is intended to quantify them).
-        if fixed.flag & 0x904 != 0 || fixed.mapq < 30 {
-            continue;
-        }
-        let body = resident.record_bytes(*fixed);
-        let hash = bam_sequence_hash(body)?;
-        let entries = sequence.entry(hash).or_default();
-        if let Some((_, count)) = entries.iter_mut().find(|(other, _)| {
-            sequence_equal(body, resident.record_bytes(resident.headers()[*other]))
-        }) {
-            *count += 1;
-        } else {
-            entries.push((index, 1));
+    // This merge retains collision verification across worker boundaries.  It is
+    // deterministic because counts are commutative and the representative body is only
+    // consulted for equality.
+    for map in maps {
+        for (hash, entries) in map {
+            let target = sequence.entry(hash).or_default();
+            for (index, count) in entries {
+                let body = resident.record_bytes(resident.headers()[index]);
+                if let Some((_, total)) = target.iter_mut().find(|(other, _)| {
+                    sequence_equal(body, resident.record_bytes(resident.headers()[*other]))
+                }) {
+                    *total += count;
+                } else {
+                    target.push((index, count));
+                }
+            }
         }
     }
     let histogram = |values: Vec<u32>| {
@@ -665,6 +785,8 @@ struct Interval {
     start: i32,
     end: i32,
 }
+
+type PositionKey = (i32, i32, Vec<(i32, i32)>);
 
 #[derive(Clone)]
 struct NamedInterval {
@@ -1001,15 +1123,29 @@ fn bases(map: &HashMap<String, Vec<Interval>>) -> i64 {
         .sum()
 }
 
-fn overlapping_genes(model: &BedModel, chrom: &str, start: i32, end: i32) -> HashSet<char> {
+/// BAM reference names are invariant across all QC reductions.  Materializing their
+/// normalized spelling once removes millions of short-lived `String` allocations.
+fn chromosome_names(resident: &Resident) -> Vec<String> {
+    resident
+        .header
+        .reference_sequences()
+        .iter()
+        .map(|(name, _)| name.to_string().to_ascii_uppercase())
+        .collect()
+}
+
+/// Bitset of strands for genes overlapping the query: `1` is '+', `2` is '-'.
+/// `infer_experiment` only needs that three-state result; avoiding a per-read HashSet
+/// is especially important for its 200k-read coordinate-order prefix.
+fn overlapping_gene_strands(model: &BedModel, chrom: &str, start: i32, end: i32) -> u8 {
     let Some(items) = model.genes.get(chrom) else {
-        return HashSet::new();
+        return 0;
     };
     let Some(prefix) = model.gene_prefix_max.get(chrom) else {
-        return HashSet::new();
+        return 0;
     };
     let mut at = items.partition_point(|(x, _)| x.start < end);
-    let mut strands = HashSet::new();
+    let mut strands = 0;
     while at > 0 {
         at -= 1;
         if prefix[at] <= start {
@@ -1017,7 +1153,10 @@ fn overlapping_genes(model: &BedModel, chrom: &str, start: i32, end: i32) -> Has
         }
         let (x, strand) = items[at];
         if x.end > start {
-            strands.insert(strand);
+            strands |= if strand == '+' { 1 } else { 2 };
+            if strands == 3 {
+                break;
+            }
         }
     }
     strands
@@ -1086,69 +1225,87 @@ fn read_distribution(
     duplicates: &HashSet<usize>,
     model: &BedModel,
 ) -> Result<String> {
-    let mut n = [0_i64; 10];
-    let mut tags = 0_i64;
-    let mut unassigned = 0_i64;
-    let mut reads = 0_i64;
-    for &record_index in resident.coordinate_order() {
-        let index = record_index as usize;
-        let fixed = resident.headers()[index];
-        if fixed.flag & 0x304 != 0 || duplicates.contains(&index) {
-            continue;
-        }
-        reads += 1;
-        let chr = resident
-            .header
-            .reference_sequences()
-            .get_index(fixed.tid as usize)
-            .map(|(n, _)| n.to_string())
-            .unwrap_or_default()
-            .to_ascii_uppercase();
-        for ex in cigar_exons(resident, fixed)? {
-            tags += 1;
-            let p = ex.start + (ex.end - ex.start) / 2;
-            let group = if contains(&model.cds, &chr, p) {
-                Some(0)
-            } else if contains(&model.utr5, &chr, p) && !contains(&model.utr3, &chr, p) {
-                Some(1)
-            } else if contains(&model.utr3, &chr, p) && !contains(&model.utr5, &chr, p) {
-                Some(2)
-            } else if contains(&model.utr5, &chr, p) || contains(&model.utr3, &chr, p) {
-                None
-            } else if contains(&model.intron, &chr, p) {
-                Some(3)
-            } else if contains(&model.up10, &chr, p) && contains(&model.down10, &chr, p) {
-                None
-            } else if contains(&model.up1, &chr, p) {
-                n[4] += 1;
-                n[5] += 1;
-                n[6] += 1;
-                continue;
-            } else if contains(&model.up5, &chr, p) {
-                n[5] += 1;
-                n[6] += 1;
-                continue;
-            } else if contains(&model.up10, &chr, p) {
-                Some(6)
-            } else if contains(&model.down1, &chr, p) {
-                n[7] += 1;
-                n[8] += 1;
-                n[9] += 1;
-                continue;
-            } else if contains(&model.down5, &chr, p) {
-                n[8] += 1;
-                n[9] += 1;
-                continue;
-            } else if contains(&model.down10, &chr, p) {
-                Some(9)
-            } else {
-                None
-            };
-            if let Some(i) = group {
-                n[i] += 1
-            } else {
-                unassigned += 1
+    #[derive(Default)]
+    struct Counts {
+        n: [i64; 10],
+        tags: i64,
+        unassigned: i64,
+        reads: i64,
+    }
+    let chroms = chromosome_names(resident);
+    let partials: Vec<Counts> = resident
+        .coordinate_order()
+        .par_chunks(16_384)
+        .map(|chunk| -> Result<_> {
+            let mut out = Counts::default();
+            for &record_index in chunk {
+                let index = record_index as usize;
+                let fixed = resident.headers()[index];
+                if fixed.flag & 0x304 != 0 || duplicates.contains(&index) {
+                    continue;
+                }
+                out.reads += 1;
+                let chr = chroms
+                    .get(fixed.tid as usize)
+                    .map(String::as_str)
+                    .unwrap_or("");
+                for ex in cigar_exons(resident, fixed)? {
+                    out.tags += 1;
+                    let p = ex.start + (ex.end - ex.start) / 2;
+                    let group = if contains(&model.cds, chr, p) {
+                        Some(0)
+                    } else if contains(&model.utr5, chr, p) && !contains(&model.utr3, chr, p) {
+                        Some(1)
+                    } else if contains(&model.utr3, chr, p) && !contains(&model.utr5, chr, p) {
+                        Some(2)
+                    } else if contains(&model.utr5, chr, p) || contains(&model.utr3, chr, p) {
+                        None
+                    } else if contains(&model.intron, chr, p) {
+                        Some(3)
+                    } else if contains(&model.up10, chr, p) && contains(&model.down10, chr, p) {
+                        None
+                    } else if contains(&model.up1, chr, p) {
+                        out.n[4] += 1;
+                        out.n[5] += 1;
+                        out.n[6] += 1;
+                        continue;
+                    } else if contains(&model.up5, chr, p) {
+                        out.n[5] += 1;
+                        out.n[6] += 1;
+                        continue;
+                    } else if contains(&model.up10, chr, p) {
+                        Some(6)
+                    } else if contains(&model.down1, chr, p) {
+                        out.n[7] += 1;
+                        out.n[8] += 1;
+                        out.n[9] += 1;
+                        continue;
+                    } else if contains(&model.down5, chr, p) {
+                        out.n[8] += 1;
+                        out.n[9] += 1;
+                        continue;
+                    } else if contains(&model.down10, chr, p) {
+                        Some(9)
+                    } else {
+                        None
+                    };
+                    if let Some(i) = group {
+                        out.n[i] += 1
+                    } else {
+                        out.unassigned += 1
+                    }
+                }
             }
+            Ok(out)
+        })
+        .collect::<Result<_>>()?;
+    let mut counts = Counts::default();
+    for part in partials {
+        counts.tags += part.tags;
+        counts.unassigned += part.unassigned;
+        counts.reads += part.reads;
+        for (a, b) in counts.n.iter_mut().zip(part.n) {
+            *a += b;
         }
     }
     let maps = [
@@ -1176,10 +1333,12 @@ fn read_distribution(
         "TES_down_10kb",
     ];
     let mut text = format!(
-        "Total Reads                   {reads}\nTotal Tags                    {tags}\nTotal Assigned Tags           {}\n=====================================================================\nGroup               Total_bases         Tag_count           Tags/Kb             \n",
-        tags - unassigned
+        "Total Reads                   {}\nTotal Tags                    {}\nTotal Assigned Tags           {}\n=====================================================================\nGroup               Total_bases         Tag_count           Tags/Kb             \n",
+        counts.reads,
+        counts.tags,
+        counts.tags - counts.unassigned
     );
-    for ((name, map), count) in names.iter().zip(maps).zip(n) {
+    for ((name, map), count) in names.iter().zip(maps).zip(counts.n) {
         let size = bases(map);
         text.push_str(&format!(
             "{name:<20}{size:<20}{count:<20}{:<18.2}\n",
@@ -1382,6 +1541,7 @@ fn infer_experiment(
 ) -> Result<String> {
     let mut counts = HashMap::<String, u64>::new();
     let mut sampled = 0_u64;
+    let chroms = chromosome_names(resident);
     for &record_index in resident.coordinate_order() {
         if sampled >= 200_000 {
             break;
@@ -1391,26 +1551,25 @@ fn infer_experiment(
         if fixed.flag & 0x304 != 0 || duplicates.contains(&index) || fixed.mapq < 30 {
             continue;
         }
-        let chr = resident
-            .header
-            .reference_sequences()
-            .get_index(fixed.tid as usize)
-            .map(|(n, _)| n.to_string())
-            .unwrap_or_default()
-            .to_ascii_uppercase();
+        let chr = chroms
+            .get(fixed.tid as usize)
+            .map(String::as_str)
+            .unwrap_or("");
         let end = fixed.pos + le_i32(&resident.record_bytes(fixed)[16..20]);
-        let strands = overlapping_genes(model, &chr, fixed.pos, end);
-        if strands.is_empty() {
+        let strands = overlapping_gene_strands(model, chr, fixed.pos, end);
+        if strands == 0 {
             continue;
         }
         sampled += 1;
-        let gene = if strands.len() == 1 {
-            strands.iter().next().unwrap().to_string()
+        let gene = if strands == 1 {
+            "+"
+        } else if strands == 2 {
+            "-"
         } else {
             // RSeQC uses `':'.join(set(...))`; on its reference runtime the
             // two-strand case is `-:+`, which is deliberately not one of the
             // recognized protocol buckets below.
-            "-:+".to_owned()
+            "-:+"
         };
         let rid = if fixed.flag & 0x40 != 0 { '1' } else { '2' };
         let map = if fixed.flag & 0x10 != 0 { '-' } else { '+' };
