@@ -24,4 +24,6 @@ fn main() {
     cc::Build::new().object(&object).compile("umgpu_shim");
     println!("cargo:rustc-link-search=native=/usr/local/cuda/lib64");
     println!("cargo:rustc-link-lib=cudart");
+    // CUB/Thrust device algorithms throw std::runtime_error on host-side errors.
+    println!("cargo:rustc-link-lib=stdc++");
 }

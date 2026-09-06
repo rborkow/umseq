@@ -115,3 +115,18 @@ never copied.
 5. Then the measurements section, orchestrator-run, into `bench/PHASE2B-*.md`.
 
 Seed search (the original 2b) becomes **2c**, after this lands, if the ≥2× gate passes.
+
+## P2B-UMGPU result (2026-09-06, Spark)
+`crates/umgpu` builds on both boxes (stub backend on the Mac) and the GPU test passes on
+the GB10: 16M-key `(u64, u32)` CUB radix sort over `umem` buffers through lease →
+submit → `CudaFence::wait`, verified on CPU. Device props: `pageableMemoryAccess=1`,
+**`pageableMemoryAccessUsesHostPageTables=1`** (ATS — the GPU walks the CPU page tables,
+which is why THP vs 4K is a 170× effect), `hostRegisterSupported=1`,
+`concurrentManagedAccess=1`, sm_12.1, 48 SMs.
+
+`inc_u64` over a 1 GB `umem` buffer (read + write, so 2 GB moved): **83 GB/s** with the
+plain HMM/ATS path; **5.4 GB/s with `cudaHostRegister`** — registration is 15× slower on
+this hardware, not merely unnecessary. `host_register` stays default-off and the memo
+should say so. The 83 GB/s is below T6's 161 GB/s streaming read; a read+write kernel on
+a single 1 GB buffer with no launch tuning is a lower bound, not a ceiling — the markdup
+kernel card measures bytes-touched/time properly.

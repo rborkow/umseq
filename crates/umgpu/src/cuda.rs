@@ -273,6 +273,10 @@ pub struct CudaFence {
     device: i32,
     registered: Vec<usize>,
 }
+// SAFETY: a cudaEvent_t is an opaque handle valid from any host thread (CUDA runtime
+// handles are not thread-affine); the fence is the sole owner and destroys it on drop.
+// The registered-pointer list is plain data.
+unsafe impl Send for CudaFence {}
 impl CudaFence {
     fn unregister(&mut self) {
         for p in self.registered.drain(..) {
@@ -371,7 +375,7 @@ pub fn submit(
     // SAFETY: the event was recorded after all caller-enqueued work on `stream`; leases are context-checked above.
     match unsafe { Submission::new(&ctx.umem_context(), leases, fence) } {
         Ok(s) => Ok(s),
-        Err((_leases, fence, mismatch)) => Err(Error::Context {
+        Err((_leases, _fence, mismatch)) => Err(Error::Context {
             expected: mismatch.expected,
             found: mismatch.found,
         }),
