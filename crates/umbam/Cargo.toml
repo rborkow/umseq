@@ -6,6 +6,7 @@ edition = "2024"
 [features]
 default = []
 cuda = ["dep:umgpu", "umgpu/cuda"]
+nvcomp = ["cuda", "umgpu/nvcomp"]
 
 [dependencies]
 anyhow = "1"
@@ -23,4 +24,5 @@ umem = { path = "../umem" }
 umgpu = { path = "../umgpu", optional = true }
 
 [dev-dependencies]
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
 tempfile = "3"

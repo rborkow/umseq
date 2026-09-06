@@ -29,5 +29,14 @@ int umgpu_markdup_temp_size(size_t n, size_t* bytes);
 int umgpu_markdup(const void* headers, const uint8_t* arena, size_t arena_len,
   const uint32_t* order, size_t n, void* work, void* temp, size_t temp_bytes,
   void* control, void* stream);
+#ifdef UMGPU_NVCOMP
+int umgpu_deflate_alignments(int algorithm, size_t* input, size_t* output, size_t* temp);
+int umgpu_deflate_temp_size(size_t num_chunks, size_t max_chunk, int algorithm, size_t* temp_bytes);
+int umgpu_deflate_max_output(size_t max_chunk, int algorithm, size_t* max_out);
+int umgpu_deflate_batch(const void* const* in_ptrs, const size_t* in_bytes, size_t max_chunk,
+  size_t num_chunks, void* temp, size_t temp_bytes, void* const* out_ptrs,
+  size_t* out_bytes, int algorithm, int* statuses, void* stream);
+const char* umgpu_nvcomp_error_string(int code);
+#endif
 const char* umgpu_error_string(int code);
 }

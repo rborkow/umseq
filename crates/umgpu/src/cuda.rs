@@ -68,6 +68,37 @@ unsafe extern "C" {
     fn umgpu_error_string(code: c_int) -> *const c_char;
 }
 
+#[cfg(feature = "nvcomp")]
+unsafe extern "C" {
+    fn umgpu_deflate_alignments(
+        algorithm: c_int,
+        input: *mut usize,
+        output: *mut usize,
+        temp: *mut usize,
+    ) -> c_int;
+    fn umgpu_deflate_temp_size(
+        num_chunks: usize,
+        max_chunk: usize,
+        algorithm: c_int,
+        temp_bytes: *mut usize,
+    ) -> c_int;
+    fn umgpu_deflate_max_output(max_chunk: usize, algorithm: c_int, max_out: *mut usize) -> c_int;
+    fn umgpu_deflate_batch(
+        in_ptrs: *const *const c_void,
+        in_bytes: *const usize,
+        max_chunk: usize,
+        num_chunks: usize,
+        temp: *mut c_void,
+        temp_bytes: usize,
+        out_ptrs: *const *mut c_void,
+        out_bytes: *mut usize,
+        algorithm: c_int,
+        statuses: *mut c_int,
+        stream: *mut c_void,
+    ) -> c_int;
+    fn umgpu_nvcomp_error_string(code: c_int) -> *const c_char;
+}
+
 /// Backend errors.
 #[derive(Debug, Error)]
 pub enum Error {
@@ -648,6 +679,140 @@ fn fence_error(code: i32) -> FenceError {
     FenceError {
         message: error_message(if code < 0 { -code } else { code }),
     }
+}
+
+/// nvCOMP pointer alignment requirements for a batched Deflate launch.
+#[cfg(feature = "nvcomp")]
+#[derive(Clone, Copy, Debug)]
+pub struct DeflateAlignments {
+    /// Required input-address alignment.
+    pub input: usize,
+    /// Required output-address alignment.
+    pub output: usize,
+    /// Required temporary-storage alignment.
+    pub temp: usize,
+}
+
+/// Gets nvCOMP's Deflate pointer-alignment requirements.
+#[cfg(feature = "nvcomp")]
+pub fn deflate_alignments(algorithm: i32) -> Result<DeflateAlignments, Error> {
+    let mut input = 0;
+    let mut output = 0;
+    let mut temp = 0;
+    // SAFETY: all three pointers name writable stack slots for nvCOMP's sizing query.
+    check_nvcomp(unsafe {
+        umgpu_deflate_alignments(algorithm, &mut input, &mut output, &mut temp)
+    })?;
+    Ok(DeflateAlignments {
+        input,
+        output,
+        temp,
+    })
+}
+
+/// Gets nvCOMP scratch bytes for a Deflate batch.
+#[cfg(feature = "nvcomp")]
+pub fn deflate_temp_size(
+    num_chunks: usize,
+    max_chunk: usize,
+    algorithm: i32,
+) -> Result<usize, Error> {
+    let mut bytes = 0;
+    // SAFETY: `bytes` is a writable output slot; nvCOMP dereferences no batch pointers here.
+    check_nvcomp(unsafe { umgpu_deflate_temp_size(num_chunks, max_chunk, algorithm, &mut bytes) })?;
+    Ok(bytes)
+}
+
+/// Gets nvCOMP's maximum raw-Deflate output size for one input chunk.
+#[cfg(feature = "nvcomp")]
+pub fn deflate_max_output(max_chunk: usize, algorithm: i32) -> Result<usize, Error> {
+    let mut bytes = 0;
+    // SAFETY: `bytes` is a writable output slot for nvCOMP's sizing query.
+    check_nvcomp(unsafe { umgpu_deflate_max_output(max_chunk, algorithm, &mut bytes) })?;
+    Ok(bytes)
+}
+
+/// Enqueues a batched raw-Deflate compression. All arrays and payloads must be `umem`
+/// leases and stay in the returned submission until its fence completes.
+#[cfg(feature = "nvcomp")]
+#[allow(clippy::too_many_arguments)]
+pub fn deflate_batch(
+    ctx: &Context,
+    stream: &Stream,
+    input: &GpuLease<Rw>,
+    in_ptrs: &GpuLease<Rw>,
+    in_bytes: &GpuLease<Rw>,
+    temp: &GpuLease<Rw>,
+    output: &GpuLease<Rw>,
+    out_ptrs: &GpuLease<Rw>,
+    out_bytes: &GpuLease<Rw>,
+    statuses: &GpuLease<Rw>,
+    num_chunks: usize,
+    max_chunk: usize,
+    max_output: usize,
+    algorithm: i32,
+) -> Result<(), Error> {
+    if num_chunks == 0 || max_chunk > 65_536 {
+        return Err(Error::InvalidInput(
+            "Deflate chunks must be 1..=65536 bytes",
+        ));
+    }
+    ctx.activate()?;
+    let ptr_bytes = num_chunks
+        .checked_mul(std::mem::size_of::<usize>())
+        .ok_or(Error::InvalidInput("Deflate pointer array overflow"))?;
+    let status_bytes = num_chunks
+        .checked_mul(std::mem::size_of::<i32>())
+        .ok_or(Error::InvalidInput("Deflate status array overflow"))?;
+    ctx.check_lease(input, "deflate input", 1)?;
+    ctx.check_lease(in_ptrs, "deflate input pointers", ptr_bytes)?;
+    ctx.check_lease(in_bytes, "deflate input sizes", ptr_bytes)?;
+    ctx.check_lease(
+        temp,
+        "deflate temp",
+        deflate_temp_size(num_chunks, max_chunk, algorithm)?,
+    )?;
+    let output_bytes = num_chunks
+        .checked_mul(max_output)
+        .ok_or(Error::InvalidInput("Deflate output size overflow"))?;
+    ctx.check_lease(output, "deflate output", output_bytes)?;
+    ctx.check_lease(out_ptrs, "deflate output pointers", ptr_bytes)?;
+    ctx.check_lease(out_bytes, "deflate output sizes", ptr_bytes)?;
+    ctx.check_lease(statuses, "deflate statuses", status_bytes)?;
+    // SAFETY: each address comes from a checked, live `umem` lease. The caller fills
+    // pointer arrays only with ranges in `input`/`output`; submission retains every
+    // lease through the stream fence, preventing CPU/GPU races and dangling pointers.
+    check_nvcomp(unsafe {
+        umgpu_deflate_batch(
+            in_ptrs.as_ptr().cast(),
+            in_bytes.as_ptr().cast(),
+            max_chunk,
+            num_chunks,
+            temp.as_ptr().cast(),
+            temp.len(),
+            out_ptrs.as_ptr().cast(),
+            out_bytes.as_ptr().cast(),
+            algorithm,
+            statuses.as_ptr().cast(),
+            stream.raw,
+        )
+    })
+}
+
+#[cfg(feature = "nvcomp")]
+fn check_nvcomp(code: i32) -> Result<(), Error> {
+    if code == 0 {
+        return Ok(());
+    }
+    // SAFETY: nvCOMP returns a static NUL-terminated error string for status values.
+    let p = unsafe { umgpu_nvcomp_error_string(code) };
+    let message = if p.is_null() {
+        format!("unknown nvCOMP error {code}")
+    } else {
+        // SAFETY: `p` is the static nvCOMP diagnostic just checked for null.
+        unsafe { CStr::from_ptr(p) }.to_string_lossy().into_owned()
+    };
+    Err(Error::Cuda { code, message })
 }
 
 unsafe extern "C" {

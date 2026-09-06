@@ -25,6 +25,9 @@ enum Command {
         /// Use CUDA for duplicate marking and RSeQC duplication histograms (requires `--features cuda`).
         #[arg(long)]
         gpu: bool,
+        /// nvCOMP Deflate algorithm used by `--gpu` (0..=5; 4 targets zlib-6 ratio).
+        #[arg(long, default_value_t = 4, value_parser = clap::value_parser!(i32).range(0..=5))]
+        gpu_deflate_level: i32,
         /// BED12 gene model for the RSeQC-style outputs (nf-core `gtf2bed` output).
         #[arg(long)]
         bed: Option<std::path::PathBuf>,
@@ -44,9 +47,10 @@ fn main() -> anyhow::Result<()> {
             threads,
             qc,
             gpu,
+            gpu_deflate_level,
             bed,
             sample,
-        } => umbam::chain_full_with_gpu(
+        } => umbam::chain_full_with_gpu_deflate(
             &input,
             &gtf,
             &out_dir,
@@ -55,6 +59,7 @@ fn main() -> anyhow::Result<()> {
             bed.as_deref(),
             &sample,
             gpu,
+            gpu.then_some(gpu_deflate_level),
         ),
     }
 }

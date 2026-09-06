@@ -24,6 +24,7 @@ use std::{
 };
 use umem::{Allocation, Buf, Pod, Ro, Rw};
 
+mod deflate_gpu;
 mod markdup_gpu;
 pub mod qc;
 pub use markdup_gpu::*;
@@ -127,6 +128,23 @@ pub fn chain_full_with_gpu(
     sample: &str,
     gpu: bool,
 ) -> Result<()> {
+    chain_full_with_gpu_deflate(input, gtf, out_dir, threads, run_qc, bed, sample, gpu, None)
+}
+
+/// Full entry point with optional nvCOMP BGZF compression. `gpu_deflate_level` selects
+/// nvCOMP's Deflate algorithm (0 through 5); `None` keeps the CPU BGZF writer.
+#[allow(clippy::too_many_arguments)]
+pub fn chain_full_with_gpu_deflate(
+    input: &Path,
+    gtf: &Path,
+    out_dir: &Path,
+    threads: usize,
+    run_qc: bool,
+    bed: Option<&Path>,
+    sample: &str,
+    gpu: bool,
+    gpu_deflate_level: Option<i32>,
+) -> Result<()> {
     fs::create_dir_all(out_dir).with_context(|| format!("create {}", out_dir.display()))?;
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads.max(1))
@@ -145,7 +163,16 @@ pub fn chain_full_with_gpu(
     let sort = now.elapsed();
     let sorted = out_dir.join("sorted.bam");
     let now = Instant::now();
-    let sorted_layout = pool.install(|| write_bam(&sorted, &resident, threads))?;
+    let sorted_layout = pool.install(|| match gpu_deflate_level {
+        Some(level) => deflate_gpu::write_bam_gpu(
+            &sorted,
+            &resident,
+            &HashSet::new(),
+            level,
+            "write_sorted_gpu",
+        ),
+        None => write_bam(&sorted, &resident, threads),
+    })?;
     let write_sorted = now.elapsed();
     let now = Instant::now();
     let markdup_result = pool.install(|| {
@@ -159,14 +186,25 @@ pub fn chain_full_with_gpu(
     let markdup = out_dir.join("markdup.bam");
     let now = Instant::now();
     let marked_layout = pool.install(|| {
-        write_markdup_reusing_blocks(
-            &sorted,
-            &markdup,
-            &resident,
-            threads,
-            &markdup_result.duplicates,
-            &sorted_layout,
-        )
+        match gpu_deflate_level {
+            // GPU output is independently planned and ordered just like sorted.bam.  Do not
+            // feed GPU-written raw streams back through the CPU block-reuse fast path.
+            Some(level) => deflate_gpu::write_bam_gpu(
+                &markdup,
+                &resident,
+                &markdup_result.duplicates,
+                level,
+                "write_markdup_gpu",
+            ),
+            None => write_markdup_reusing_blocks(
+                &sorted,
+                &markdup,
+                &resident,
+                threads,
+                &markdup_result.duplicates,
+                &sorted_layout,
+            ),
+        }
     })?;
     let write_markdup = now.elapsed();
     let now = Instant::now();
@@ -675,7 +713,7 @@ fn mark_duplicates(resident: &Resident) -> Result<MarkdupResult> {
             metrics.unmapped += 1;
         }
     }
-    let names = primary_mapped_name_groups(resident);
+    let names = name_groups(resident, |h| h.flag & 0x904 == 0);
     let name = |i: usize| bam_name_bytes(resident.record_bytes(headers[i]));
     let data = headers
         .par_iter()
@@ -774,15 +812,18 @@ fn mark_duplicates(resident: &Resident) -> Result<MarkdupResult> {
     })
 }
 
-/// Returns primary, mapped records ordered by their decoded name hash and then by their
-/// actual BAM name within a collision.  The latter is essential: a hash is only a fast
+/// Returns records selected by `include`, ordered by decoded name hash and then by their
+/// actual BAM name within a collision. The latter is essential: a hash is only a fast
 /// grouping key, never an identity.
-fn primary_mapped_name_groups(resident: &Resident) -> Vec<(u64, usize)> {
+pub(crate) fn name_groups(
+    resident: &Resident,
+    include: impl Fn(&RecordHeader) -> bool,
+) -> Vec<(u64, usize)> {
     let headers = resident.headers();
     let mut names = headers
         .iter()
         .enumerate()
-        .filter(|(_, h)| h.flag & 0x904 == 0)
+        .filter(|(_, h)| include(h))
         .map(|(index, h)| (h.name_hash, index))
         .collect::<Vec<_>>();
     names.par_sort_unstable();
@@ -1747,7 +1788,7 @@ fn records_by_tid(resident: &Resident) -> Vec<(i32, Vec<usize>)> {
 fn count_fragments(resident: &Resident, features: &FeatureIndex) -> Result<Vec<u64>> {
     // featureCounts votes separately for each mate before combining the votes.  Keeping
     // fragments global (rather than grouping by reference) also preserves chimeric pairs.
-    let names = primary_mapped_name_groups(resident);
+    let names = name_groups(resident, |h| h.flag & 0x904 == 0);
     let chunks = name_run_chunks(&names, resident, 4096);
     chunks
         .par_iter()

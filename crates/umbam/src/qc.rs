@@ -5,7 +5,7 @@
 
 use super::{
     FeatureIndex, Resident, bam_aux_i32, bam_cigar, bam_layout, bam_name_bytes, le_i32,
-    mate_gene_hits, one_fragment_gene, read_features,
+    mate_gene_hits, name_groups, name_run_chunks, next_name_run, one_fragment_gene, read_features,
 };
 use anyhow::Result;
 use rayon::prelude::*;
@@ -232,6 +232,15 @@ struct SubreadCounts {
     n: u64,
 }
 
+struct SubreadRecord {
+    index: usize,
+    mate: usize,
+    mate_pos: i32,
+    hi: Option<i32>,
+    multi: bool,
+    duplicate: bool,
+}
+
 fn subread_counts_all(
     resident: &Resident,
     duplicates: &HashSet<usize>,
@@ -240,90 +249,116 @@ fn subread_counts_all(
     // One name ordering services all four featureCounts invocations.  Their only
     // differences are the duplicate/NH filters, so compute each record's exon hits once
     // inside its name group and feed four small accumulators.
-    let mut records: Vec<usize> = resident
-        .headers()
-        .iter()
-        .enumerate()
-        .filter_map(|(i, h)| {
-            // `primaryOnly=FALSE` is the Rsubread default: secondary alignments
-            // participate in -M runs, while supplementary and unmapped records do not.
-            (h.flag & 0x804 == 0).then_some(i)
-        })
-        .collect();
-    records.sort_unstable_by(|&a, &b| {
-        bam_name_bytes(resident.record_bytes(resident.headers()[a]))
-            .cmp(bam_name_bytes(resident.record_bytes(resident.headers()[b])))
-    });
-    let mut output = std::array::from_fn(|_| SubreadCounts {
-        counts: vec![0; features.genes.len()],
+    // `primaryOnly=FALSE` is the Rsubread default: secondary alignments participate in
+    // -M runs, while supplementary and unmapped records do not.  Grouping first by the
+    // decoded name hash makes the sort parallel and only reads names to verify collisions.
+    let names = name_groups(resident, |h| h.flag & 0x804 == 0);
+    let chunks = name_run_chunks(&names, resident, 4096);
+    chunks
+        .par_iter()
+        .try_fold(
+            || new_subread_counts(features.genes.len()),
+            |mut output, range| {
+                let mut at = range.start;
+                while at < range.end {
+                    let end = next_name_run(&names, resident, at, range.end);
+                    count_subread_name_run(
+                        &names[at..end],
+                        resident,
+                        duplicates,
+                        features,
+                        &mut output,
+                    )?;
+                    at = end;
+                }
+                Ok(output)
+            },
+        )
+        .try_reduce(
+            || new_subread_counts(features.genes.len()),
+            |mut left, right| {
+                for (left, right) in left.iter_mut().zip(right) {
+                    left.n += right.n;
+                    for (count, add) in left.counts.iter_mut().zip(right.counts) {
+                        *count += add;
+                    }
+                }
+                Ok(left)
+            },
+        )
+}
+
+fn new_subread_counts(genes: usize) -> [SubreadCounts; 4] {
+    std::array::from_fn(|_| SubreadCounts {
+        counts: vec![0; genes],
         n: 0,
-    });
-    let mut at = 0;
-    while at < records.len() {
-        let name = bam_name_bytes(resident.record_bytes(resident.headers()[records[at]]));
-        let end = records[at..]
-            .iter()
-            .position(|&i| bam_name_bytes(resident.record_bytes(resident.headers()[i])) != name)
-            .map_or(records.len(), |x| at + x);
-        let mut mates: [[Vec<usize>; 2]; 4] = std::array::from_fn(|_| [Vec::new(), Vec::new()]);
-        for &i in &records[at..end] {
-            let body = resident.record_bytes(resident.headers()[i]);
-            let multi = super::bam_nh_is_multiple(body)?;
-            let duplicate = duplicates.contains(&i);
-            match resident.headers()[i].flag & 0xc0 {
-                0x40 => {
-                    mates[0][0].push(i);
-                    if !duplicate {
-                        mates[1][0].push(i);
-                    }
-                    if !multi {
-                        mates[2][0].push(i);
-                    }
-                    if !duplicate && !multi {
-                        mates[3][0].push(i);
-                    }
-                }
-                0x80 => {
-                    mates[0][1].push(i);
-                    if !duplicate {
-                        mates[1][1].push(i);
-                    }
-                    if !multi {
-                        mates[2][1].push(i);
-                    }
-                    if !duplicate && !multi {
-                        mates[3][1].push(i);
-                    }
-                }
-                _ => {}
-            }
-        }
-        let mut hits = HashMap::<usize, Vec<usize>>::new();
-        for (mode, [left, right]) in mates.iter().enumerate() {
-            for (left, right) in subread_pairs(left, right, resident)? {
-                if let Some(i) = left {
-                    cache_gene_hits(i, &mut hits, resident, features)?;
-                }
-                if let Some(i) = right {
-                    cache_gene_hits(i, &mut hits, resident, features)?;
-                }
-                let a = left
-                    .and_then(|i| hits.get(&i))
-                    .map(Vec::as_slice)
-                    .unwrap_or_default();
-                let b = right
-                    .and_then(|i| hits.get(&i))
-                    .map(Vec::as_slice)
-                    .unwrap_or_default();
-                output[mode].n += 1;
-                if let Some(gene) = one_fragment_gene(a, b) {
-                    output[mode].counts[gene] += 1;
-                }
-            }
-        }
-        at = end;
+    })
+}
+
+fn count_subread_name_run(
+    run: &[(u64, usize)],
+    resident: &Resident,
+    duplicates: &HashSet<usize>,
+    features: &FeatureIndex,
+    output: &mut [SubreadCounts; 4],
+) -> Result<()> {
+    let headers = resident.headers();
+    let mut records = Vec::new();
+    for &(_, index) in run {
+        let fixed = headers[index];
+        let mate = match fixed.flag & 0xc0 {
+            0x40 => 0,
+            0x80 => 1,
+            _ => continue,
+        };
+        let body = resident.record_bytes(fixed);
+        records.push(SubreadRecord {
+            index,
+            mate,
+            mate_pos: fixed.mate_pos,
+            hi: bam_aux_i32(body, *b"HI")?,
+            multi: bam_aux_i32(body, *b"NH")?.is_some_and(|nh| nh > 1),
+            duplicate: duplicates.contains(&index),
+        });
     }
-    Ok(output)
+    let mut mates: [[Vec<&SubreadRecord>; 2]; 4] =
+        std::array::from_fn(|_| [Vec::new(), Vec::new()]);
+    for record in &records {
+        mates[0][record.mate].push(record);
+        if !record.duplicate {
+            mates[1][record.mate].push(record);
+        }
+        if !record.multi {
+            mates[2][record.mate].push(record);
+        }
+        if !record.duplicate && !record.multi {
+            mates[3][record.mate].push(record);
+        }
+    }
+    let mut hits = HashMap::<usize, Vec<usize>>::new();
+    for (mode, [left, right]) in mates.iter().enumerate() {
+        for (left, right) in subread_pairs(left, right) {
+            if let Some(i) = left {
+                cache_gene_hits(i, &mut hits, resident, features)?;
+            }
+            if let Some(i) = right {
+                cache_gene_hits(i, &mut hits, resident, features)?;
+            }
+            let a = left
+                .and_then(|i| hits.get(&i))
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let b = right
+                .and_then(|i| hits.get(&i))
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            output[mode].n += 1;
+            if let Some(gene) = one_fragment_gene(a, b) {
+                output[mode].counts[gene] += 1;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn cache_gene_hits(
@@ -342,35 +377,30 @@ fn cache_gene_hits(
 /// happened to appear in a name group.  Without HI, its next_pos fallback is equivalent
 /// to sorting each mate by the recorded mate coordinate (then record index for ties).
 fn subread_pairs(
-    left: &[usize],
-    right: &[usize],
-    resident: &Resident,
-) -> Result<Vec<(Option<usize>, Option<usize>)>> {
-    let tagged = |items: &[usize]| -> Result<Vec<(Option<i32>, usize)>> {
-        items
-            .iter()
-            .map(|&i| {
-                Ok((
-                    bam_aux_i32(resident.record_bytes(resident.headers()[i]), *b"HI")?,
-                    i,
-                ))
-            })
-            .collect()
-    };
-    let mut left = tagged(left)?;
-    let mut right = tagged(right)?;
-    if left.iter().all(|(hi, _)| hi.is_some()) && right.iter().all(|(hi, _)| hi.is_some()) {
-        left.sort_unstable_by_key(|(hi, i)| (hi.unwrap(), *i));
-        right.sort_unstable_by_key(|(hi, i)| (hi.unwrap(), *i));
+    left: &[&SubreadRecord],
+    right: &[&SubreadRecord],
+) -> Vec<(Option<usize>, Option<usize>)> {
+    let mut left = left.to_vec();
+    let mut right = right.to_vec();
+    if left.iter().all(|record| record.hi.is_some())
+        && right.iter().all(|record| record.hi.is_some())
+    {
+        left.sort_unstable_by_key(|record| (record.hi.unwrap(), record.index));
+        right.sort_unstable_by_key(|record| (record.hi.unwrap(), record.index));
     } else {
-        let key = |(_, i): &(Option<i32>, usize)| (resident.headers()[*i].mate_pos, *i);
+        let key = |record: &&SubreadRecord| (record.mate_pos, record.index);
         left.sort_unstable_by_key(key);
         right.sort_unstable_by_key(key);
     }
     let pairs = left.len().max(right.len());
-    Ok((0..pairs)
-        .map(|i| (left.get(i).map(|x| x.1), right.get(i).map(|x| x.1)))
-        .collect())
+    (0..pairs)
+        .map(|i| {
+            (
+                left.get(i).map(|record| record.index),
+                right.get(i).map(|record| record.index),
+            )
+        })
+        .collect()
 }
 
 fn qualimap_report(resident: &Resident, features: &FeatureIndex) -> Result<String> {

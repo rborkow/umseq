@@ -7,6 +7,7 @@ build = "build.rs"
 [features]
 default = []
 cuda = []
+nvcomp = ["cuda"]
 
 [dependencies]
 thiserror = "2"
