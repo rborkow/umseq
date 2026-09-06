@@ -71,6 +71,9 @@ unsafe extern "C" {
 /// Backend errors.
 #[derive(Debug, Error)]
 pub enum Error {
+    /// Invalid or overlapping pipeline buffers.
+    #[error("invalid GPU input: {0}")]
+    InvalidInput(&'static str),
     /// CUDA reported a failure.
     #[error("CUDA error {code}: {message}")]
     Cuda { code: i32, message: String },
@@ -645,4 +648,94 @@ fn fence_error(code: i32) -> FenceError {
     FenceError {
         message: error_message(if code < 0 { -code } else { code }),
     }
+}
+
+unsafe extern "C" {
+    fn umgpu_markdup_temp_size(n: usize, bytes: *mut usize) -> c_int;
+    fn umgpu_markdup(
+        headers: *const c_void,
+        arena: *const u8,
+        arena_len: usize,
+        order: *const u32,
+        n: usize,
+        work: *mut c_void,
+        temp: *mut c_void,
+        temp_bytes: usize,
+        control: *mut c_void,
+        stream: *mut c_void,
+    ) -> c_int;
+}
+
+/// CUB scratch requirement for the resident markdup pipeline.
+pub fn markdup_temp_size(n: usize) -> Result<usize, Error> {
+    temp_size(n, umgpu_markdup_temp_size)
+}
+
+/// Runs resident markdup synchronously. The shim drains the stream on every exit,
+/// including errors, before returning; all input/output ranges remain leased throughout.
+/// `order` must contain record indices (out-of-range indices are rejected on device).
+/// Duplicate indices are returned in workspace at `MARKDUP_INDICES_OFFSET * n`.
+/// Control layout: six u64 metrics, u32 duplicate count, u32 error, five f32 times,
+/// four bytes padding, then four u64 populations (examined, pairs, singles, pair ends).
+#[allow(clippy::too_many_arguments)]
+pub fn markdup(
+    ctx: &Context,
+    table: &GpuLease<umem::Ro>,
+    arena: &GpuLease<umem::Ro>,
+    order: &GpuLease<umem::Ro>,
+    work: &GpuLease<Rw>,
+    temp: &GpuLease<Rw>,
+    control: &GpuLease<Rw>,
+    n: usize,
+) -> Result<(), Error> {
+    ctx.activate()?;
+    // CUB counts and the 2*n pair-end stream must fit its signed item count.
+    if n == 0 || n > i32::MAX as usize / 2 {
+        return Err(Error::InvalidInput("record count must be 1..=i32::MAX/2"));
+    }
+    ctx.check_lease(table, "table", n * 48)?;
+    ctx.check_lease(arena, "arena", 1)?;
+    ctx.check_lease(order, "order", n * 4)?;
+    ctx.check_lease(work, "markdup workspace", n * crate::MARKDUP_WORK_BYTES)?;
+    ctx.check_lease(temp, "markdup scratch", markdup_temp_size(n)?)?;
+    ctx.check_lease(control, "markdup control", crate::MARKDUP_CONTROL_BYTES)?;
+    // SAFETY: live, context-checked leases guarantee these addresses. Only compare
+    // their ranges here; the shim is the sole code that dereferences the pointers.
+    let ranges = unsafe {
+        [
+            (table.as_ptr() as usize, table.len()),
+            (arena.as_ptr() as usize, arena.len()),
+            (order.as_ptr() as usize, order.len()),
+            (work.as_ptr() as usize, work.len()),
+            (temp.as_ptr() as usize, temp.len()),
+            (control.as_ptr() as usize, control.len()),
+        ]
+    };
+    for i in 3..ranges.len() {
+        for j in 0..i {
+            let (a, alen) = ranges[i];
+            let (b, blen) = ranges[j];
+            if a < b.saturating_add(blen) && b < a.saturating_add(alen) {
+                return Err(Error::InvalidInput("writable markdup leases overlap"));
+            }
+        }
+    }
+    // SAFETY: table, arena and order Ro leases cover the validated read ranges;
+    // work, temp and control Rw leases cover all writable ranges. The shim checks
+    // arena offsets and order indices, and synchronizes even on failure, so none
+    // of these pointers can outlive its guaranteeing lease.
+    check(unsafe {
+        umgpu_markdup(
+            table.as_ptr().cast(),
+            arena.as_ptr(),
+            arena.len(),
+            order.as_ptr().cast(),
+            n,
+            work.as_ptr().cast(),
+            temp.as_ptr().cast(),
+            temp.len(),
+            control.as_ptr().cast(),
+            ctx.default_stream().raw,
+        )
+    })
 }

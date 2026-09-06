@@ -24,5 +24,10 @@ int umgpu_inc_u64(const uint64_t* in, uint64_t* out, size_t n, void* stream);
 // offset@32, len@40. mode is 0 for position and 1 for sequence duplication.
 int umgpu_dup_keys(const void* headers, const uint8_t* arena, size_t arena_len, size_t n, int mode,
   uint64_t* keys_out, uint32_t* vals_out, void* stream);
+// Synchronous, drains stream on every exit. Workspace = 96*n bytes, control = 112.
+int umgpu_markdup_temp_size(size_t n, size_t* bytes);
+int umgpu_markdup(const void* headers, const uint8_t* arena, size_t arena_len,
+  const uint32_t* order, size_t n, void* work, void* temp, size_t temp_bytes,
+  void* control, void* stream);
 const char* umgpu_error_string(int code);
 }

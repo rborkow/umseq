@@ -16,8 +16,18 @@ fn duplication_histograms_match_cpu_and_rseqc_goldens() {
     let gpu = base.join("gpu");
     let bam = root.join("chr22.unsorted.bam");
     let gtf = root.join("chr22.gtf");
+    umbam::verify_markdup_gpu(&bam, 4).unwrap();
     umbam::chain_full(&bam, &gtf, &cpu, 4, true, None, "chr22").unwrap();
     umbam::chain_full_with_gpu(&bam, &gtf, &gpu, 4, true, None, "chr22", true).unwrap();
+    assert_eq!(
+        fs::read(cpu.join("markdup.metrics.txt")).unwrap(),
+        fs::read(gpu.join("markdup.metrics.txt")).unwrap()
+    );
+    assert_eq!(
+        fs::read(cpu.join("markdup.bam")).unwrap(),
+        fs::read(gpu.join("markdup.bam")).unwrap()
+    );
+    assert_eq!(umgpu::stats::bytes_copied(), 0);
     for name in ["seq.DupRate.xls", "pos.DupRate.xls"] {
         let actual = fs::read(gpu.join("rseqc").join(name)).unwrap();
         assert_eq!(

@@ -22,7 +22,7 @@ enum Command {
         /// Emit resident QC text outputs under the chain output directory.
         #[arg(long)]
         qc: bool,
-        /// Use CUDA for RSeQC duplication histograms (requires `--features cuda`).
+        /// Use CUDA for duplicate marking and RSeQC duplication histograms (requires `--features cuda`).
         #[arg(long)]
         gpu: bool,
         /// BED12 gene model for the RSeQC-style outputs (nf-core `gtf2bed` output).

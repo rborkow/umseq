@@ -24,7 +24,9 @@ use std::{
 };
 use umem::{Allocation, Buf, Pod, Ro, Rw};
 
+mod markdup_gpu;
 pub mod qc;
+pub use markdup_gpu::*;
 
 /// Fixed metadata shared by CPU and future GPU implementations.
 #[repr(C)]
@@ -113,7 +115,7 @@ pub fn chain_full(
     chain_full_with_gpu(input, gtf, out_dir, threads, run_qc, bed, sample, false)
 }
 
-/// Full entry point with optional CUDA duplication-histogram reductions.
+/// Full entry point with optional CUDA duplicate marking and duplication histograms.
 #[allow(clippy::too_many_arguments)]
 pub fn chain_full_with_gpu(
     input: &Path,
@@ -146,7 +148,13 @@ pub fn chain_full_with_gpu(
     let sorted_layout = pool.install(|| write_bam(&sorted, &resident, threads))?;
     let write_sorted = now.elapsed();
     let now = Instant::now();
-    let markdup_result = pool.install(|| mark_duplicates(&resident))?;
+    let markdup_result = pool.install(|| {
+        if gpu {
+            mark_duplicates_gpu(&mut resident)
+        } else {
+            mark_duplicates(&resident)
+        }
+    })?;
     let markdup_compute = now.elapsed();
     let markdup = out_dir.join("markdup.bam");
     let now = Instant::now();
@@ -603,19 +611,20 @@ struct FragmentEnd {
     reverse: bool,
 }
 
-struct MarkdupResult {
-    duplicates: HashSet<usize>,
-    metrics: DupMetrics,
+/// Duplicate decisions over resident record indices.
+pub struct MarkdupResult {
+    pub duplicates: HashSet<usize>,
+    pub metrics: DupMetrics,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
-struct DupMetrics {
-    unpaired_examined: u64,
-    pairs_examined: u64,
-    secondary_or_supplementary: u64,
-    unmapped: u64,
-    unpaired_duplicates: u64,
-    pair_duplicates: u64,
+pub struct DupMetrics {
+    pub unpaired_examined: u64,
+    pub pairs_examined: u64,
+    pub secondary_or_supplementary: u64,
+    pub unmapped: u64,
+    pub unpaired_duplicates: u64,
+    pub pair_duplicates: u64,
 }
 
 // Bulk vectors only: names and CIGARs stay borrowed from the resident arena.
@@ -2130,6 +2139,12 @@ mod tests {
         let expected = mark_duplicates_reference(&resident).unwrap();
         assert_eq!(actual.duplicates, expected.duplicates);
         assert_eq!(actual.metrics, expected.metrics);
+        #[cfg(feature = "cuda")]
+        {
+            let gpu = mark_duplicates_gpu(&mut resident).unwrap();
+            assert_eq!(gpu.duplicates, expected.duplicates);
+            assert_eq!(gpu.metrics, expected.metrics);
+        }
     }
     fn body(name: &str, flag: u16, pos: i32, quality: u8) -> Vec<u8> {
         let mut body = vec![0; 32];
@@ -2217,9 +2232,31 @@ mod tests {
                 bodies.push(b);
             }
         }
+        // Packing boundaries, negative unclipped ends, missing qualities (255),
+        // and the inclusive quality-15 threshold must all preserve oracle decisions.
+        for tid in [0i32, 32767, 32768, 65535] {
+            for flag in [0, 16] {
+                for quality in [14, 15, 255] {
+                    let mut b = body(
+                        &format!("boundary_{tid}_{flag}_{quality}"),
+                        flag,
+                        0,
+                        quality,
+                    );
+                    b[0..4].copy_from_slice(&tid.to_le_bytes());
+                    let at = 32 + b[8] as usize;
+                    b[12..14].copy_from_slice(&2u16.to_le_bytes());
+                    b.splice(
+                        at..at + 4,
+                        [((20u32 << 4) | 4).to_le_bytes(), (10u32 << 4).to_le_bytes()].concat(),
+                    );
+                    bodies.push(b);
+                }
+            }
+        }
         let mut resident = resident_from_bodies(&bodies);
-        for collide in [false, true] {
-            if collide {
+        for collision_hash in [None, Some(1), Some(u64::MAX)] {
+            if let Some(hash) = collision_hash {
                 let mut table = Buf::<Rw>::allocate(
                     resident.headers().len() * 48,
                     Allocation::Anon {
@@ -2232,11 +2269,17 @@ mod tests {
                     .as_pod_mut_slice::<RecordHeader>()
                     .copy_from_slice(resident.headers());
                 for h in table.as_pod_mut_slice::<RecordHeader>() {
-                    h.name_hash = 1;
+                    h.name_hash = hash;
                 }
                 resident.table = table.freeze();
             }
             let expected = mark_duplicates_reference(&resident).unwrap();
+            #[cfg(feature = "cuda")]
+            {
+                let gpu = mark_duplicates_gpu(&mut resident).unwrap();
+                assert_eq!(gpu.duplicates, expected.duplicates);
+                assert_eq!(gpu.metrics, expected.metrics);
+            }
             for threads in [1, 4] {
                 let pool = rayon::ThreadPoolBuilder::new()
                     .num_threads(threads)
@@ -2246,6 +2289,27 @@ mod tests {
                 assert_eq!(actual.duplicates, expected.duplicates);
                 assert_eq!(actual.metrics, expected.metrics);
             }
+        }
+    }
+
+    #[cfg(feature = "cuda")]
+    #[test]
+    fn markdup_gpu_small_populations() {
+        for bodies in [
+            vec![],
+            vec![body("unmapped", 4, 0, 20), body("secondary", 0x104, 0, 20)],
+            vec![body("single", 0, 10, 20)],
+            vec![body("pair", 0x41, 10, 20), body("pair", 0x81, 20, 20)],
+            vec![body("both", 0xc1, 10, 20), body("both2", 0xc1, 10, 15)],
+        ] {
+            let mut resident = resident_from_bodies(&bodies);
+            let cpu = mark_duplicates(&resident).unwrap();
+            let reference = mark_duplicates_reference(&resident).unwrap();
+            let gpu = mark_duplicates_gpu(&mut resident).unwrap();
+            assert_eq!(gpu.duplicates, cpu.duplicates);
+            assert_eq!(gpu.metrics, cpu.metrics);
+            assert_eq!(gpu.duplicates, reference.duplicates);
+            assert_eq!(gpu.metrics, reference.metrics);
         }
     }
 

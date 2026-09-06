@@ -47,6 +47,26 @@ impl Context {
     }
 }
 
+/// Unavailable without CUDA.
+pub fn markdup_temp_size(_n: usize) -> Result<usize, Error> {
+    Err(Error::Unsupported)
+}
+
+/// Unavailable without CUDA.
+#[allow(clippy::too_many_arguments)]
+pub fn markdup(
+    _ctx: &Context,
+    _table: &umem::GpuLease<umem::Ro>,
+    _arena: &umem::GpuLease<umem::Ro>,
+    _order: &umem::GpuLease<umem::Ro>,
+    _work: &umem::GpuLease<umem::Rw>,
+    _temp: &umem::GpuLease<umem::Rw>,
+    _control: &umem::GpuLease<umem::Rw>,
+    _n: usize,
+) -> Result<(), Error> {
+    Err(Error::Unsupported)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
