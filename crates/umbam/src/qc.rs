@@ -622,11 +622,10 @@ pub fn position_duplication_gpu(
     ctx: &umgpu::Context,
 ) -> Result<HashMap<u32, u64>> {
     let (keys, vals) = gpu_sorted_fingerprints(resident, ctx, umgpu::DupKeyMode::Position)?;
-    let mut groups: HashMap<u64, Vec<(PositionKey, u32)>> = HashMap::new();
-    for (&hash, &index) in keys.iter().zip(&vals).filter(|(_, &i)| {
-        let h = resident.headers()[i as usize];
-        h.flag & 0x204 == 0 && h.mapq >= 30
-    }) {
+    // The GPU has already sorted by fingerprint, so equal keys are adjacent: walk runs in
+    // parallel. Within a run, verify equality on the real key so a hash collision can
+    // never merge two distinct positions (mirrors the CPU path's guarantee).
+    let position_key = |index: u32| -> Result<PositionKey> {
         let fixed = resident.headers()[index as usize];
         let mut reference = fixed.pos;
         let mut blocks = Vec::new();
@@ -640,17 +639,59 @@ pub fn position_duplication_gpu(
                 _ => {}
             }
         }
-        let key = (fixed.tid, fixed.pos, blocks);
-        let entries = groups.entry(hash).or_default();
-        if let Some((_, count)) = entries.iter_mut().find(|(other, _)| *other == key) {
-            *count += 1;
-        } else {
-            entries.push((key, 1));
+        Ok((fixed.tid, fixed.pos, blocks))
+    };
+    let counts = sorted_run_counts(&keys, &vals, resident, |h| {
+        h.flag & 0x204 == 0 && h.mapq >= 30
+    })?
+    .into_par_iter()
+    .map(|(start, end)| -> Result<Vec<u32>> {
+        if end - start == 1 {
+            return Ok(vec![1]);
         }
+        // Rare: several records share a fingerprint. Split by exact key.
+        let mut distinct: Vec<(PositionKey, u32)> = Vec::new();
+        for &index in &vals[start..end] {
+            let key = position_key(index)?;
+            match distinct.iter_mut().find(|(k, _)| *k == key) {
+                Some((_, n)) => *n += 1,
+                None => distinct.push((key, 1)),
+            }
+        }
+        Ok(distinct.into_iter().map(|(_, n)| n).collect())
+    })
+    .collect::<Result<Vec<_>>>()?;
+    Ok(histogram(counts.into_iter().flatten()))
+}
+
+#[cfg(feature = "cuda")]
+/// Runs of equal fingerprints in GPU-sorted `(keys, vals)`, restricted to records passing
+/// `keep`. The GPU emits a sentinel key for filtered records; `keep` re-checks the header
+/// so the CPU never trusts the device's filter blindly.
+fn sorted_run_counts(
+    keys: &[u64],
+    vals: &[u32],
+    resident: &Resident,
+    keep: impl Fn(&super::RecordHeader) -> bool + Sync,
+) -> Result<Vec<(usize, usize)>> {
+    let kept: Vec<usize> = (0..keys.len())
+        .into_par_iter()
+        .filter(|&i| keep(&resident.headers()[vals[i] as usize]))
+        .collect();
+    // `kept` is ascending, and keys are sorted, so runs are contiguous index ranges.
+    let mut runs = Vec::new();
+    let mut i = 0;
+    while i < kept.len() {
+        let start = kept[i];
+        let key = keys[start];
+        let mut j = i + 1;
+        while j < kept.len() && keys[kept[j]] == key && kept[j] == kept[j - 1] + 1 {
+            j += 1;
+        }
+        runs.push((start, kept[j - 1] + 1));
+        i = j;
     }
-    Ok(histogram(
-        groups.into_values().flatten().map(|(_, n)| n).collect(),
-    ))
+    Ok(runs)
 }
 
 fn bam_stat(resident: &Resident, duplicates: &HashSet<usize>) -> Result<String> {
@@ -823,22 +864,33 @@ pub fn sequence_duplication_gpu(
     ctx: &umgpu::Context,
 ) -> Result<HashMap<u32, u64>> {
     let (keys, vals) = gpu_sorted_fingerprints(resident, ctx, umgpu::DupKeyMode::Sequence)?;
-    let mut groups: HashMap<u64, Vec<(usize, u32)>> = HashMap::new();
-    for (&hash, &index) in keys.iter().zip(&vals).filter(|(_, &i)| {
-        let h = resident.headers()[i as usize];
+    let counts = sorted_run_counts(&keys, &vals, resident, |h| {
         h.flag & 0x904 == 0 && h.mapq >= 30
-    }) {
-        let body = resident.record_bytes(resident.headers()[index as usize]);
-        let entries = groups.entry(hash).or_default();
-        if let Some((_, count)) = entries.iter_mut().find(|(other, _)| {
-            sequence_equal(body, resident.record_bytes(resident.headers()[*other]))
-        }) {
-            *count += 1;
-        } else {
-            entries.push((index as usize, 1));
+    })?
+    .into_par_iter()
+    .map(|(start, end)| -> Result<Vec<u32>> {
+        if end - start == 1 {
+            return Ok(vec![1]);
         }
-    }
-    Ok(histogram(groups.into_values().flatten().map(|(_, n)| n)))
+        // Rare: several records share a fingerprint. Split by exact sequence bytes.
+        let mut distinct: Vec<(u32, u32)> = Vec::new();
+        for &index in &vals[start..end] {
+            let body = resident.record_bytes(resident.headers()[index as usize]);
+            let hit = distinct.iter_mut().find(|(rep, _)| {
+                sequence_equal(
+                    body,
+                    resident.record_bytes(resident.headers()[*rep as usize]),
+                )
+            });
+            match hit {
+                Some((_, n)) => *n += 1,
+                None => distinct.push((index, 1)),
+            }
+        }
+        Ok(distinct.into_iter().map(|(_, n)| n).collect())
+    })
+    .collect::<Result<Vec<_>>>()?;
+    Ok(histogram(counts.into_iter().flatten()))
 }
 
 #[cfg(feature = "cuda")]
@@ -860,27 +912,20 @@ fn gpu_sorted_fingerprints(
     let sorted_keys = Buf::<Rw>::allocate(n * 8, allocation.clone())?;
     let sorted_vals = Buf::<Rw>::allocate(n * 4, allocation.clone())?;
     let temp = Buf::<Rw>::allocate(umgpu::radix_sort_pairs_u64_u32_temp_size(n)?, allocation)?;
-    // `replace` makes CPU access impossible until the one submission returns ownership.
-    let table = std::mem::replace(
-        &mut resident.table,
+    // Leasing consumes the buffers, so swap in one-page placeholders until the submission
+    // returns ownership; `umem` rejects zero-length allocations. CPU access to the table
+    // is impossible while the GPU holds it, which is the point.
+    let placeholder = || {
         Buf::<Ro>::allocate(
-            0,
+            1,
             Allocation::Anon {
                 huge: false,
                 require_huge: false,
             },
-        )?,
-    );
-    let arena = std::mem::replace(
-        &mut resident.arena,
-        Buf::<Ro>::allocate(
-            0,
-            Allocation::Anon {
-                huge: false,
-                require_huge: false,
-            },
-        )?,
-    );
+        )
+    };
+    let table = std::mem::replace(&mut resident.table, placeholder()?);
+    let arena = std::mem::replace(&mut resident.arena, placeholder()?);
     let uctx = ctx.umem_context();
     let table = table.lease(&uctx);
     let arena = arena.lease(&uctx);

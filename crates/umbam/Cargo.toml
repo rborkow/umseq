@@ -5,7 +5,7 @@ edition = "2024"
 
 [features]
 default = []
-cuda = ["dep:umgpu"]
+cuda = ["dep:umgpu", "umgpu/cuda"]
 
 [dependencies]
 anyhow = "1"

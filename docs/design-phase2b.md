@@ -130,3 +130,32 @@ this hardware, not merely unnecessary. `host_register` stays default-off and the
 should say so. The 83 GB/s is below T6's 161 GB/s streaming read; a read+write kernel on
 a single 1 GB buffer with no launch tuning is a lower bound, not a ceiling — the markdup
 kernel card measures bytes-touched/time properly.
+
+## P2B-DUPHIST result (2026-09-06, Spark, 20M BAM = 53.9M records)
+First kernels on the resident table, `umbam chain --qc --gpu`:
+
+| output | CPU 20 threads | GPU | speedup | identical |
+|---|---|---|---|---|
+| seq.DupRate | 19.2 s | **2.0 s** | 9.5× | md5 match |
+| pos.DupRate | 14.2 s | **1.7 s** | 8.2× | md5 match |
+
+Pipeline: `umgpu_dup_keys` (one thread per record: filter on flag/mapq, FNV-1a over the
+same bytes the CPU hashes — sequence nibbles or `(tid, pos, M-blocks)` from the CIGAR with
+the RSeQC `fetch_exon` bug — writing `keys[i]`, `vals[i] = i`) → CUB `SortPairs` → back
+to the CPU, which walks the sorted runs in parallel and byte-verifies any run with >1
+member against the arena so a hash collision can never change the histogram. Table +
+arena are leased, never copied (`umgpu::stats::bytes_copied() == 0` asserted). The GPU
+time includes the four `umem` allocations (keys, vals, sorted ×2, temp ≈ 1.5 GB), the
+lease/submit/fence round trip, and the CPU run-walk.
+
+The version that returned sorted keys into a serial `HashMap` on the host was *slower*
+than the CPU path (12.8 / 19.3 s): the win is only real if the consumer respects that
+the data comes back sorted. Worth stating as a rule for every kernel card: **the GPU's
+output order is part of the contract; the CPU side must exploit it, not rebuild it.**
+
+This is a *unified-memory* datapoint in the sense the memo needs: the input is 3.6 GB of
+CPU-built records that the GPU consumed in place. On a PCIe box the same kernels would
+first stage 3.6 GB across the bus (~0.3 s at 12 GB/s each way, before pinning costs) and
+the histogram would then be a 2 s GPU job either way — so here the UM advantage is
+convenience and the absence of a copy, not a bandwidth win. The bandwidth question is
+markdup's (larger working set, two sorts, random access into the arena for verification).
