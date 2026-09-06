@@ -15,12 +15,16 @@ use std::{
     path::Path,
     time::{Duration, Instant},
 };
+#[cfg(feature = "cuda")]
+use umem::{Allocation, AnyBuf, Buf, Ro, Rw};
 
 #[derive(Default)]
 pub(super) struct Timing {
     pub bam_stat: Duration,
     pub seq_duplication: Duration,
     pub pos_duplication: Duration,
+    pub seq_duplication_gpu: Duration,
+    pub pos_duplication_gpu: Duration,
     pub read_distribution: Duration,
     pub junction_annotation: Duration,
     pub infer_experiment: Duration,
@@ -42,9 +46,10 @@ pub struct QcInputs<'a> {
 pub(super) fn write(
     out: &Path,
     gtf: &Path,
-    resident: &Resident,
+    resident: &mut Resident,
     duplicates: &HashSet<usize>,
     inputs: &QcInputs<'_>,
+    use_gpu: bool,
 ) -> Result<Timing> {
     let sample = inputs.sample;
     let rseqc = out.join("rseqc");
@@ -53,10 +58,30 @@ pub(super) fn write(
     fs::write(rseqc.join("bam_stat.txt"), bam_stat(resident, duplicates)?)?;
     let bam_stat = now.elapsed();
     let seq_started = Instant::now();
+    #[cfg(feature = "cuda")]
+    let gpu = use_gpu
+        .then(|| umgpu::Context::new(0, umgpu::ContextOptions::default()))
+        .transpose()?;
+    #[cfg(not(feature = "cuda"))]
+    if use_gpu {
+        anyhow::bail!("--gpu requires rebuilding umbam with --features cuda");
+    }
+    #[cfg(feature = "cuda")]
+    let seq = match gpu.as_ref() {
+        Some(ctx) => sequence_duplication_gpu(resident, ctx)?,
+        None => sequence_duplication(resident)?,
+    };
+    #[cfg(not(feature = "cuda"))]
     let seq = sequence_duplication(resident)?;
     fs::write(rseqc.join("seq.DupRate.xls"), render_histogram(&seq))?;
     let seq_duplication = seq_started.elapsed();
     let pos_started = Instant::now();
+    #[cfg(feature = "cuda")]
+    let pos = match gpu.as_ref() {
+        Some(ctx) => position_duplication_gpu(resident, ctx)?,
+        None => position_duplication(resident)?,
+    };
+    #[cfg(not(feature = "cuda"))]
     let pos = position_duplication(resident)?;
     fs::write(rseqc.join("pos.DupRate.xls"), render_histogram(&pos))?;
     let pos_duplication = pos_started.elapsed();
@@ -95,11 +120,13 @@ pub(super) fn write(
         rseqc.join("infer_experiment.txt"),
         infer_experiment(resident, duplicates, &model)?,
     )?;
+    let infer_experiment_time = infer_started.elapsed();
     let inner_started = Instant::now();
     fs::write(
         rseqc.join(format!("{sample}.inner_distance_freq.txt")),
         inner_distance(resident, duplicates, &model)?,
     )?;
+    let inner_distance_time = inner_started.elapsed();
     let features = read_features(gtf, &resident.header)?;
     let dupradar_started = Instant::now();
     let dupradar = out.join("dupradar");
@@ -116,17 +143,28 @@ pub(super) fn write(
         qualimap.join("rnaseq_qc_results.txt"),
         qualimap_report(resident, &features)?,
     )?;
+    let qualimap_time = qualimap_started.elapsed();
     Ok(Timing {
         bam_stat,
         seq_duplication,
         pos_duplication,
+        seq_duplication_gpu: if use_gpu {
+            seq_duplication
+        } else {
+            Duration::ZERO
+        },
+        pos_duplication_gpu: if use_gpu {
+            pos_duplication
+        } else {
+            Duration::ZERO
+        },
         read_distribution,
         junction_annotation,
-        infer_experiment: infer_started.elapsed(),
+        infer_experiment: infer_experiment_time,
         junction_saturation,
-        inner_distance: inner_started.elapsed(),
+        inner_distance: inner_distance_time,
         dupradar: dupradar_time,
-        qualimap: qualimap_started.elapsed(),
+        qualimap: qualimap_time,
     })
 }
 
@@ -578,6 +616,43 @@ fn position_duplication(resident: &Resident) -> Result<HashMap<u32, u64>> {
     Ok(result)
 }
 
+#[cfg(feature = "cuda")]
+pub fn position_duplication_gpu(
+    resident: &mut Resident,
+    ctx: &umgpu::Context,
+) -> Result<HashMap<u32, u64>> {
+    let (keys, vals) = gpu_sorted_fingerprints(resident, ctx, umgpu::DupKeyMode::Position)?;
+    let mut groups: HashMap<u64, Vec<(PositionKey, u32)>> = HashMap::new();
+    for (&hash, &index) in keys.iter().zip(&vals).filter(|(_, &i)| {
+        let h = resident.headers()[i as usize];
+        h.flag & 0x204 == 0 && h.mapq >= 30
+    }) {
+        let fixed = resident.headers()[index as usize];
+        let mut reference = fixed.pos;
+        let mut blocks = Vec::new();
+        for (length, op) in bam_cigar(resident.record_bytes(fixed))? {
+            match op {
+                'M' => {
+                    blocks.push((reference, reference + length));
+                    reference += length;
+                }
+                'D' | 'N' | 'S' => reference += length,
+                _ => {}
+            }
+        }
+        let key = (fixed.tid, fixed.pos, blocks);
+        let entries = groups.entry(hash).or_default();
+        if let Some((_, count)) = entries.iter_mut().find(|(other, _)| *other == key) {
+            *count += 1;
+        } else {
+            entries.push((key, 1));
+        }
+    }
+    Ok(histogram(
+        groups.into_values().flatten().map(|(_, n)| n).collect(),
+    ))
+}
+
 fn bam_stat(resident: &Resident, duplicates: &HashSet<usize>) -> Result<String> {
     #[derive(Default)]
     struct Counts {
@@ -729,20 +804,154 @@ fn sequence_duplication(resident: &Resident) -> Result<HashMap<u32, u64>> {
             }
         }
     }
-    let histogram = |values: Vec<u32>| {
-        let mut result = HashMap::new();
-        for n in values {
-            *result.entry(n).or_insert(0) += 1;
-        }
-        result
-    };
     Ok(histogram(
-        sequence
-            .into_values()
-            .flatten()
-            .map(|(_, count)| count)
-            .collect(),
+        sequence.into_values().flatten().map(|(_, count)| count),
     ))
+}
+
+fn histogram(values: impl IntoIterator<Item = u32>) -> HashMap<u32, u64> {
+    let mut result = HashMap::new();
+    for n in values {
+        *result.entry(n).or_insert(0) += 1;
+    }
+    result
+}
+
+#[cfg(feature = "cuda")]
+pub fn sequence_duplication_gpu(
+    resident: &mut Resident,
+    ctx: &umgpu::Context,
+) -> Result<HashMap<u32, u64>> {
+    let (keys, vals) = gpu_sorted_fingerprints(resident, ctx, umgpu::DupKeyMode::Sequence)?;
+    let mut groups: HashMap<u64, Vec<(usize, u32)>> = HashMap::new();
+    for (&hash, &index) in keys.iter().zip(&vals).filter(|(_, &i)| {
+        let h = resident.headers()[i as usize];
+        h.flag & 0x904 == 0 && h.mapq >= 30
+    }) {
+        let body = resident.record_bytes(resident.headers()[index as usize]);
+        let entries = groups.entry(hash).or_default();
+        if let Some((_, count)) = entries.iter_mut().find(|(other, _)| {
+            sequence_equal(body, resident.record_bytes(resident.headers()[*other]))
+        }) {
+            *count += 1;
+        } else {
+            entries.push((index as usize, 1));
+        }
+    }
+    Ok(histogram(groups.into_values().flatten().map(|(_, n)| n)))
+}
+
+#[cfg(feature = "cuda")]
+fn gpu_sorted_fingerprints(
+    resident: &mut Resident,
+    ctx: &umgpu::Context,
+    mode: umgpu::DupKeyMode,
+) -> Result<(Vec<u64>, Vec<u32>)> {
+    let n = resident.headers().len();
+    if n == 0 {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let allocation = Allocation::Anon {
+        huge: true,
+        require_huge: false,
+    };
+    let keys = Buf::<Rw>::allocate(n * 8, allocation.clone())?;
+    let vals = Buf::<Rw>::allocate(n * 4, allocation.clone())?;
+    let sorted_keys = Buf::<Rw>::allocate(n * 8, allocation.clone())?;
+    let sorted_vals = Buf::<Rw>::allocate(n * 4, allocation.clone())?;
+    let temp = Buf::<Rw>::allocate(umgpu::radix_sort_pairs_u64_u32_temp_size(n)?, allocation)?;
+    // `replace` makes CPU access impossible until the one submission returns ownership.
+    let table = std::mem::replace(
+        &mut resident.table,
+        Buf::<Ro>::allocate(
+            0,
+            Allocation::Anon {
+                huge: false,
+                require_huge: false,
+            },
+        )?,
+    );
+    let arena = std::mem::replace(
+        &mut resident.arena,
+        Buf::<Ro>::allocate(
+            0,
+            Allocation::Anon {
+                huge: false,
+                require_huge: false,
+            },
+        )?,
+    );
+    let uctx = ctx.umem_context();
+    let table = table.lease(&uctx);
+    let arena = arena.lease(&uctx);
+    let keys = keys.lease(&uctx);
+    let vals = vals.lease(&uctx);
+    let sorted_keys = sorted_keys.lease(&uctx);
+    let sorted_vals = sorted_vals.lease(&uctx);
+    let temp = temp.lease(&uctx);
+    umgpu::dup_keys(
+        ctx,
+        ctx.default_stream(),
+        &table,
+        &arena,
+        &keys,
+        &vals,
+        n,
+        mode,
+    )?;
+    umgpu::radix_sort_pairs_u64_u32(
+        ctx,
+        ctx.default_stream(),
+        &keys,
+        &vals,
+        &sorted_keys,
+        &sorted_vals,
+        &temp,
+        n,
+        0..64,
+    )?;
+    let buffers = umgpu::submit(
+        ctx,
+        ctx.default_stream(),
+        vec![
+            table.erase(),
+            arena.erase(),
+            keys.erase(),
+            vals.erase(),
+            sorted_keys.erase(),
+            sorted_vals.erase(),
+            temp.erase(),
+        ],
+    )?
+    .wait()?;
+    let mut it = buffers.into_iter();
+    resident.table = ro(it.next().expect("table returned"));
+    resident.arena = ro(it.next().expect("arena returned"));
+    let _keys = rw(it.next().expect("keys returned"));
+    let _vals = rw(it.next().expect("vals returned"));
+    let sorted_keys = rw(it.next().expect("sorted keys returned"));
+    let sorted_vals = rw(it.next().expect("sorted vals returned"));
+    let out = (
+        sorted_keys.as_pod_slice::<u64>().to_vec(),
+        sorted_vals.as_pod_slice::<u32>().to_vec(),
+    );
+    debug_assert_eq!(umgpu::stats::bytes_copied(), 0);
+    Ok(out)
+}
+
+#[cfg(feature = "cuda")]
+fn ro(buf: AnyBuf) -> Buf<Ro> {
+    match buf {
+        AnyBuf::Ro(b) => b,
+        AnyBuf::Rw(_) => panic!("expected read-only buffer"),
+    }
+}
+#[cfg(feature = "cuda")]
+fn rw(buf: AnyBuf) -> Buf<Rw> {
+    match buf {
+        AnyBuf::Rw(b) => b,
+        AnyBuf::Ro(_) => panic!("expected writable buffer"),
+    }
 }
 
 fn sequence_layout(body: &[u8]) -> Result<(usize, usize)> {

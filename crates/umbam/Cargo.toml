@@ -3,6 +3,10 @@ name = "umbam"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+cuda = ["dep:umgpu"]
+
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
@@ -16,6 +20,7 @@ rayon = "1"
 libc = "0.2"
 thiserror = "2"
 umem = { path = "../umem" }
+umgpu = { path = "../umgpu", optional = true }
 
 [dev-dependencies]
 tempfile = "3"

@@ -30,4 +30,37 @@ extern "C" int umgpu_exclusive_scan_u32_temp_size(size_t n, size_t* b) { return 
 extern "C" int umgpu_exclusive_scan_u32(void* t, size_t b, const uint32_t* i, uint32_t* o, size_t n, void* s) { return result(cub::DeviceScan::ExclusiveSum(t, b, i, o, n, (cudaStream_t)s)); }
 __global__ static void inc(const uint64_t* in, uint64_t* out, size_t n) { size_t i = blockIdx.x * (size_t)blockDim.x + threadIdx.x; if (i < n) out[i] = in[i] + 1; }
 extern "C" int umgpu_inc_u64(const uint64_t* in, uint64_t* out, size_t n, void* s) { inc<<<(n + 255) / 256, 256, 0, (cudaStream_t)s>>>(in, out, n); return result(cudaGetLastError()); }
+// Deliberately use byte offsets rather than a C++ RecordHeader: Rust owns the ABI.
+__device__ static uint32_t rd32(const uint8_t* p) { return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24); }
+__device__ static uint64_t rd64(const uint8_t* p) { return (uint64_t)rd32(p) | ((uint64_t)rd32(p + 4) << 32); }
+__device__ static uint64_t fnv(uint64_t h, uint8_t b) { return (h ^ b) * 0x100000001b3ULL; }
+__device__ static uint64_t fnv_i32(uint64_t h, int32_t x) { const uint8_t* p = (const uint8_t*)&x; for (int i = 0; i != 4; ++i) h = fnv(h, p[i]); return h; }
+__global__ static void dup_keys(const uint8_t* headers, const uint8_t* arena, size_t arena_len, size_t n, int mode, uint64_t* keys, uint32_t* vals) {
+  size_t i = blockIdx.x * (size_t)blockDim.x + threadIdx.x; if (i >= n) return;
+  const uint8_t* h = headers + i * 48; uint16_t flag = (uint16_t)h[8] | ((uint16_t)h[9] << 8); uint8_t mapq = h[10];
+  bool keep = mode == 0 ? ((flag & 0x204) == 0 && mapq >= 30) : ((flag & 0x904) == 0 && mapq >= 30);
+  vals[i] = (uint32_t)i; if (!keep) { keys[i] = ~0ULL; return; }
+  uint64_t offset = rd64(h + 32); uint32_t l = rd32(h + 40);
+  if (offset > arena_len || (uint64_t)l > arena_len - offset) { keys[i] = ~0ULL; return; }
+  const uint8_t* b = arena + offset;
+  // Malformed records are excluded here; the CPU reduction will reject them too.
+  if (l < 32) { keys[i] = ~0ULL; return; }
+  uint64_t out = 0xcbf29ce484222325ULL;
+  uint8_t name = b[8]; uint16_t ncigar = (uint16_t)b[12] | ((uint16_t)b[13] << 8);
+  if (mode) {
+    int32_t seq_len = (int32_t)rd32(b + 16); size_t at = 32 + (size_t)name + (size_t)ncigar * 4;
+    if (seq_len < 0 || at + ((size_t)seq_len + 1) / 2 > l) { keys[i] = ~0ULL; return; }
+    out = fnv((out ^ (uint64_t)seq_len), 0); // replaced below to mirror Rust's initial multiply
+    out = (0xcbf29ce484222325ULL ^ (uint64_t)seq_len) * 0x100000001b3ULL;
+    size_t bytes = ((size_t)seq_len + 1) / 2; for (size_t j = 0; j < bytes; ++j) { uint8_t x = b[at+j]; if (j+1 == bytes && (seq_len & 1)) x &= 0xf0; out = fnv(out, x); }
+  } else {
+    int32_t pos = (int32_t)rd32(h + 4), tid = (int32_t)rd32(h); out = fnv_i32(fnv_i32(out, tid), pos); int32_t ref = pos;
+    size_t at = 32 + (size_t)name; if (at + (size_t)ncigar * 4 > l) { keys[i] = ~0ULL; return; }
+    for (uint16_t j = 0; j < ncigar; ++j) { uint32_t c = rd32(b + at + (size_t)j * 4); int32_t len = (int32_t)(c >> 4); uint32_t op = c & 15;
+      if (op == 0) { out = fnv_i32(fnv_i32(out, ref), ref + len); ref += len; } else if (op == 2 || op == 3 || op == 4) ref += len;
+    }
+  }
+  keys[i] = out;
+}
+extern "C" int umgpu_dup_keys(const void* h, const uint8_t* a, size_t alen, size_t n, int mode, uint64_t* k, uint32_t* v, void* s) { dup_keys<<<(n + 255) / 256, 256, 0, (cudaStream_t)s>>>((const uint8_t*)h, a, alen, n, mode, k, v); return result(cudaGetLastError()); }
 extern "C" const char* umgpu_error_string(int c) { return cudaGetErrorString((cudaError_t)c); }

@@ -55,6 +55,16 @@ unsafe extern "C" {
         stream: *mut c_void,
     ) -> c_int;
     fn umgpu_inc_u64(input: *const u64, output: *mut u64, n: usize, stream: *mut c_void) -> c_int;
+    fn umgpu_dup_keys(
+        headers: *const c_void,
+        arena: *const u8,
+        arena_len: usize,
+        n: usize,
+        mode: c_int,
+        keys_out: *mut u64,
+        vals_out: *mut u32,
+        stream: *mut c_void,
+    ) -> c_int;
     fn umgpu_error_string(code: c_int) -> *const c_char;
 }
 
@@ -551,6 +561,65 @@ pub fn inc_u64(
     ctx.check_lease(output, "output", bytes)?;
     // SAFETY: checked input/output leases cover n u64 elements and output is Rw.
     check(unsafe { umgpu_inc_u64(input.as_ptr().cast(), output.as_ptr().cast(), n, stream.raw) })
+}
+
+/// Duplication-key flavour accepted by [`dup_keys`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DupKeyMode {
+    Position,
+    Sequence,
+}
+
+/// Enqueues one 64-bit key and record index per 48-byte resident header.
+/// The CUDA shim reads documented byte offsets rather than a C++ Rust-struct analogue.
+pub fn dup_keys(
+    ctx: &Context,
+    stream: &Stream,
+    headers: &GpuLease<umem::Ro>,
+    arena: &GpuLease<umem::Ro>,
+    keys_out: &GpuLease<Rw>,
+    vals_out: &GpuLease<Rw>,
+    n: usize,
+    mode: DupKeyMode,
+) -> Result<(), Error> {
+    ctx.activate()?;
+    let hb = n.checked_mul(48).ok_or(Error::TooShort {
+        name: "headers",
+        actual: 0,
+        needed: usize::MAX,
+    })?;
+    let kb = n.checked_mul(8).ok_or(Error::TooShort {
+        name: "keys_out",
+        actual: 0,
+        needed: usize::MAX,
+    })?;
+    let vb = n.checked_mul(4).ok_or(Error::TooShort {
+        name: "vals_out",
+        actual: 0,
+        needed: usize::MAX,
+    })?;
+    ctx.check_lease(headers, "headers", hb)?;
+    // Every body access is span-checked by the kernel against this live arena lease.
+    ctx.check_lease(arena, "arena", 0)?;
+    ctx.check_lease(keys_out, "keys_out", kb)?;
+    ctx.check_lease(vals_out, "vals_out", vb)?;
+    let mode = match mode {
+        DupKeyMode::Position => 0,
+        DupKeyMode::Sequence => 1,
+    };
+    // SAFETY: checked live leases cover the fixed input and outputs; submit retains them through the CUDA event.
+    check(unsafe {
+        umgpu_dup_keys(
+            headers.as_ptr().cast(),
+            arena.as_ptr(),
+            arena.len(),
+            n,
+            mode,
+            keys_out.as_ptr().cast(),
+            vals_out.as_ptr().cast(),
+            stream.raw,
+        )
+    })
 }
 
 fn check(code: i32) -> Result<(), Error> {

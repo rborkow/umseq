@@ -20,5 +20,9 @@ int umgpu_exclusive_scan_u32_temp_size(size_t n, size_t* temp_bytes);
 int umgpu_exclusive_scan_u32(void* temp, size_t temp_bytes, const uint32_t* in,
   uint32_t* out, size_t n, void* stream);
 int umgpu_inc_u64(const uint64_t* in, uint64_t* out, size_t n, void* stream);
+// RecordHeader is passed as raw 48-byte entries: tid@0, pos@4, flag@8, mapq@10,
+// offset@32, len@40. mode is 0 for position and 1 for sequence duplication.
+int umgpu_dup_keys(const void* headers, const uint8_t* arena, size_t arena_len, size_t n, int mode,
+  uint64_t* keys_out, uint32_t* vals_out, void* stream);
 const char* umgpu_error_string(int code);
 }

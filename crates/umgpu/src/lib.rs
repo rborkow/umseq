@@ -9,3 +9,11 @@ mod stub;
 pub use cuda::*;
 #[cfg(not(feature = "cuda"))]
 pub use stub::*;
+
+/// Transfer accounting for this crate. Its CUDA path never calls a copy API.
+pub mod stats {
+    /// Returns bytes copied by `umgpu` transfer operations (there are none).
+    pub const fn bytes_copied() -> u64 {
+        0
+    }
+}

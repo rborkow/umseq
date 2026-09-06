@@ -1081,6 +1081,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "umem",
+ "umgpu",
 ]
 
 [[package]]

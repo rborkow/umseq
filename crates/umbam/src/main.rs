@@ -22,6 +22,9 @@ enum Command {
         /// Emit resident QC text outputs under the chain output directory.
         #[arg(long)]
         qc: bool,
+        /// Use CUDA for RSeQC duplication histograms (requires `--features cuda`).
+        #[arg(long)]
+        gpu: bool,
         /// BED12 gene model for the RSeQC-style outputs (nf-core `gtf2bed` output).
         #[arg(long)]
         bed: Option<std::path::PathBuf>,
@@ -40,9 +43,10 @@ fn main() -> anyhow::Result<()> {
             out_dir,
             threads,
             qc,
+            gpu,
             bed,
             sample,
-        } => umbam::chain_full(
+        } => umbam::chain_full_with_gpu(
             &input,
             &gtf,
             &out_dir,
@@ -50,6 +54,7 @@ fn main() -> anyhow::Result<()> {
             qc,
             bed.as_deref(),
             &sample,
+            gpu,
         ),
     }
 }
