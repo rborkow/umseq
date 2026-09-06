@@ -117,6 +117,33 @@ saturation 23, junctions 18, read_dist 13, qualimap 13. dupRadar's four featureC
 passes and the two hash-histogram stages (which the GPU card is replacing) are the
 remaining targets.
 
+## Run 4 (after P2A-DUPRADAR-PERF + P2B-MARKDUP/DUPHIST on CPU path): every gated output identical except the known dupRadar-Multi residual
+
+Same 17 genes, same ±1–2 in `allCountsMulti`/`filteredCountsMulti` only, all non-Multi
+columns identical — the name-grouping rewrite did not move it in either direction.
+Stage times at 76M records (20 threads, CPU path):
+
+| stage | run 3 | run 4 |
+|---|---|---|
+| qc_dupradar | **61.1 s** | **7.3 s** |
+| qc_seq_duplication | 36.3 | 35.3 (GPU path: ~2 s) |
+| qc_pos_duplication | 25.6 | 25.5 (GPU path: ~1.7 s) |
+| qc_junction_saturation | 22.6 | 22.0 |
+| qc_junction_annotation | 18.0 | 17.9 |
+| qc_read_distribution | 13.4 | 13.6 |
+| qc_qualimap | 12.9 | 11.2 |
+| markdup | 9.1 | 9.6 (GPU path: 2.8–5 s) |
+| write_sorted + write_markdup | 32.4 | 32.2 |
+| **wall** | **4 min 30 s** | **~3 min 40 s** |
+
+Found while diffing: `dupsPerIdMulti` was `u64` subtraction, so the two genes where our
+`allCountsMulti` is one *below* `filteredCountsMulti` printed `18446744073709551615`.
+Now signed (prints `-1`, as R would). Still a residual, no longer a landmine.
+
+Remaining CPU-side cost (excluding BGZF, which stays on the CPU — see nvCOMP result):
+seq/pos-dup 61 s → ~4 s on the GPU already; junction_saturation + junction_annotation +
+read_distribution + qualimap ≈ 65 s are the next per-tid sweeps if (a) continues.
+
 ## Next
 1. Fix the `Timing` attribution (`elapsed()` captured at each stage's end, not at return).
 2. dupRadar 61 s → one pass, four accumulators (it's 4 × featureCounts' 5 s + overhead).

@@ -194,7 +194,7 @@ fn dup_radar(
             if a == 0 {
                 "NA".to_owned()
             } else {
-                format!("{}", (a - b) as f64 / a as f64)
+                format!("{}", (a as f64 - b as f64) / a as f64)
             }
         };
         let rpk = |n: u64| n as f64 * 1000.0 / gene_width as f64;
@@ -213,13 +213,15 @@ fn dup_radar(
             all_multi.counts[i],
             filtered_multi.counts[i],
             rate(all_multi.counts[i], filtered_multi.counts[i]),
-            all_multi.counts[i] - filtered_multi.counts[i],
+            // Signed: the Multi columns carry a known ±1 residual vs Rsubread (COMPAT.md),
+            // and R would print a negative here rather than wrap.
+            all_multi.counts[i] as i64 - filtered_multi.counts[i] as i64,
             rpk(all_multi.counts[i]),
             rpkm(all_multi.counts[i], processed),
             all.counts[i],
             filtered.counts[i],
             rate(all.counts[i], filtered.counts[i]),
-            all.counts[i] - filtered.counts[i],
+            all.counts[i] as i64 - filtered.counts[i] as i64,
             rpk(all.counts[i]),
             rpkm(all.counts[i], processed),
         ));
