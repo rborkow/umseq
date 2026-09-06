@@ -1,6 +1,8 @@
 #include "umgpu_shim.h"
 #include <cuda_runtime.h>
 #include <cub/cub.cuh>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 
 static int result(cudaError_t e) { return static_cast<int>(e); }
 extern "C" int umgpu_init(int* p) {
@@ -196,8 +198,9 @@ struct Metric {
     }
   }
 };
-using Count=cub::CountingInputIterator<uint32_t>;
-using MetricInput=cub::TransformInputIterator<uint64_t,Metric,Count>;
+// CCCL 3.x (CUDA 13) dropped cub::{Counting,Transform}InputIterator in favour of thrust's.
+using Count=thrust::counting_iterator<uint32_t>;
+using MetricInput=thrust::transform_iterator<Metric,Count,uint64_t>;
 // Error paths drain the stream before the Rust caller can release a lease.
 struct Drain { cudaStream_t s; ~Drain() { cudaStreamSynchronize(s); } };
 struct Events {

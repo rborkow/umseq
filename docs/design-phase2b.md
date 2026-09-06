@@ -159,3 +159,40 @@ first stage 3.6 GB across the bus (~0.3 s at 12 GB/s each way, before pinning co
 the histogram would then be a 2 s GPU job either way — so here the UM advantage is
 convenience and the absence of a copy, not a bandwidth win. The bandwidth question is
 markdup's (larger working set, two sorts, random access into the arena for verification).
+
+## P2B-MARKDUP result (2026-09-06, Spark) — the thesis datapoint
+Picard-exact duplicate marking on the GB10, over the resident table, Astra-written,
+three-way oracle (reference / Rayon / GPU) identical on Tier 0; at scale:
+
+| input | CPU markdup (20 thr) | GPU markdup (total) | kernels only | identical |
+|---|---|---|---|---|
+| 20M BAM, 53.9M rec | 8.8 s | **1.6–2.3 s** | 0.48 s | `markdup.bam` **byte-identical**, metrics identical, 8,918,475 flags |
+| 78M sample, 76.1M rec | 9.1 s | **2.8–5.2 s** (17.7 s cold) | 0.76 s | 17,192,968 flags; metrics identical to nf-core's Picard |
+
+Kernel breakdown at 76M: K1 derive 164 ms (23.6 GB logical → **~144 GB/s**), K2 name
+grouping 212 ms, K3 pair sort+walk 372 ms (11.4 GB → ~31 GB/s: two radix passes over
+packed 128-bit keys), K4/K5 22 ms. The 2 s of non-kernel time is `Context::new` 0.3 s,
+`umem` allocation of ~10 GB of workspace (0.9–2.2 s: first-touch THP faults; the
+kernel's `compact_stall` counter climbs during it), leasing, and the host result build
+(~1 s: rebuilding `HashSet<usize>` of 17M duplicates — should become a bitset).
+
+**The cold 17.7 s is real and matters for the memo**: first run after other large jobs
+finds physical memory fragmented, and THP faulting ~10 GB stalls in compaction. Steady
+state is fine. `umem`'s `require_huge` path with the HugeTLB pool would eliminate it at
+the cost of reserving the pool — the trade the design anticipated (T6 §2).
+
+**What this says**: on the same box, same resident table, byte-identical output, the GPU
+markdup is **3–5× faster than 20 CPU threads end-to-end and ~12× on the kernels
+alone**. It reads the 3.6 GB table + arena in place at ~144 GB/s (T6 ceiling: 161).
+Nothing was copied. On a PCIe machine this stage would first stage the table across
+the bus; here it doesn't exist as a step. Combined with the dup-histogram result
+(8–9×), the Phase 2 gate (**≥2× over the CPU control arm on a real stage, byte-
+identical**) is **passed**, twice.
+
+What it does *not* say: that the pipeline is faster. Markdup is 9 s of a ~270 s
+`--qc` run; the wins so far take ~45 s off. The remaining time is BGZF compression,
+decode, dupRadar, and the per-tid QC sweeps — none of which has been tried on the
+GPU, and compression is a library (nvCOMP) question. The memo's honest line is: *UM
+makes GPU offload of individual stages free of staging cost and byte-exact; the stages
+tried so far are 3–9× faster; the pipeline-level number depends on how many stages get
+the treatment.*
