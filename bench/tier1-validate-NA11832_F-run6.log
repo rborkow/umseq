@@ -1,0 +1,19 @@
+=== NA11832_F: 6.66812 GB, Sun Sep  6 12:28:33 PM EDT 2026 ===
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:55.00
+	Maximum resident set size (kbytes): 41925464
+stage	seconds decode	11.169806 sort	1.858016 write_sorted	13.757084 markdup	9.749221 write_markdup	19.374462 index	1.942385 gtf_parse	1.901297 featurecounts_count	5.221651 featurecounts	7.720069 genomecov	4.059575 qc_bam_stat	0.863283 qc_seq_duplication	37.462399 qc_pos_duplication	28.245008 qc_seq_duplication_gpu	0.000000 qc_pos_duplication_gpu	0.000000 qc_bed_parse	2.440299 qc_read_distribution	1.352356 qc_junction_annotation	1.133851 qc_infer_experiment	0.089071 qc_junction_saturation	0.393217 qc_inner_distance	0.534929 qc_dupradar	7.523500 qc_qualimap	11.935385 peak_rss_bytes	42931675136 
+=== vs nf-core ===
+IDENTICAL  flagstat
+IDENTICAL  idxstats
+IDENTICAL  picard metrics (PERCENT_DUPLICATION to 5 dp)
+IDENTICAL  dup-flag count (17192968)
+IDENTICAL  genomecov-sorted
+IDENTICAL  rseqc/bam_stat
+IDENTICAL  rseqc/read_distribution
+IDENTICAL  rseqc/infer_experiment
+IDENTICAL  rseqc/pos.DupRate
+IDENTICAL  rseqc/seq.DupRate
+IDENTICAL  rseqc/inner_distance_freq
+IDENTICAL  rseqc/junction_annotation.log
+DIFFERS    dupradar/dupMatrix-ints  (78900 vs 78900 lines; first diff: < ENSG00000157152.17	6329	13	14	11	11)
+=== done Sun Sep  6 12:31:57 PM EDT 2026 ===

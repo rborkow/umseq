@@ -144,6 +144,32 @@ Remaining CPU-side cost (excluding BGZF, which stays on the CPU — see nvCOMP r
 seq/pos-dup 61 s → ~4 s on the GPU already; junction_saturation + junction_annotation +
 read_distribution + qualimap ≈ 65 s are the next per-tid sweeps if (a) continues.
 
+## Runs 5–6 (after P2A-UMQC-PERF-2 + BED subtraction fix): 2 min 55 s, every gated output identical except the known dupRadar-Multi residual
+
+| stage (76M records, 20 thr) | run 4 | run 6 |
+|---|---|---|
+| qc_junction_annotation | 17.9 s | **1.1 s** |
+| qc_junction_saturation | 22.0 s | **0.4 s** |
+| qc_read_distribution (was mis-attributed, see below) | 13.6 s | **1.4 s** |
+| qc_bed_parse (new row) | — | 2.4 s |
+| qc_seq_duplication / qc_pos_duplication (CPU) | 35 / 26 s | 37 / 28 s (GPU: ~2 / ~1.7 s) |
+| qc_dupradar | 7.3 s | 7.5 s |
+| qc_qualimap | 11.2 s | 11.9 s |
+| **wall** | **3 min 40 s** | **2 min 55 s** |
+
+Two findings. (1) RSeQC's "insertion-ordered" junction table isn't inherently serial:
+first-encounter order is min coordinate index per junction, recovered exactly by a parallel
+extraction + sort + run walk; both junction outputs share the one pass. (2) The
+`read_distribution` row was timing the BED12 parse. The parse itself was 12 s on the
+full GENCODE BED because `subtract()` scanned each cut list from index 0 for every
+interval — O(|a|·|b|) per chromosome; a `partition_point` start turns it into 1.9 s.
+Terra's per-tid conversion of the interval maps was correct but cosmetic — the profiler
+(0.5% in the sweep) is what found the real cost. Lesson repeated twice now: **time the
+stage, not the region between two `Instant::now()` calls that happen to bracket it.**
+
+`--qc` chain, CPU only, 76M records: 4:30 → 2:55 today. Remaining big rows are the two
+duplication histograms (65 s CPU, ~4 s on the GPU) and BGZF (32 s, stays on CPU).
+
 ## Next
 1. Fix the `Timing` attribution (`elapsed()` captured at each stage's end, not at return).
 2. dupRadar 61 s → one pass, four accumulators (it's 4 × featureCounts' 5 s + overhead).
