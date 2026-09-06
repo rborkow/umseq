@@ -1,0 +1,16 @@
+[package]
+name = "umgpu"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[features]
+default = []
+cuda = []
+
+[dependencies]
+thiserror = "2"
+umem = { path = "../umem" }
+
+[build-dependencies]
+cc = "1"
