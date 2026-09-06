@@ -2,6 +2,10 @@
 
 use super::*;
 
+/// Chunks per nvCOMP launch. Temp workspace is ~1.2 MB/chunk at algorithm 4, so 2048
+/// chunks (~128 MB uncompressed) keeps the workspace at ~2.5 GB.
+const DEFLATE_BATCH_CHUNKS: usize = 2048;
+
 #[cfg(feature = "nvcomp")]
 pub(super) fn write_bam_gpu(
     path: &Path,
@@ -34,7 +38,7 @@ pub(super) fn write_bam_gpu(
         huge: true,
         require_huge: false,
     };
-    let alloc = |bytes| Buf::<Rw>::allocate(bytes.max(1), allocation.clone());
+    let alloc = |bytes: usize| Buf::<Rw>::allocate(bytes.max(1), allocation.clone());
     let mut raw = alloc(
         chunks
             .checked_mul(input_stride)
@@ -70,7 +74,11 @@ pub(super) fn write_bam_gpu(
             .checked_mul(std::mem::size_of::<i32>())
             .context("GPU status size overflow")?,
     )?;
-    let temp_bytes = umgpu::deflate_temp_size(chunks, OUTPUT_BLOCK_SIZE, algorithm)?;
+    // nvCOMP's temp workspace scales with the batch (~0.65–1.2 MB per 64 KB chunk at
+    // algorithms 2–5): a whole 4 GB BAM in one batch would ask for ~200 GB. Compress in
+    // sub-batches that reuse one bounded temp buffer instead.
+    let batch = DEFLATE_BATCH_CHUNKS.min(chunks);
+    let temp_bytes = umgpu::deflate_temp_size(batch, OUTPUT_BLOCK_SIZE, algorithm)?;
     let temp = alloc(temp_bytes)?;
 
     let raw_sizes = ranges
@@ -139,22 +147,29 @@ pub(super) fn write_bam_gpu(
     let out_bytes = out_bytes.lease(&uctx);
     let statuses = statuses.lease(&uctx);
     let gpu_start = Instant::now();
-    let launch = umgpu::deflate_batch(
-        &ctx,
-        ctx.default_stream(),
-        &raw,
-        &in_ptrs,
-        &in_bytes,
-        &temp,
-        &output,
-        &out_ptrs,
-        &out_bytes,
-        &statuses,
-        chunks,
-        OUTPUT_BLOCK_SIZE,
-        output_stride,
-        algorithm,
-    );
+    let mut launch = Ok(());
+    let mut first = 0;
+    while first < chunks && launch.is_ok() {
+        let count = batch.min(chunks - first);
+        launch = umgpu::deflate_batch(
+            &ctx,
+            ctx.default_stream(),
+            &raw,
+            &in_ptrs,
+            &in_bytes,
+            &temp,
+            &output,
+            &out_ptrs,
+            &out_bytes,
+            &statuses,
+            first,
+            count,
+            OUTPUT_BLOCK_SIZE,
+            output_stride,
+            algorithm,
+        );
+        first += count;
+    }
     let buffers = umgpu::submit(
         &ctx,
         ctx.default_stream(),
@@ -192,13 +207,17 @@ pub(super) fn write_bam_gpu(
     let frame_start = Instant::now();
     let input_lengths = &in_bytes.as_pod_slice::<usize>()[..chunks];
     let output_lengths = &out_bytes.as_pod_slice::<usize>()[..chunks];
+    // `Buf<Rw>` is `!Sync` by design (one CPU writer); borrow the byte slices once here so
+    // the parallel framing shares plain `&[u8]`, which is `Sync`.
+    let raw_bytes: &[u8] = raw.as_slice();
+    let output_bytes: &[u8] = output.as_slice();
     let framed = (0..chunks)
         .into_par_iter()
         .map(|block| -> Result<Vec<u8>> {
             let raw_block =
-                &raw.as_slice()[block * input_stride..block * input_stride + input_lengths[block]];
-            let deflate = &output.as_slice()
-                [block * output_stride..block * output_stride + output_lengths[block]];
+                &raw_bytes[block * input_stride..block * input_stride + input_lengths[block]];
+            let deflate =
+                &output_bytes[block * output_stride..block * output_stride + output_lengths[block]];
             frame_bgzf(raw_block, deflate)
         })
         .collect::<Result<Vec<_>>>()?;

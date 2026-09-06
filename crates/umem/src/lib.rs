@@ -165,6 +165,11 @@ unsafe impl Pod for i64 {}
 unsafe impl Pod for f32 {}
 // SAFETY: as above.
 unsafe impl Pod for f64 {}
+// SAFETY: platform-width integers are valid for all bit patterns; callers sharing a
+// buffer with a device must agree on width (both 64-bit on every supported target).
+unsafe impl Pod for usize {}
+// SAFETY: as above.
+unsafe impl Pod for isize {}
 
 impl<M: Mode> Buf<M> {
     /// Views the buffer as a slice of `T`. Requires the mapping base to be aligned for `T`

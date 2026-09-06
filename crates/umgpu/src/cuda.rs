@@ -747,6 +747,7 @@ pub fn deflate_batch(
     out_ptrs: &GpuLease<Rw>,
     out_bytes: &GpuLease<Rw>,
     statuses: &GpuLease<Rw>,
+    first_chunk: usize,
     num_chunks: usize,
     max_chunk: usize,
     max_output: usize,
@@ -758,10 +759,13 @@ pub fn deflate_batch(
         ));
     }
     ctx.activate()?;
-    let ptr_bytes = num_chunks
+    let end_chunk = first_chunk
+        .checked_add(num_chunks)
+        .ok_or(Error::InvalidInput("Deflate chunk range overflow"))?;
+    let ptr_bytes = end_chunk
         .checked_mul(std::mem::size_of::<usize>())
         .ok_or(Error::InvalidInput("Deflate pointer array overflow"))?;
-    let status_bytes = num_chunks
+    let status_bytes = end_chunk
         .checked_mul(std::mem::size_of::<i32>())
         .ok_or(Error::InvalidInput("Deflate status array overflow"))?;
     ctx.check_lease(input, "deflate input", 1)?;
@@ -772,28 +776,30 @@ pub fn deflate_batch(
         "deflate temp",
         deflate_temp_size(num_chunks, max_chunk, algorithm)?,
     )?;
-    let output_bytes = num_chunks
+    let output_bytes = end_chunk
         .checked_mul(max_output)
         .ok_or(Error::InvalidInput("Deflate output size overflow"))?;
     ctx.check_lease(output, "deflate output", output_bytes)?;
     ctx.check_lease(out_ptrs, "deflate output pointers", ptr_bytes)?;
     ctx.check_lease(out_bytes, "deflate output sizes", ptr_bytes)?;
     ctx.check_lease(statuses, "deflate statuses", status_bytes)?;
-    // SAFETY: each address comes from a checked, live `umem` lease. The caller fills
-    // pointer arrays only with ranges in `input`/`output`; submission retains every
-    // lease through the stream fence, preventing CPU/GPU races and dangling pointers.
+    // SAFETY: each address comes from a checked, live `umem` lease, and the sub-batch
+    // window `[first_chunk, first_chunk + num_chunks)` is bounds-checked against every
+    // array above. The caller fills pointer arrays only with ranges in `input`/`output`;
+    // submission retains every lease through the stream fence, preventing CPU/GPU races
+    // and dangling pointers.
     check_nvcomp(unsafe {
         umgpu_deflate_batch(
-            in_ptrs.as_ptr().cast(),
-            in_bytes.as_ptr().cast(),
+            in_ptrs.as_ptr().cast::<*const c_void>().add(first_chunk),
+            in_bytes.as_ptr().cast::<usize>().add(first_chunk),
             max_chunk,
             num_chunks,
             temp.as_ptr().cast(),
             temp.len(),
-            out_ptrs.as_ptr().cast(),
-            out_bytes.as_ptr().cast(),
+            out_ptrs.as_ptr().cast::<*mut c_void>().add(first_chunk),
+            out_bytes.as_ptr().cast::<usize>().add(first_chunk),
             algorithm,
-            statuses.as_ptr().cast(),
+            statuses.as_ptr().cast::<c_int>().add(first_chunk),
             stream.raw,
         )
     })

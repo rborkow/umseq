@@ -196,3 +196,28 @@ GPU, and compression is a library (nvCOMP) question. The memo's honest line is: 
 makes GPU offload of individual stages free of staging cost and byte-exact; the stages
 tried so far are 3–9× faster; the pipeline-level number depends on how many stages get
 the treatment.*
+
+## P2B-NVCOMP result (2026-09-06, Spark, 20M BAM) — negative
+nvCOMP 5.0 batched Deflate as the BGZF compressor, everything else unchanged (planned
+blocks, `umem` buffers in place, host CRC32 + framing in parallel, round-trip-inflate
+gate passes, records/BAI identical to the CPU file):
+
+| compressor | `sorted.bam` size | write_sorted | GPU compress | host CRC+frame |
+|---|---|---|---|---|
+| zlib-rs level 6, 20 threads (reference) | 2.784 GB | **9.9 s** | — | — |
+| nvCOMP algo 2 ("beats zlib 1") | 3.136 GB (+12.6%) | 16.1 s | 7.7 s | 3.5 s |
+| nvCOMP algo 4 ("beats zlib 6") | 2.806 GB (+0.8%) | 82.8 s | 73.9 s | 3.5 s |
+| nvCOMP algo 5 (max) | 2.677 GB (−3.9%) | ~118 s | 110.1 s | 3.8 s |
+
+At the ratio we actually ship (level 6), the GB10 is **7.5× slower** than the CPU; at
+its fast setting it's still slower *and* 13% bigger. nvCOMP's Deflate is tuned for
+Hopper/Blackwell datacenter parts; on GB10's 48 SMs it doesn't compete with 20 Arm cores
+running zlib-rs's SIMD `longest_match`. There's also a memory trap: `GetTempSize` asks
+for ~0.65–1.2 MB of workspace **per 64 KB chunk** (200 GB for a 4 GB file in one batch —
+first attempt was OOM-killed at 86 GB RSS); sub-batching at 2048 chunks fixed that.
+
+**Decision: BGZF stays on the CPU.** The code is kept behind `--gpu-deflate-level`
+(default off, i.e. zlib) as a measured negative result for the memo. GDeflate would
+likely be faster on the GPU but isn't BGZF-compatible, so it's not an option for a BAM.
+This is the first stage where the CPU control arm *wins*, and it's the largest fixed
+cost in the chain — which bounds how much the GPU can ever take off the wall time.

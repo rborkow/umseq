@@ -71,29 +71,44 @@ extern "C" int umgpu_dup_keys(const void* h, const uint8_t* a, size_t alen, size
 extern "C" const char* umgpu_error_string(int c) { return cudaGetErrorString((cudaError_t)c); }
 #ifdef UMGPU_NVCOMP
 extern "C" int umgpu_deflate_alignments(int algorithm, size_t* input, size_t* output, size_t* temp) {
-  nvcompBatchedDeflateCompressOpts_t opts = {}; opts.algorithm = (nvcompDeflateAlgorithm_t)algorithm;
+  nvcompBatchedDeflateCompressOpts_t opts = {}; opts.algorithm = algorithm;
   nvcompAlignmentRequirements_t requirements = {};
   nvcompStatus_t status = nvcompBatchedDeflateCompressGetRequiredAlignments(opts, &requirements);
   if (status == nvcompSuccess) { *input = requirements.input; *output = requirements.output; *temp = requirements.temp; }
   return (int)status;
 }
 extern "C" int umgpu_deflate_temp_size(size_t n, size_t max_chunk, int algorithm, size_t* bytes) {
-  nvcompBatchedDeflateCompressOpts_t opts = {}; opts.algorithm = (nvcompDeflateAlgorithm_t)algorithm;
+  nvcompBatchedDeflateCompressOpts_t opts = {}; opts.algorithm = algorithm;
   return (int)nvcompBatchedDeflateCompressGetTempSizeAsync(n, max_chunk, opts, bytes, n * max_chunk);
 }
 extern "C" int umgpu_deflate_max_output(size_t max_chunk, int algorithm, size_t* bytes) {
-  nvcompBatchedDeflateCompressOpts_t opts = {}; opts.algorithm = (nvcompDeflateAlgorithm_t)algorithm;
+  nvcompBatchedDeflateCompressOpts_t opts = {}; opts.algorithm = algorithm;
   return (int)nvcompBatchedDeflateCompressGetMaxOutputChunkSize(max_chunk, opts, bytes);
 }
 extern "C" int umgpu_deflate_batch(const void* const* in, const size_t* in_bytes, size_t max_chunk,
     size_t n, void* temp, size_t temp_bytes, void* const* out, size_t* out_bytes,
     int algorithm, int* statuses, void* stream) {
-  nvcompBatchedDeflateCompressOpts_t opts = {}; opts.algorithm = (nvcompDeflateAlgorithm_t)algorithm;
+  nvcompBatchedDeflateCompressOpts_t opts = {}; opts.algorithm = algorithm;
   return (int)nvcompBatchedDeflateCompressAsync(in, in_bytes, max_chunk, n, temp, temp_bytes,
     out, out_bytes, opts, (nvcompStatus_t*)statuses, (cudaStream_t)stream);
 }
 extern "C" const char* umgpu_nvcomp_error_string(int code) {
-  return nvcompGetStatusString((nvcompStatus_t)code);
+  // nvCOMP 5.0 has no status-string API; mirror shared_types.h.
+  switch (code) {
+    case nvcompSuccess: return "nvcompSuccess";
+    case nvcompErrorInvalidValue: return "nvcompErrorInvalidValue";
+    case nvcompErrorNotSupported: return "nvcompErrorNotSupported";
+    case nvcompErrorCannotDecompress: return "nvcompErrorCannotDecompress";
+    case nvcompErrorBadChecksum: return "nvcompErrorBadChecksum";
+    case nvcompErrorCannotVerifyChecksums: return "nvcompErrorCannotVerifyChecksums";
+    case nvcompErrorOutputBufferTooSmall: return "nvcompErrorOutputBufferTooSmall";
+    case nvcompErrorWrongHeaderLength: return "nvcompErrorWrongHeaderLength";
+    case nvcompErrorAlignment: return "nvcompErrorAlignment";
+    case nvcompErrorChunkSizeTooLarge: return "nvcompErrorChunkSizeTooLarge";
+    case nvcompErrorCudaError: return "nvcompErrorCudaError";
+    case nvcompErrorInternal: return "nvcompErrorInternal";
+    default: return "nvcompError(unknown)";
+  }
 }
 #endif
 
