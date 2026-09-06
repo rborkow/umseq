@@ -18,10 +18,11 @@ Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / 
 - P2B-* — seed-search harness (terra)
 
 ## Ready
+- **P2A-UMQC-QUALIMAP** — resolve Qualimap union-exon classification (704,856 vs 734,257 gene-assigned) — needs Qualimap Java source; 5'/3' bias needs a transcript coverage sweep. Optional: MultiQC consumes RSeQC/dupRadar/Picard already.
+- **P2A-UMBAM-TIER1** — run `umbam chain --qc` on a full 78M Tier 2A sample on the Spark; compare every output to that sample's nf-core results (the real-scale golden); time it.
 - P0-BENCH-T5 — ext4 large-folio test for a read-only mmap'd file with GPU chase (me; decides whether file-backed BAM ever gets the random-access path — not needed before Phase 1.5)
 
 ## In Progress
-- **P2A-UMQC** — absorb Qualimap/RSeQC/dupRadar into the resident pass; goldens generating on Spark (scripts/make_tier0_qc.sh)
 - P1-PROFILE-SPARK — `perf` unlocked (paranoid=1); next: perf record on picard/samtools/STAR standalone
 
 ## Review
@@ -31,6 +32,7 @@ Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / 
 - P0-SPARK — luna done. Verified: rustup 1.98.1, micromamba env `rnaseq`, nextflow 26.04.6 w/ user-local JDK 17, nvCOMP CUDA13 sbsa at `~/.local/opt/nvcomp`, docker GPU smoke test OK. Corrections by me: bioconda STAR was 2.7.3a (linux-aarch64 lag) → built 2.7.11b from source with `-march=native`, symlinked at `~/.local/bin/STAR`; worker missed `cub.cuh` which exists at `/usr/local/cuda/targets/sbsa-linux/include/cccl/cub/` (CUDA 13 moved it under `cccl/`) — not a blocker.
 
 ## Done
+- **P2A-UMQC** — `umbam --qc`: all 7 RSeQC outputs + dupRadar dupMatrix byte-identical to nf-core containers on Tier 0 (9/10 gates); Qualimap partial (headline counts match; gene/ambiguous split and 5'/3' bias documented in COMPAT.md). Tool sources in docs/tool-src/.
 - **P2A-UMBAM-PERF** — four passes, 408 s → 55 s on 20M BAM (8.2× over tool chain), outputs byte-identical throughout (bench/PHASE2A-umbam-20M.md)
 - **P2A-UMBAM-CPU** — CPU control arm, 6/6 Tier 0 gates, 416 s on 20M BAM (parity; profile in bench/PHASE2A-umbam-20M.md)
 - **P1-TIER2A-THROUGHPUT** — 6×78M overlapped on Spark: 208 min, 41.5 samples/day, 32% util; QC single-thread = 58% (bench/PHASE2-tier2a-throughput.md)
