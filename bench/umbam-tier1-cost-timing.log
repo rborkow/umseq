@@ -1,0 +1,15 @@
+=== cpu ===
+	User time (seconds): 764.32
+	System time (seconds): 44.91
+	Percent of CPU this job got: 483%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:47.31
+	Maximum resident set size (kbytes): 42897808
+stage	seconds decode	10.673951 sort	1.809432 write_sorted	13.590532 markdup	9.301499 write_markdup	18.845882 index	1.965114 gtf_parse	1.690321 featurecounts_count	5.135402 featurecounts	7.405308 genomecov	3.956571 qc_bam_stat	0.847613 qc_seq_duplication	34.242416 qc_pos_duplication	28.553169 qc_seq_duplication_gpu	0.000000 qc_pos_duplication_gpu	0.000000 qc_bed_parse	1.865952 qc_read_distribution	1.202312 qc_junction_annotation	1.160134 qc_infer_experiment	0.084659 qc_junction_saturation	0.379298 qc_inner_distance	0.530185 qc_dupradar	7.403297 qc_qualimap	10.917171 peak_rss_bytes	43927355392 
+=== gpu ===
+	User time (seconds): 687.95
+	System time (seconds): 35.23
+	Percent of CPU this job got: 694%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:44.19
+	Maximum resident set size (kbytes): 40005576
+stage	seconds decode	11.608444 sort	1.854040 write_sorted	13.751447 markdup	2.456917 write_markdup	19.038216 index	1.923030 gtf_parse	1.872323 featurecounts_count	5.174157 featurecounts	7.627840 genomecov	4.049621 qc_bam_stat	0.823425 qc_seq_duplication	1.932210 qc_pos_duplication	3.181151 qc_seq_duplication_gpu	1.932210 qc_pos_duplication_gpu	3.181151 qc_bed_parse	1.580764 qc_read_distribution	1.082503 qc_junction_annotation	1.008344 qc_infer_experiment	0.084466 qc_junction_saturation	0.382198 qc_inner_distance	0.532498 qc_dupradar	7.483370 qc_qualimap	11.405191 peak_rss_bytes	40965709824 
+COST-DONE

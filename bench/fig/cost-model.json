@@ -1,0 +1,76 @@
+{
+ "scenarios_cpu_min": {
+  "nf-core stock (measured)": 222.89999999999998,
+  "umbam CPU replaces BAM chain": 148.48666666666665,
+  "umbam CPU+GPU": 147.0533333333333
+ },
+ "umbam": {
+  "CPU (20 thr)": [
+   2.7883333333333336,
+   13.486666666666666,
+   42.9
+  ],
+  "CPU + GPU": [
+   1.7366666666666668,
+   12.053333333333335,
+   40.0
+  ]
+ },
+ "nfcore": {
+  "STAR align": 64.6,
+  "salmon quant": 51.3,
+  "Qualimap": 22.6,
+  "Picard markdup": 12.9,
+  "samtools sort/stats": 22.7,
+  "dupRadar": 7.7,
+  "RSeQC (x7)": 17.2,
+  "bedtools/featureCounts": 4.8,
+  "trim/fastqc/fq": 19.1
+ },
+ "rows": [
+  [
+   "nf-core stock (measured)",
+   0.32,
+   41.34589502018843,
+   8.095798465829846
+  ],
+  [
+   "nf-core stock (measured)",
+   0.8,
+   103.36473755047108,
+   3.238319386331938
+  ],
+  [
+   "umbam CPU replaces BAM chain",
+   0.32,
+   62.06617878148432,
+   5.393082674724933
+  ],
+  [
+   "umbam CPU replaces BAM chain",
+   0.8,
+   155.16544695371078,
+   2.1572330698899735
+  ],
+  [
+   "umbam CPU+GPU",
+   0.32,
+   62.67113972254965,
+   5.341023554935688
+  ],
+  [
+   "umbam CPU+GPU",
+   0.8,
+   156.67784930637413,
+   2.136409421974275
+  ]
+ ],
+ "assumed": {
+  "batch_per_sample": 12.0,
+  "spark_price": 4000.0,
+  "studio_price": 9000.0,
+  "life_months": 36.0,
+  "kwh": 0.3,
+  "out": "bench/fig"
+ }
+}
