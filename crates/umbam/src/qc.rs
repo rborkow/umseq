@@ -95,14 +95,16 @@ pub(super) fn write(
             .ok_or_else(|| anyhow::anyhow!("RSeQC QC requires --bed or sibling qc/chr22.bed"))?,
     };
     let model = BedModel::read(&bed)?;
+    let tid_model = model.for_tids(&chromosome_names(resident));
     fs::write(
         rseqc.join("read_distribution.txt"),
-        read_distribution(resident, duplicates, &model)?,
+        read_distribution(resident, duplicates, &model, &tid_model)?,
     )?;
     let read_distribution = read_distribution_started.elapsed();
     let junction_started = Instant::now();
+    let junctions = collect_junctions(resident, duplicates, &tid_model)?;
     let (junction_xls, junction_log) =
-        junction_annotation(resident, duplicates, &model, &bed.display().to_string())?;
+        junction_annotation(&junctions, &tid_model, &bed.display().to_string())?;
     fs::write(rseqc.join(format!("{sample}.junction.xls")), junction_xls)?;
     fs::write(
         rseqc.join(format!("{sample}.junction_annotation.log")),
@@ -112,7 +114,7 @@ pub(super) fn write(
     let saturation_started = Instant::now();
     fs::write(
         rseqc.join(format!("{sample}.junctionSaturation_plot.r")),
-        junction_saturation(resident, duplicates, &model, sample)?,
+        junction_saturation(&junctions.events, &tid_model, sample)?,
     )?;
     let junction_saturation = saturation_started.elapsed();
     let infer_started = Instant::now();
@@ -1308,6 +1310,105 @@ impl BedModel {
             transcript_prefix_max,
         })
     }
+
+    /// Resolve the BED's normalized chromosome names once.  The record reductions then
+    /// need only a tid array lookup, rather than a string hash lookup for every block.
+    fn for_tids(&self, chroms: &[String]) -> TidBedModel {
+        let intervals = |map: &HashMap<String, Vec<Interval>>| {
+            chroms
+                .iter()
+                .map(|chrom| map.get(chrom).cloned().unwrap_or_default())
+                .collect()
+        };
+        let sites = |map: &HashMap<String, HashSet<i32>>| {
+            chroms
+                .iter()
+                .map(|chrom| {
+                    let mut values: Vec<_> =
+                        map.get(chrom).into_iter().flatten().copied().collect();
+                    values.sort_unstable();
+                    values
+                })
+                .collect()
+        };
+        TidBedModel {
+            cds: intervals(&self.cds),
+            intron: intervals(&self.intron),
+            utr5: intervals(&self.utr5),
+            utr3: intervals(&self.utr3),
+            up1: intervals(&self.up1),
+            up5: intervals(&self.up5),
+            up10: intervals(&self.up10),
+            down1: intervals(&self.down1),
+            down5: intervals(&self.down5),
+            down10: intervals(&self.down10),
+            intron_starts: sites(&self.intron_starts),
+            intron_ends: sites(&self.intron_ends),
+            known_junctions: self
+                .known_junctions
+                .iter()
+                .filter_map(|(chrom, start, end)| {
+                    chroms
+                        .iter()
+                        .position(|name| name == chrom)
+                        .map(|tid| (tid as u32, *start, *end))
+                })
+                .collect(),
+            chroms: chroms.to_vec(),
+        }
+    }
+}
+
+struct TidBedModel {
+    cds: Vec<Vec<Interval>>,
+    intron: Vec<Vec<Interval>>,
+    utr5: Vec<Vec<Interval>>,
+    utr3: Vec<Vec<Interval>>,
+    up1: Vec<Vec<Interval>>,
+    up5: Vec<Vec<Interval>>,
+    up10: Vec<Vec<Interval>>,
+    down1: Vec<Vec<Interval>>,
+    down5: Vec<Vec<Interval>>,
+    down10: Vec<Vec<Interval>>,
+    intron_starts: Vec<Vec<i32>>,
+    intron_ends: Vec<Vec<i32>>,
+    known_junctions: HashSet<(u32, i32, i32)>,
+    chroms: Vec<String>,
+}
+
+impl TidBedModel {
+    fn contains(map: &[Vec<Interval>], tid: i32, point: i32) -> bool {
+        let Some(items) = map.get(tid as usize) else {
+            return false;
+        };
+        // `bx.intervals.Intersecter.find(p, p)` treats the zero-width query
+        // as an open point: an interval hits only when `start < p < end`.
+        let at = items.partition_point(|x| x.start < point);
+        at > 0 && items[at - 1].end > point
+    }
+
+    fn junction_kind(&self, tid: i32, start: i32, end: i32) -> JunctionKind {
+        let start_known = self
+            .intron_starts
+            .get(tid as usize)
+            .is_some_and(|v| v.binary_search(&start).is_ok());
+        let end_known = self
+            .intron_ends
+            .get(tid as usize)
+            .is_some_and(|v| v.binary_search(&end).is_ok());
+        match (start_known, end_known) {
+            (true, true) => JunctionKind::Known,
+            (false, false) => JunctionKind::Novel,
+            _ => JunctionKind::Partial,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum JunctionKind {
+    Known,
+    Partial,
+    Novel,
 }
 #[derive(Default)]
 struct RawBed {
@@ -1392,15 +1493,6 @@ fn subtract_many(
         a = subtract(a, b)
     }
     a
-}
-fn contains(map: &HashMap<String, Vec<Interval>>, chr: &str, p: i32) -> bool {
-    map.get(chr).is_some_and(|v| {
-        // `bx.intervals.Intersecter.find(p, p)` treats the zero-width query
-        // as an open point: an interval hits only when `start < p < end`.
-        // This is deliberately not normal half-open membership (`start <= p`).
-        let n = v.partition_point(|x| x.start < p);
-        n > 0 && v[n - 1].end > p
-    })
 }
 fn bases(map: &HashMap<String, Vec<Interval>>) -> i64 {
     map.values()
@@ -1510,6 +1602,7 @@ fn read_distribution(
     resident: &Resident,
     duplicates: &HashSet<usize>,
     model: &BedModel,
+    tid_model: &TidBedModel,
 ) -> Result<String> {
     #[derive(Default)]
     struct Counts {
@@ -1518,7 +1611,6 @@ fn read_distribution(
         unassigned: i64,
         reads: i64,
     }
-    let chroms = chromosome_names(resident);
     let partials: Vec<Counts> = resident
         .coordinate_order()
         .par_chunks(16_384)
@@ -1531,46 +1623,50 @@ fn read_distribution(
                     continue;
                 }
                 out.reads += 1;
-                let chr = chroms
-                    .get(fixed.tid as usize)
-                    .map(String::as_str)
-                    .unwrap_or("");
                 for ex in cigar_exons(resident, fixed)? {
                     out.tags += 1;
                     let p = ex.start + (ex.end - ex.start) / 2;
-                    let group = if contains(&model.cds, chr, p) {
+                    let group = if TidBedModel::contains(&tid_model.cds, fixed.tid, p) {
                         Some(0)
-                    } else if contains(&model.utr5, chr, p) && !contains(&model.utr3, chr, p) {
+                    } else if TidBedModel::contains(&tid_model.utr5, fixed.tid, p)
+                        && !TidBedModel::contains(&tid_model.utr3, fixed.tid, p)
+                    {
                         Some(1)
-                    } else if contains(&model.utr3, chr, p) && !contains(&model.utr5, chr, p) {
+                    } else if TidBedModel::contains(&tid_model.utr3, fixed.tid, p)
+                        && !TidBedModel::contains(&tid_model.utr5, fixed.tid, p)
+                    {
                         Some(2)
-                    } else if contains(&model.utr5, chr, p) || contains(&model.utr3, chr, p) {
+                    } else if TidBedModel::contains(&tid_model.utr5, fixed.tid, p)
+                        || TidBedModel::contains(&tid_model.utr3, fixed.tid, p)
+                    {
                         None
-                    } else if contains(&model.intron, chr, p) {
+                    } else if TidBedModel::contains(&tid_model.intron, fixed.tid, p) {
                         Some(3)
-                    } else if contains(&model.up10, chr, p) && contains(&model.down10, chr, p) {
+                    } else if TidBedModel::contains(&tid_model.up10, fixed.tid, p)
+                        && TidBedModel::contains(&tid_model.down10, fixed.tid, p)
+                    {
                         None
-                    } else if contains(&model.up1, chr, p) {
+                    } else if TidBedModel::contains(&tid_model.up1, fixed.tid, p) {
                         out.n[4] += 1;
                         out.n[5] += 1;
                         out.n[6] += 1;
                         continue;
-                    } else if contains(&model.up5, chr, p) {
+                    } else if TidBedModel::contains(&tid_model.up5, fixed.tid, p) {
                         out.n[5] += 1;
                         out.n[6] += 1;
                         continue;
-                    } else if contains(&model.up10, chr, p) {
+                    } else if TidBedModel::contains(&tid_model.up10, fixed.tid, p) {
                         Some(6)
-                    } else if contains(&model.down1, chr, p) {
+                    } else if TidBedModel::contains(&tid_model.down1, fixed.tid, p) {
                         out.n[7] += 1;
                         out.n[8] += 1;
                         out.n[9] += 1;
                         continue;
-                    } else if contains(&model.down5, chr, p) {
+                    } else if TidBedModel::contains(&tid_model.down5, fixed.tid, p) {
                         out.n[8] += 1;
                         out.n[9] += 1;
                         continue;
-                    } else if contains(&model.down10, chr, p) {
+                    } else if TidBedModel::contains(&tid_model.down10, fixed.tid, p) {
                         Some(9)
                     } else {
                         None
@@ -1635,110 +1731,150 @@ fn read_distribution(
     Ok(text)
 }
 
-fn junction_annotation(
+#[derive(Clone, Copy)]
+struct JunctionEvent {
+    tid: u32,
+    start: i32,
+    end: i32,
+    order: u32,
+}
+struct JunctionRun {
+    tid: u32,
+    start: i32,
+    end: i32,
+    count: u64,
+    first: u32,
+}
+#[derive(Default)]
+struct JunctionTotals {
+    total: u64,
+    known: u64,
+    partial: u64,
+    novel: u64,
+    filtered: u64,
+}
+struct Junctions {
+    events: Vec<JunctionEvent>,
+    runs: Vec<JunctionRun>,
+    totals: JunctionTotals,
+}
+
+fn collect_junctions(
     resident: &Resident,
     duplicates: &HashSet<usize>,
-    model: &BedModel,
-    bed_path: &str,
-) -> Result<(String, String)> {
-    let mut total_events = 0_u64;
-    let mut known_events = 0_u64;
-    let mut partial_events = 0_u64;
-    let mut novel_events = 0_u64;
-    let mut filtered_events = 0_u64;
-    // Python 3 dictionaries retain insertion order, and RSeQC writes these in
-    // the order that each distinct junction is first encountered in the BAM.
-    let mut junctions = Vec::<((String, i32, i32), u64)>::new();
-    let mut junction_indices = HashMap::<(String, i32, i32), usize>::new();
-    for &record_index in resident.coordinate_order() {
-        let index = record_index as usize;
-        let fixed = resident.headers()[index];
-        if fixed.flag & 0x304 != 0 || duplicates.contains(&index) || fixed.mapq < 30 {
-            continue;
+    model: &TidBedModel,
+) -> Result<Junctions> {
+    let partials: Vec<(Vec<JunctionEvent>, JunctionTotals)> = resident
+        .coordinate_order()
+        .par_chunks(16_384)
+        .map(|chunk| -> Result<_> {
+            let mut events = Vec::new();
+            let mut totals = JunctionTotals::default();
+            for &record_index in chunk {
+                let index = record_index as usize;
+                let fixed = resident.headers()[index];
+                if fixed.flag & 0x304 != 0 || duplicates.contains(&index) || fixed.mapq < 30 {
+                    continue;
+                }
+                for intron in cigar_introns(resident, fixed)? {
+                    totals.total += 1;
+                    if intron.end - intron.start < 50 {
+                        totals.filtered += 1;
+                        continue;
+                    }
+                    match model.junction_kind(fixed.tid, intron.start, intron.end) {
+                        JunctionKind::Known => totals.known += 1,
+                        JunctionKind::Partial => totals.partial += 1,
+                        JunctionKind::Novel => totals.novel += 1,
+                    }
+                    events.push(JunctionEvent {
+                        tid: fixed.tid as u32,
+                        start: intron.start,
+                        end: intron.end,
+                        order: 0,
+                    });
+                }
+            }
+            Ok((events, totals))
+        })
+        .collect::<Result<_>>()?;
+    let mut events = Vec::new();
+    let mut totals = JunctionTotals::default();
+    for (part, part_totals) in partials {
+        for mut event in part {
+            event.order = events.len() as u32;
+            events.push(event);
         }
-        let chr = resident
-            .header
-            .reference_sequences()
-            .get_index(fixed.tid as usize)
-            .map(|(n, _)| n.to_string())
-            .unwrap_or_default()
-            .to_ascii_uppercase();
-        for x in cigar_introns(resident, fixed)? {
-            total_events += 1;
-            if x.end - x.start < 50 {
-                filtered_events += 1;
-                continue;
-            }
-            let key = (chr.clone(), x.start, x.end);
-            if let Some(&index) = junction_indices.get(&key) {
-                junctions[index].1 += 1;
-            } else {
-                let index = junctions.len();
-                junction_indices.insert(key.clone(), index);
-                junctions.push((key, 1));
-            }
-            if model
-                .intron_starts
-                .get(&chr)
-                .is_some_and(|v| v.contains(&x.start))
-                && model
-                    .intron_ends
-                    .get(&chr)
-                    .is_some_and(|v| v.contains(&x.end))
-            {
-                known_events += 1
-            } else if model
-                .intron_starts
-                .get(&chr)
-                .is_some_and(|v| v.contains(&x.start))
-                || model
-                    .intron_ends
-                    .get(&chr)
-                    .is_some_and(|v| v.contains(&x.end))
-            {
-                partial_events += 1
-            } else {
-                novel_events += 1
-            }
+        totals.total += part_totals.total;
+        totals.known += part_totals.known;
+        totals.partial += part_totals.partial;
+        totals.novel += part_totals.novel;
+        totals.filtered += part_totals.filtered;
+    }
+    let mut sorted = events.clone();
+    sorted.par_sort_unstable_by_key(|x| (x.tid, x.start, x.end, x.order));
+    let mut runs: Vec<JunctionRun> = Vec::new();
+    for event in sorted {
+        if let Some(last) = runs.last_mut()
+            && (last.tid, last.start, last.end) == (event.tid, event.start, event.end)
+        {
+            last.count += 1;
+        } else {
+            runs.push(JunctionRun {
+                tid: event.tid,
+                start: event.start,
+                end: event.end,
+                count: 1,
+                first: event.order,
+            });
         }
     }
+    runs.par_sort_unstable_by_key(|x| x.first);
+    Ok(Junctions {
+        events,
+        runs,
+        totals,
+    })
+}
+
+fn junction_annotation(
+    junctions: &Junctions,
+    model: &TidBedModel,
+    bed_path: &str,
+) -> Result<(String, String)> {
     let mut jc = [0; 3];
     let mut xls =
         String::from("chrom\tintron_st(0-based)\tintron_end(1-based)\tread_count\tannotation\n");
-    for ((chr, s, e), count) in junctions {
-        let known = model
-            .intron_starts
-            .get(&chr)
-            .is_some_and(|v| v.contains(&s))
-            && model.intron_ends.get(&chr).is_some_and(|v| v.contains(&e));
-        let partial = !known
-            && (model
-                .intron_starts
-                .get(&chr)
-                .is_some_and(|v| v.contains(&s))
-                || model.intron_ends.get(&chr).is_some_and(|v| v.contains(&e)));
-        let label = if known {
-            jc[0] += 1;
-            "annotated"
-        } else if partial {
-            jc[1] += 1;
-            "partial_novel"
-        } else {
-            jc[2] += 1;
-            "complete_novel"
+    for run in &junctions.runs {
+        let label = match model.junction_kind(run.tid as i32, run.start, run.end) {
+            JunctionKind::Known => {
+                jc[0] += 1;
+                "annotated"
+            }
+            JunctionKind::Partial => {
+                jc[1] += 1;
+                "partial_novel"
+            }
+            JunctionKind::Novel => {
+                jc[2] += 1;
+                "complete_novel"
+            }
         };
         xls.push_str(&format!(
-            "{}\t{s}\t{e}\t{count}\t {label}\n",
-            chr.replace("CHR", "chr")
+            "{}\t{}\t{}\t{}\t {label}\n",
+            model.chroms[run.tid as usize].replace("CHR", "chr"),
+            run.start,
+            run.end,
+            run.count
         ));
     }
     let log = format!(
         "Reading reference bed file:  {bed_path}  ...  Done\nLoad BAM file ...  Done\n\n===================================================================\nTotal splicing  Events:\t{}\nKnown Splicing Events:\t{}\nPartial Novel Splicing Events:\t{}\nNovel Splicing Events:\t{}\nFiltered Splicing Events:\t{}\n\nTotal splicing  Junctions:\t{}\nKnown Splicing Junctions:\t{}\nPartial Novel Splicing Junctions:\t{}\nNovel Splicing Junctions:\t{}\n\n===================================================================\nCreate BED file ...\nCreate Interact file ...\n",
-        total_events,
-        known_events,
-        partial_events,
-        novel_events,
-        filtered_events,
+        junctions.totals.total,
+        junctions.totals.known,
+        junctions.totals.partial,
+        junctions.totals.novel,
+        junctions.totals.filtered,
         jc.iter().sum::<u64>(),
         jc[0],
         jc[1],
@@ -1751,31 +1887,11 @@ fn junction_annotation(
 /// final chunk necessarily contains every event, so its three totals are deterministic.  We
 /// use a documented, local Fisher--Yates seed for the intentionally non-golden earlier points.
 fn junction_saturation(
-    resident: &Resident,
-    duplicates: &HashSet<usize>,
-    model: &BedModel,
+    events: &[JunctionEvent],
+    model: &TidBedModel,
     sample: &str,
 ) -> Result<String> {
-    let mut events = Vec::<(String, i32, i32)>::new();
-    for &record_index in resident.coordinate_order() {
-        let index = record_index as usize;
-        let fixed = resident.headers()[index];
-        if fixed.flag & 0x304 != 0 || duplicates.contains(&index) || fixed.mapq < 30 {
-            continue;
-        }
-        let chr = resident
-            .header
-            .reference_sequences()
-            .get_index(fixed.tid as usize)
-            .map(|(n, _)| n.to_string())
-            .unwrap_or_default()
-            .to_ascii_uppercase();
-        for intron in cigar_introns(resident, fixed)? {
-            if intron.end - intron.start >= 50 {
-                events.push((chr.clone(), intron.start, intron.end));
-            }
-        }
-    }
+    let mut events = events.to_vec();
     // xorshift64* is deliberately tiny and stable across Rust releases.  This is only for
     // RSeQC's inherently random 5--95% samples; the 100% point is independent of it.
     let mut state = 0x5253_4551_435f_5341_u64;
@@ -1786,7 +1902,8 @@ fn junction_saturation(
         let j = (state.wrapping_mul(0x2545_f491_4f6c_dd1d) as usize) % (i + 1);
         events.swap(i, j);
     }
-    let mut seen = HashMap::<(String, i32, i32), u64>::new();
+    let mut seen = HashSet::<(u32, i32, i32)>::new();
+    let mut known_count = 0;
     let mut known = Vec::new();
     let mut all = Vec::new();
     let mut novel = Vec::new();
@@ -1794,14 +1911,16 @@ fn junction_saturation(
         let begin = events.len() * (percent - 5) / 100;
         let end = events.len() * percent / 100;
         for event in &events[begin..end] {
-            *seen.entry(event.clone()).or_default() += 1;
+            if seen.insert((event.tid, event.start, event.end))
+                && model
+                    .known_junctions
+                    .contains(&(event.tid, event.start, event.end))
+            {
+                known_count += 1;
+            }
         }
         all.push(seen.len());
-        known.push(
-            seen.keys()
-                .filter(|key| model.known_junctions.contains(*key))
-                .count(),
-        );
+        known.push(known_count);
         novel.push(all.last().copied().unwrap() - known.last().copied().unwrap());
     }
     let csv = |v: &[usize]| v.iter().map(usize::to_string).collect::<Vec<_>>().join(",");
