@@ -172,6 +172,10 @@ void normal() {
     assert(s.visits.frame_cursor == 2 && s.visits.lookup_jobs == 4);
     assert(s.visits.dispatched_jobs == dispatched &&
            s.visits.frame_offsets <= 2);
+    // Two 40K windows cross the notification floor at most once before the
+    // coordinator drains them.  A polling coordinator would wake hundreds of
+    // times during this fixture; lifecycle wakeups leave a small fixed bound.
+    assert(s.totals.coordinator_wakeups <= 8);
   }
   assert(backend_calls >= 1 && backend_calls <= 2);
   star_integrate::finish();

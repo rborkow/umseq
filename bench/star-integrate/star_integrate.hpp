@@ -66,6 +66,10 @@ bool strict();
 uint64_t current_generation();
 uint64_t current_epoch();
 void note_cpu_fallback();
+// Called after stock readLoad has retained its stream/name/quality/clip side
+// effects.  On an ordinal and length match, install the frame's post-clip
+// Read1[0..2] bytes and avoid STAR's pair/complement/reverse preparation.
+bool handoff_read1(ReadAlign &);
 // Chunk-local peek. This is intentionally not a submission API: lookup only
 // consumes completed entries prepared before stock oneRead reaches them.
 void prepare_window(ReadAlignChunk &);

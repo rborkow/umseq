@@ -35,6 +35,7 @@ def main():
             "-I" + str(HERE), str(HERE / "test_window_prefix.cpp"),
             str(parameters_cpp), str(SOURCE / "Genome.cpp"),
             str(SOURCE / "PackedArray.cpp"), str(SOURCE / "InOutStreams.cpp"),
+            str(SOURCE / "SequenceFuns.cpp"),
             "-Wl,-dead_strip", "-o", str(exe),
         ]
         subprocess.run(command, check=True)

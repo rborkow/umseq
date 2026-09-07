@@ -45,6 +45,90 @@ def patch(rio,name,text):
             text=once(rio,text,'    }; //reads cycle',
                       '    }; //reads cycle\n\n    star_integrate::end_chunk();')
         return text
+    if name=='ReadAlign_oneRead.cpp':
+        text='#include "star_integrate.hpp"\n'+text
+        old='''    if (P.readNmates==2) {//combine two mates together
+        Lread=readLength[0]+readLength[1]+1;
+        readLengthPairOriginal=readLengthOriginal[0]+readLengthOriginal[1]+1;
+        if (Lread>DEF_readSeqLengthMax) {
+            ostringstream errOut;
+            errOut << "EXITING because of FATAL ERROR in reads input: Lread of the pair = " << Lread << "   while DEF_readSeqLengthMax=" << DEF_readSeqLengthMax <<endl;
+            errOut << "Read Name="<<readNameMates[0]<<endl;
+            errOut << "SOLUTION: increase DEF_readSeqLengthMax in IncludeDefine.h and re-compile STAR"<<endl<<flush;
+            exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+        };
+
+        //marker for spacer base
+        Read1[0][readLength[0]]=MARK_FRAG_SPACER_BASE;
+
+        //copy 2nd mate into Read1[0] & reverse-complement
+        complementSeqNumbers(Read1[1],Read1[0]+readLength[0]+1,readLength[1]);//complement. Here Read1[1] is still the 2nd mate's numeric-sequence. Later Read1[1] will be reverse complement of the combined read.
+        for (uint ii=0;ii<readLength[1]/2;ii++) {
+            swap(Read1[0][Lread-ii-1],Read1[0][ii+readLength[0]+1]); //reverse
+        };
+
+    } else {//1 mate
+
+        if (readStatus[0]==-1) {//finished with the stream
+            return -1;
+        };
+
+        Lread=readLength[0];
+        readLengthPairOriginal=readLengthOriginal[0];
+        readLength[1]=0;
+
+    };
+
+    readFileType=readStatus[0];
+
+    complementSeqNumbers(Read1[0],Read1[1],Lread); //returns complement of Reads[ii]
+    for (uint ii=0;ii<Lread;ii++) {//reverse
+        Read1[2][Lread-ii-1]=Read1[1][ii];
+    };
+'''
+        old=old.replace('Read1[0][readLength[0]]=MARK_FRAG_SPACER_BASE;\n\n        //copy', 'Read1[0][readLength[0]]=MARK_FRAG_SPACER_BASE;\n        \n        //copy')
+        old=old.replace('    };\n\n    readFileType', '    };\n      \n    readFileType')
+        new='''    if (P.readNmates==2) {//combine two mates together
+        Lread=readLength[0]+readLength[1]+1;
+        readLengthPairOriginal=readLengthOriginal[0]+readLengthOriginal[1]+1;
+        if (Lread>DEF_readSeqLengthMax) {
+            ostringstream errOut;
+            errOut << "EXITING because of FATAL ERROR in reads input: Lread of the pair = " << Lread << "   while DEF_readSeqLengthMax=" << DEF_readSeqLengthMax <<endl;
+            errOut << "Read Name="<<readNameMates[0]<<endl;
+            errOut << "SOLUTION: increase DEF_readSeqLengthMax in IncludeDefine.h and re-compile STAR"<<endl<<flush;
+            exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+        };
+    } else {//1 mate
+        if (readStatus[0]==-1) {//finished with the stream
+            return -1;
+        };
+        Lread=readLength[0];
+        readLengthPairOriginal=readLengthOriginal[0];
+        readLength[1]=0;
+    };
+
+    // readLoad intentionally remains above: it owns stream position, names,
+    // qualities, lengths and clipping.  Its pinned implementation converts
+    // SeqNum before returning, so this hook replaces only the downstream
+    // combine/complement/reverse work with the lookahead's post-clip bytes.
+    bool starIntegrateRead1=star_integrate::handoff_read1(*this);
+    if (!starIntegrateRead1) {
+        if (P.readNmates==2) {
+            Read1[0][readLength[0]]=MARK_FRAG_SPACER_BASE;
+            complementSeqNumbers(Read1[1],Read1[0]+readLength[0]+1,readLength[1]);
+            for (uint ii=0;ii<readLength[1]/2;ii++) {
+                swap(Read1[0][Lread-ii-1],Read1[0][ii+readLength[0]+1]);
+            };
+        };
+        complementSeqNumbers(Read1[0],Read1[1],Lread);
+        for (uint ii=0;ii<Lread;ii++) {
+            Read1[2][Lread-ii-1]=Read1[1][ii];
+        };
+    };
+
+    readFileType=readStatus[0];
+'''
+        return once(rio,text,old,new)
     if name=='ReadAlign_mapOneRead.cpp':
         text='#include "star_integrate.hpp"\n'+text
         text=once(rio,text,'int ReadAlign::mapOneRead() {',
@@ -66,7 +150,7 @@ def main(a):
     inv=rio.inventory(source); rio.require(len(inv)==344 and rio.digest(rio.encoded(inv))==rio.FULL_INVENTORY_SHA256,'pinned 344-file source inventory mismatch')
     if root.exists(): raise ValueError('private root already exists; refuse overwrite')
     root.mkdir(mode=0o700); shutil.copytree(source,root/'baseline'); shutil.copytree(source,root/'integrated')
-    changed=('STAR.cpp','ReadAlignChunk_mapChunk.cpp','ReadAlign_mapOneRead.cpp','ReadAlign_maxMappableLength2strands.cpp','SuffixArrayFuns.cpp','Makefile')
+    changed=('STAR.cpp','ReadAlignChunk_mapChunk.cpp','ReadAlign_mapOneRead.cpp','ReadAlign_oneRead.cpp','ReadAlign_maxMappableLength2strands.cpp','SuffixArrayFuns.cpp','Makefile')
     for n in changed: (root/'integrated'/n).write_text(patch(rio,n,(source/n).read_text()))
     shutil.copy2(HERE/'star_integrate.hpp',root/'integrated'/'star_integrate.hpp')
     shutil.copy2(HERE/'star_integrate.cpp',root/'integrated'/'star_integrate.cpp')

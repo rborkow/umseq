@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <random>
 
 // Link the actual enabled producer TU without bringing in the asynchronous
 // coordinator.  The prefix tests below exercise its real sparse-prefix leaf.
@@ -113,4 +114,50 @@ int main() {
   assert(!star_integrate::append_prefix_call(p, g, read, 1, 2, 0, 7, 3, 2, 5, 1,
                                              actual));
   g.SAi.deallocateArray();
+
+  // Item 1: frame bytes are created after readLoad's clipping.  Exercise the
+  // stock combine/complement/reverse path and the frame-copy path on paired
+  // reads with independent random 5'/3' clips.  This makes the equality
+  // claim cover all three Read1 orientations, not merely frame.a.
+  std::mt19937_64 rng(0x5eed1234ULL);
+  for (unsigned sample = 0; sample != 1000; ++sample) {
+    const uint raw0 = 2 + rng() % 100, raw1 = 2 + rng() % 100;
+    const uint clip05 = rng() % raw0, clip03 = rng() % (raw0 - clip05);
+    const uint clip15 = rng() % raw1, clip13 = rng() % (raw1 - clip15);
+    std::vector<char> raw_a(raw0), raw_b(raw1), num_a(raw0), num_b(raw1);
+    for (uint i = 0; i < raw0; ++i)
+      raw_a[i] = "ACGTNacgtn"[rng() % 10];
+    for (uint i = 0; i < raw1; ++i)
+      raw_b[i] = "ACGTNacgtn"[rng() % 10];
+    convertNucleotidesToNumbers(raw_a.data(), num_a.data(), raw0);
+    convertNucleotidesToNumbers(raw_b.data(), num_b.data(), raw1);
+    const uint len0 = raw0 - clip05 - clip03, len1 = raw1 - clip15 - clip13;
+    std::vector<char> left(num_a.begin() + clip05,
+                           num_a.begin() + clip05 + len0);
+    std::vector<char> right(num_b.begin() + clip15,
+                            num_b.begin() + clip15 + len1);
+    const uint length = len0 + len1 + 1;
+    std::vector<char> stock0(length), stock1(length), stock2(length);
+    std::copy(left.begin(), left.end(), stock0.begin());
+    stock0[len0] = MARK_FRAG_SPACER_BASE;
+    complementSeqNumbers(right.data(), stock0.data() + len0 + 1, len1);
+    for (uint i = 0; i < len1 / 2; ++i)
+      std::swap(stock0[length - i - 1], stock0[i + len0 + 1]);
+    complementSeqNumbers(stock0.data(), stock1.data(), length);
+    for (uint i = 0; i < length; ++i)
+      stock2[length - i - 1] = stock1[i];
+
+    star_integrate::WindowRead frame = {};
+    frame.a.assign(stock0.begin(), stock0.end());
+    frame.b.resize(length);
+    complementSeqNumbers(reinterpret_cast<char *>(frame.a.data()),
+                         reinterpret_cast<char *>(frame.b.data()), length);
+    std::vector<char> handed0(frame.a.begin(), frame.a.end());
+    std::vector<char> handed1(frame.b.begin(), frame.b.end()), handed2(length);
+    for (uint i = 0; i < length; ++i)
+      handed2[length - i - 1] = handed1[i];
+    assert(!std::memcmp(stock0.data(), handed0.data(), length));
+    assert(!std::memcmp(stock1.data(), handed1.data(), length));
+    assert(!std::memcmp(stock2.data(), handed2.data(), length));
+  }
 }

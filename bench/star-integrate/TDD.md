@@ -52,3 +52,16 @@ per-frame 40,000-job consumption scan.
 2. GREEN: lookahead scratch arrays are no longer value-initialized per record;
    the split and clipping scratch containers are retained for the whole window.
    `test_window_prefix.py` proves the published prefix record remains identical.
+
+## P2C-INTEGRATE-3-CONSUME local record
+
+1. RED: the window's post-clip numeric read was prepared again by STAR's
+   pair/complement/reverse block. GREEN: the generated `oneRead` hook retains
+   `readLoad` side effects, then installs `Read1[0..2]` from the matching frame;
+   `test_window_prefix.py` compares all three arrays for 1,000 random paired,
+   randomly clipped reads. The pinned `readLoad` performs conversion internally,
+   so that conversion cannot be skipped by this hook.
+2. RED: the coordinator woke every 100 microseconds while idle. GREEN: it waits
+   indefinitely without a fill and for `FILL_MAX_US` only while filling;
+   producers notify on the aggregate submit-floor crossing and retirement.
+   The real coordinator fixture bounds wakeups for its two-window fake backend.

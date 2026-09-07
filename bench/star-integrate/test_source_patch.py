@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib.util, tempfile, unittest
+import importlib.util, shutil, subprocess, tempfile, unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('generator',ROOT/'make_star_integrate.py'); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
@@ -44,6 +44,22 @@ class PatchGuard(unittest.TestCase):
   self.assertIn('prepare_window(*this)',got)
   got=m.patch(R(),'ReadAlign_mapOneRead.cpp','int ReadAlign::mapOneRead() {')
   self.assertIn('begin_map(*this)',got)
+ def test_one_read_handoff_is_after_readload(self):
+  root=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
+  if not root.exists(): self.skipTest('pinned private source unavailable')
+  class R:
+   def replace_once(self,t,o,n):
+    if t.count(o) != 1: raise ValueError('missing or duplicate exact hook')
+    return t.replace(o,n,1)
+  got=m.patch(R(),'ReadAlign_oneRead.cpp',(root/'ReadAlign_oneRead.cpp').read_text())
+  self.assertIn('star_integrate::handoff_read1(*this)',got)
+  self.assertGreater(got.index('star_integrate::handoff_read1(*this)'),got.index('readLoad('))
+  self.assertIn("'ReadAlign_oneRead.cpp'",(ROOT/'make_star_integrate.py').read_text())
+  preferred=Path('/opt/homebrew/opt/llvm/bin/clang++')
+  cxx=str(preferred if preferred.exists() else (shutil.which('clang++') or shutil.which('c++')))
+  with tempfile.TemporaryDirectory(prefix='star-one-read-hook-') as tmp:
+   patched=Path(tmp)/'ReadAlign_oneRead.cpp'; patched.write_text(got)
+   subprocess.run([cxx,'-std=c++11','-DSTAR_INTEGRATE=1','-fopenmp','-I/opt/homebrew/opt/libomp/include','-I'+str(ROOT),'-I'+str(root),'-c',str(patched),'-o',str(Path(tmp)/'hook.o')],check=True,timeout=90)
  def test_identity_setup_precedes_frame_publication(self):
   class R:
    def replace_once(self,t,o,n):

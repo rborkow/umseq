@@ -79,21 +79,24 @@ struct Window {
   size_t next_frame;
   uint64_t charged_bytes, charged_requests;
   uint64_t consumed, misses, suppressed_unused, other_unused, rejected,
-      cpu_fallback, hit_bytes, hit_gathers, unused_bytes, unused_gathers;
+      cpu_fallback, read1_fallback, hit_bytes, hit_gathers, unused_bytes,
+      unused_gathers;
   ProbeStats consumed_stats, suppressed_stats, other_stats;
   Window()
       : next_frame(0), charged_bytes(0), charged_requests(0), consumed(0),
         misses(0), suppressed_unused(0), other_unused(0), rejected(0),
-        cpu_fallback(0), hit_bytes(0), hit_gathers(0), unused_bytes(0),
-        unused_gathers(0), consumed_stats(), suppressed_stats(), other_stats() {
-  }
+        cpu_fallback(0), read1_fallback(0), hit_bytes(0), hit_gathers(0),
+        unused_bytes(0), unused_gathers(0), consumed_stats(),
+        suppressed_stats(), other_stats() {}
 };
 // One producer (the mapping thread which owns a window) and one consumer
 // (coordinator).  A full ring is a CPU-only admission result, never a wait.
 struct SpscQueue {
   std::array<std::shared_ptr<Window>, queue_slots> slots;
   std::atomic<size_t> head, tail;
-  SpscQueue() : slots(), head(0), tail(0) {}
+  // Producer-side admission counter: one notification at each floor crossing.
+  std::atomic<uint64_t> requests;
+  SpscQueue() : slots(), head(0), tail(0), requests(0) {}
   bool push(const std::shared_ptr<Window> &w) {
     const size_t t = tail.load(std::memory_order_relaxed);
     const size_t next = (t + 1) % queue_slots;
@@ -122,16 +125,18 @@ struct Visits {
 struct Totals {
   uint64_t batches, submitted, gpu_consumed, cpu_tails, misses,
       suppressed_unused, other_unused, rejected, faults, cpu_fallback,
-      hit_bytes, hit_gathers, unused_bytes, unused_gathers;
+      read1_fallback, coordinator_wakeups, hit_bytes, hit_gathers, unused_bytes,
+      unused_gathers;
   std::vector<uint64_t> batch_sizes, fill_wait_us;
   ProbeStats submitted_stats, consumed_stats, suppressed_stats, other_stats,
       rejected_stats;
   Totals()
       : batches(0), submitted(0), gpu_consumed(0), cpu_tails(0), misses(0),
         suppressed_unused(0), other_unused(0), rejected(0), faults(0),
-        cpu_fallback(0), hit_bytes(0), hit_gathers(0), unused_bytes(0),
-        unused_gathers(0), submitted_stats(), consumed_stats(),
-        suppressed_stats(), other_stats(), rejected_stats() {}
+        cpu_fallback(0), read1_fallback(0), coordinator_wakeups(0),
+        hit_bytes(0), hit_gathers(0), unused_bytes(0), unused_gathers(0),
+        submitted_stats(), consumed_stats(), suppressed_stats(), other_stats(),
+        rejected_stats() {}
 };
 struct State {
   std::mutex mu;
@@ -420,6 +425,8 @@ void coordinator_main() {
       for (size_t qi = 0; qi < s.queues.size() && fill.size() < cap; ++qi) {
         std::shared_ptr<Window> w;
         while (fill.size() < cap && s.queues[qi]->pop(w)) {
+          s.queues[qi]->requests.fetch_sub(w->jobs.size(),
+                                           std::memory_order_acq_rel);
           if (!filling) {
             fill_started = std::chrono::steady_clock::now();
             filling = true;
@@ -473,7 +480,14 @@ void coordinator_main() {
       break;
     }
     std::unique_lock<std::mutex> lock(s.mu);
-    s.cv.wait_for(lock, std::chrono::microseconds(100));
+    // A partially filled batch may need a bounded age-out.  With no fill,
+    // producers wake us only when a queue crosses submit_floor
+    // (or shutdown/window retirement changes lifecycle state).
+    if (filling)
+      s.cv.wait_for(lock, std::chrono::microseconds(FILL_MAX_US));
+    else
+      s.cv.wait(lock);
+    ++s.totals.coordinator_wakeups;
   }
   s.cv.notify_all();
 }
@@ -486,6 +500,7 @@ void merge_window(const Window &w) {
   s.totals.other_unused += w.other_unused;
   s.totals.rejected += w.rejected;
   s.totals.cpu_fallback += w.cpu_fallback;
+  s.totals.read1_fallback += w.read1_fallback;
   s.totals.hit_bytes += w.hit_bytes;
   s.totals.hit_gathers += w.hit_gathers;
   s.totals.unused_bytes += w.unused_bytes;
@@ -495,7 +510,7 @@ void merge_window(const Window &w) {
   add_stats(s.totals.other_stats, w.other_stats);
   s.live_bytes -= w.charged_bytes;
   s.live_requests -= w.charged_requests;
-  s.cv.notify_all();
+  s.cv.notify_one();
 }
 void close_window() {
   if (!current_window)
@@ -521,6 +536,8 @@ void sidecar(const State &s) {
     << ",\"suppressed_unused\":" << t.suppressed_unused
     << ",\"other_unused\":" << t.other_unused
     << ",\"cpu_fallback\":" << t.cpu_fallback
+    << ",\"read1_fallback\":" << t.read1_fallback
+    << ",\"coordinator_wakeups\":" << t.coordinator_wakeups
     << ",\"compared_bytes_hit\":" << t.hit_bytes
     << ",\"gathers_hit\":" << t.hit_gathers
     << ",\"compared_bytes_unused\":" << t.unused_bytes
@@ -717,7 +734,7 @@ void submit_window(std::vector<WindowRead> &&frames) {
     s.queues.emplace_back(new SpscQueue);
     worker_queue = s.queues.back().get();
   }
-  bool publish = false;
+  bool publish = false, notify = false;
   {
     std::lock_guard<std::mutex> lock(s.mu);
     if (s.enabled && !s.stopping && !s.fault &&
@@ -725,10 +742,15 @@ void submit_window(std::vector<WindowRead> &&frames) {
         s.live_bytes + bytes <= MAX_INFLIGHT_BYTES) {
       s.live_requests += nj;
       s.live_bytes += bytes;
+      const uint64_t before =
+          worker_queue->requests.fetch_add(nj, std::memory_order_acq_rel);
       publish = worker_queue->push(w);
       if (!publish) {
+        worker_queue->requests.fetch_sub(nj, std::memory_order_acq_rel);
         s.live_requests -= nj;
         s.live_bytes -= bytes;
+      } else {
+        notify = before < submit_floor && before + nj >= submit_floor;
       }
     }
   }
@@ -736,7 +758,7 @@ void submit_window(std::vector<WindowRead> &&frames) {
     // Bounded admission is an immediate CPU fallback, never producer wait.
     for (size_t i = 0; i < w->jobs.size(); ++i)
       resolve_cpu(w->jobs[i]);
-  } else
+  } else if (notify)
     s.cv.notify_one();
   current_window = w;
   current_frame = nullptr;
@@ -757,6 +779,29 @@ void begin_map(ReadAlign &ra) {
   current_index = current_window->next_frame++;
   ++S().visits.frame_cursor;
   current_frame = &f;
+}
+bool handoff_read1(ReadAlign &ra) {
+#if !STAR_INTEGRATE
+  (void)ra;
+  return false;
+#else
+  if (!current_window ||
+      current_window->next_frame >= current_window->frames.size())
+    return false;
+  WindowRead &f = current_window->frames[current_window->next_frame];
+  const uint64_t length =
+      f.mate1_len ? f.mate0_len + f.mate1_len + 1 : f.mate0_len;
+  if (f.ordinal != ra.iReadAll || !length || f.a.size() != length ||
+      f.b.size() != length) {
+    ++current_window->read1_fallback;
+    return false;
+  }
+  memcpy(ra.Read1[0], f.a.data(), static_cast<size_t>(length));
+  memcpy(ra.Read1[1], f.b.data(), static_cast<size_t>(length));
+  for (uint64_t i = 0; i < length; ++i)
+    ra.Read1[2][length - i - 1] = static_cast<char>(f.b[i]);
+  return true;
+#endif
 }
 void set_chain(uint64_t piece, uint64_t fragment, uint64_t istart,
                uint64_t nstart, uint64_t lstart, uint64_t lmapped,

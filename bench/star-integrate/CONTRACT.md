@@ -113,6 +113,12 @@ its windows through submission and stock ordered consumption; coordinator owns
 its aggregate materialization. Retire after last consumption/unused accounting;
 never recycle generation or overwrite bytes/slots while queued or in flight.
 
+After stock `readLoad` has preserved stream, name, quality, length and clipping
+side effects, a matching frame may install its post-clip `Read1[0..2]` bytes in
+place of STAR's pair-combine/complement/reverse preparation. Ordinal or length
+mismatch remains stock and increments `read1_fallback`. The pinned loader's
+numeric conversion is required by clipping and remains stock-owned.
+
 One synchronous coordinator targets 65,536 aggregated requests; 262,144 only if
 existing chunk/window capacity allows. CPU underfilled tails. Progress must not
 require every worker to reach a barrier: when no full batch is presently ready,
