@@ -65,3 +65,12 @@ per-frame 40,000-job consumption scan.
    indefinitely without a fill and for `FILL_MAX_US` only while filling;
    producers notify on the aggregate submit-floor crossing and retirement.
    The real coordinator fixture bounds wakeups for its two-window fake backend.
+
+## P2C-INTEGRATE-V2-T1 local record
+
+1. GREEN: setup samples resident Genome/SA/SAindex bytes with the frozen sample
+   positions and no STAR-side file opens; identity uses non-cryptographic FNV-1a.
+2. GREEN: lookup consumes the current frame's dense candidate cursor, records a
+   positional mismatch, and never searches a hash bucket.
+3. GREEN: generated comparator code has no observer hook; enabled-only hooks and
+   call-site accounting leave the disabled inner-search path as the stock call.

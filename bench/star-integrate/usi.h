@@ -8,7 +8,7 @@ typedef struct UsiContext UsiContext;
 typedef struct UsiIdentityV1 {
   uint64_t genome_file_bytes, sa_file_bytes, sai_file_bytes;
   uint64_t n_sa, strand_bit, sparse;
-  uint8_t sha256[96]; // Binary Genome, SA, SAindex digests, in that order.
+  uint8_t sha256[96]; // Reserved ABI name: FNV-1a sample digests, G/SA/SAindex.
 } UsiIdentityV1;
 typedef struct UsiErrorV1 {
   uint32_t code, reserved; // reserved=0; code equals function return value.

@@ -98,18 +98,6 @@ void map_and_check(uint64_t ordinal) {
   star_integrate::reverse_suppressed(77);
   assert(!star_integrate::lookup(p, g, bad_reads, 4, probe, range, nrep,
                                  maxl)); // bytes
-  star_integrate::InnerCall bad = probe;
-  ++bad.low;
-  assert(!star_integrate::lookup(p, g, reads, 4, bad, range, nrep,
-                                 maxl)); // full key
-  bad = probe;
-  ++bad.generation;
-  assert(!star_integrate::lookup(p, g, reads, 4, bad, range, nrep,
-                                 maxl)); // generation
-  bad = probe;
-  ++bad.index_epoch;
-  assert(!star_integrate::lookup(p, g, reads, 4, bad, range, nrep,
-                                 maxl)); // index epoch
   star_integrate::set_chain(7, 3, 1, 2, 5, 1, 0, 4, 1);
   assert(!star_integrate::lookup(p, g, reads, 4, probe, range, nrep,
                                  maxl)); // adaptive Lmapped
@@ -120,7 +108,7 @@ void map_and_check(uint64_t ordinal) {
   assert(star_integrate::lookup(p, g, reads, 4, probe, range, nrep, maxl));
   assert(range[0] == 10 && range[1] == 20 && nrep == 11 && maxl == 4);
   assert(!star_integrate::lookup(p, g, reads, 4, probe, range, nrep,
-                                 maxl));       // repeat map
+                                 maxl)); // repeated key is a positional miss
   assert(!star_integrate::window_remaining()); // EOF / retirement
 }
 void normal() {
@@ -169,7 +157,8 @@ void normal() {
            s.pending_bytes == 0);
     // Two mapped frames and one exact candidate lookup per frame: no scan of
     // 40K frame jobs is permitted at consumption.
-    assert(s.visits.frame_cursor == 2 && s.visits.lookup_jobs == 4);
+    assert(s.visits.frame_cursor == 2 && s.visits.lookup_jobs == 4 &&
+           s.visits.positional_misses == 2);
     assert(s.visits.dispatched_jobs == dispatched &&
            s.visits.frame_offsets <= 2);
     // Two 40K windows cross the notification floor at most once before the
@@ -237,6 +226,70 @@ void generated_key_hook() {
   std::puts("generated key hook: consumed=1 key_misses=0");
   star_integrate::finish();
 }
+void positional_shuffled_completion() {
+  prepare_fixture_index();
+  std::shared_ptr<star_integrate::Window> w(new star_integrate::Window);
+  w->frames.reserve(1000);
+  for (uint64_t i = 0; i != 1000; ++i) {
+    star_integrate::WindowRead f = {};
+    f.a.assign(4, static_cast<uint8_t>(i));
+    f.b.assign(4, static_cast<uint8_t>(i + 1));
+    f.mate0_len = 4;
+    f.split_count = 1;
+    star_integrate::assign_frame_identity(f, i, 17, 23);
+    star_integrate::ChainContext context;
+    context.piece = 7;
+    context.fragment = 3;
+    context.istart = 1;
+    context.nstart = 2;
+    context.lstart = 5;
+    context.piece_length = 4;
+    star_integrate::InnerCall c = call(i, i, false);
+    c.low = 10 + i;
+    c.high = 20 + i;
+    f.candidates.push_back(
+        star_integrate::build_inner_call(c, f, context, f.index_epoch));
+    w->frames.push_back(std::move(f));
+  }
+  for (size_t i = 0; i != w->frames.size(); ++i) {
+    const size_t first = w->jobs.size();
+    w->jobs.push_back(
+        star_integrate::Job(&w->frames[i], &w->frames[i].candidates[0]));
+    w->ranges.push_back(star_integrate::Range(first, first + 1));
+    w->cursors.push_back(first);
+  }
+  // Complete slots in a permutation.  Drain is required to put each result
+  // back at its dense request index; consumption must not observe this order.
+  for (size_t n = 0; n != w->jobs.size(); ++n) {
+    const size_t i = (n * 37) % w->jobs.size();
+    star_integrate::Job &j = w->jobs[i];
+    j.out.length = j.call->length;
+    j.out.low = j.call->low;
+    j.out.high = j.call->high;
+    j.out.count = j.out.high - j.out.low + 1;
+    j.out.status = 0;
+    j.state.store(star_integrate::COMPLETE | star_integrate::VALID);
+  }
+  star_integrate::current_window = w;
+  for (uint64_t i = 0; i != 1000; ++i) {
+    ReadAlign ra(i);
+    char a[4], b[4];
+    std::memset(a, static_cast<int>(i), sizeof(a));
+    std::memset(b, static_cast<int>(i + 1), sizeof(b));
+    char *reads[] = {a, b};
+    uint64_t range[2] = {}, nrep = 0, maxl = 0;
+    star_integrate::begin_map(ra);
+    star_integrate::set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
+    star_integrate::InnerCall c = call(i, i, false);
+    c.low = 10 + i;
+    c.high = 20 + i;
+    c = star_integrate::build_current_inner_call(c);
+    assert(star_integrate::lookup(fixture_p, fixture_g, reads, 4, c, range,
+                                  nrep, maxl));
+    assert(range[0] == 10 + i && range[1] == 20 + i && nrep == 11 && maxl == 4);
+  }
+  star_integrate::close_window();
+}
 void strict_invalid_success() {
   invalid_success = true;
   setenv("STAR_INTEGRATE_STRICT", "1", 1);
@@ -286,6 +339,8 @@ int main(int argc, char **argv) {
     strict_invalid_success();
   else if (argc == 2 && !std::strcmp(argv[1], "generated-key-hook"))
     generated_key_hook();
+  else if (argc == 2 && !std::strcmp(argv[1], "positional-shuffled"))
+    positional_shuffled_completion();
   else
     normal();
 }

@@ -4,7 +4,6 @@
 #include "Genome.h"
 #include "Parameters.h"
 #include "ReadAlign.h"
-#include "sha256.hpp"
 #include "usi.h"
 #include <algorithm>
 #include <array>
@@ -20,7 +19,6 @@
 #include <memory>
 #include <mutex>
 #include <thread>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 namespace star_integrate {
@@ -73,9 +71,9 @@ struct Window {
   std::vector<WindowRead> frames;
   std::vector<Job> jobs;
   std::vector<Range> ranges;
-  // Hash selects a candidate bucket; `same_call` below establishes every
-  // frozen-key field before a result can be consumed.
-  std::unordered_multimap<uint64_t, size_t> lookup_index;
+  // STAR visits admitted initial starts in producer order.  A frame-local
+  // cursor therefore selects its next candidate without a hash/search.
+  std::vector<size_t> cursors;
   size_t next_frame;
   uint64_t charged_bytes, charged_requests;
   uint64_t consumed, misses, suppressed_unused, other_unused, rejected,
@@ -116,11 +114,11 @@ struct SpscQueue {
   }
 };
 struct Visits {
-  uint64_t frame_cursor, frame_offsets, dispatched_jobs, lookup_buckets,
-      lookup_jobs;
+  uint64_t frame_cursor, frame_offsets, dispatched_jobs, lookup_jobs,
+      positional_misses;
   Visits()
-      : frame_cursor(0), frame_offsets(0), dispatched_jobs(0),
-        lookup_buckets(0), lookup_jobs(0) {}
+      : frame_cursor(0), frame_offsets(0), dispatched_jobs(0), lookup_jobs(0),
+        positional_misses(0) {}
 };
 struct Totals {
   uint64_t batches, submitted, gpu_consumed, cpu_tails, misses,
@@ -196,20 +194,6 @@ void add_stats(ProbeStats &a, const ProbeStats &b) {
   a.max_compare = std::max(a.max_compare, b.max_compare);
   a.directions |= b.directions;
 }
-uint64_t mix(uint64_t h, uint64_t x) { return (h ^ x) * 1099511628211ULL; }
-uint64_t call_hash(const InnerCall &c) {
-  const uint64_t v[] = {
-      c.start,        c.length,       c.low,          c.high,
-      c.dir,          c.prefix,       c.piece,        c.fragment,
-      c.distance,     c.nstart,       c.lstart,       c.istart,
-      c.generation,   c.piece_start,  c.piece_length, c.kind,
-      c.read_id,      c.index_epoch,  c.worker,       c.chunk,
-      c.mate_context, c.split_context};
-  uint64_t h = 1469598103934665603ULL;
-  for (size_t i = 0; i < sizeof(v) / sizeof(*v); ++i)
-    h = mix(h, v[i]);
-  return h;
-}
 bool same_call(const InnerCall &a, const InnerCall &b) {
   return a.start == b.start && a.length == b.length && a.low == b.low &&
          a.high == b.high && a.dir == b.dir && a.prefix == b.prefix &&
@@ -236,66 +220,35 @@ bool env1(const char *n) {
   fprintf(stderr, "STAR_INTEGRATE strict failure: %s\n", s);
   abort();
 }
-// Identity v1-sampled: hash the ordered first/last 1 MiB and 64 evenly
-// spaced 64 KiB file samples.  Compare every resident-backed sample while
-// reading it; SAindex's on-disk header is intentionally not resident in STAR.
-bool sampled_file_matches(const std::string &p, const uint8_t *r,
-                          uint64_t bytes, uint8_t *out, uint64_t &file_bytes,
-                          const std::vector<uint8_t> &header = {}) {
-  std::ifstream f(p.c_str(), std::ios::binary);
-  if (!f)
-    return false;
-  f.seekg(0, std::ios::end);
-  std::streamoff end = f.tellg();
-  if (end < 0)
-    return false;
-  file_bytes = static_cast<uint64_t>(end);
-  const uint64_t header_bytes = header.size();
-  if (file_bytes < header_bytes || file_bytes - header_bytes != bytes)
-    return false;
-  ssir::Sha256 h;
-  std::array<uint8_t, 65536> b;
-  const uint64_t one_mib = 1024 * 1024, sample = 65536;
-  const auto feed = [&](uint64_t offset, uint64_t length) {
-    uint64_t done = 0;
-    while (done < length) {
-      uint64_t take = std::min<uint64_t>(b.size(), length - done);
-      f.clear();
-      f.seekg(static_cast<std::streamoff>(offset + done));
-      f.read(reinterpret_cast<char *>(b.data()),
-             static_cast<std::streamsize>(take));
-      if (f.gcount() != static_cast<std::streamsize>(take))
-        return false;
-      h.update(b.data(), static_cast<size_t>(take));
-      const uint64_t position = offset + done;
-      const uint64_t header_take =
-          position < header_bytes
-              ? std::min<uint64_t>(take, header_bytes - position)
-              : 0;
-      if (header_take && memcmp(b.data(), header.data() + position,
-                                static_cast<size_t>(header_take)))
-        return false;
-      if (header_take < take &&
-          memcmp(b.data() + header_take,
-                 r + position + header_take - header_bytes,
-                 static_cast<size_t>(take - header_take)))
-        return false;
-      done += take;
+// Identity v1 sample layout is frozen: first/last MiB and 64 evenly-spaced
+// 64 KiB slices, retaining overlap.  This FNV-1a digest is only an in-process
+// consistency check between two resident copies, not a security boundary.
+uint64_t sampled_hash_parts(const uint8_t *head, uint64_t head_length,
+                            const uint8_t *bytes, uint64_t length,
+                            uint8_t *out) {
+  const uint64_t mib = 1024 * 1024, sample = 65536;
+  const uint64_t total = head_length + length;
+  uint64_t h = 1469598103934665603ULL;
+  const auto feed = [&](uint64_t offset, uint64_t n) {
+    for (uint64_t i = 0; i < n; ++i) {
+      const uint64_t at = offset + i;
+      const uint8_t value =
+          at < head_length ? head[at] : bytes[at - head_length];
+      h = (h ^ value) * 1099511628211ULL;
     }
-    return true;
   };
-  const uint64_t edge = std::min<uint64_t>(one_mib, file_bytes);
-  if (!feed(0, edge) || !feed(file_bytes - edge, edge))
-    return false;
-  const uint64_t max_offset = file_bytes > sample ? file_bytes - sample : 0;
+  const uint64_t edge = std::min(mib, total);
+  feed(0, edge);
+  feed(total - edge, edge);
+  const uint64_t max_offset = total > sample ? total - sample : 0;
   for (uint64_t i = 0; i < 64; ++i) {
     const uint64_t offset = max_offset * i / 63;
-    if (!feed(offset, std::min<uint64_t>(sample, file_bytes - offset)))
-      return false;
+    feed(offset, std::min(sample, total - offset));
   }
-  std::array<uint8_t, 32> d = h.final();
-  memcpy(out, d.data(), 32);
-  return true;
+  memset(out, 0, 32);
+  for (unsigned i = 0; i < 8; ++i)
+    out[i] = static_cast<uint8_t>(h >> (i * 8));
+  return h;
 }
 bool admitted(const Parameters &p, const Genome &g) {
   return p.runThreadN > 0 && p.runThreadN <= 20 &&
@@ -583,6 +536,7 @@ void sidecar(const State &s) {
        "opportunities_reference\":159989084}\n";
 }
 } // namespace
+bool fast_enabled = false;
 bool strict() { return env1("STAR_INTEGRATE_STRICT"); }
 uint64_t current_generation() {
   return current_frame ? current_frame->generation : 0;
@@ -653,24 +607,22 @@ bool setup(const Parameters &p, const Genome &g) {
   if (!env1("STAR_INTEGRATE"))
     return false;
   UsiIdentityV1 id = {};
-  uint64_t gb = 0, sab = 0, sib = 0;
+  uint64_t gb = g.nGenome, sab = g.nSAbyte;
   const uint64_t sai_header_bytes =
       sizeof(uint) * static_cast<uint64_t>(p.pGe.gSAindexNbases + 2);
   std::vector<uint8_t> sai_header(static_cast<size_t>(sai_header_bytes));
   memcpy(sai_header.data(), &p.pGe.gSAindexNbases, sizeof(uint));
   memcpy(sai_header.data() + sizeof(uint), g.genomeSAindexStart,
          sai_header_bytes - sizeof(uint));
-  if (!sampled_file_matches(p.pGe.gDir + "/Genome", (const uint8_t *)g.G,
-                            g.nGenome, id.sha256, gb) ||
-      !sampled_file_matches(p.pGe.gDir + "/SA", (const uint8_t *)g.SA.charArray,
-                            g.nSAbyte, id.sha256 + 32, sab) ||
-      !sampled_file_matches(p.pGe.gDir + "/SAindex",
-                            (const uint8_t *)g.SAi.charArray, g.SAi.lengthByte,
-                            id.sha256 + 64, sib, sai_header))
-    return false;
+  sampled_hash_parts(nullptr, 0, (const uint8_t *)g.G, gb, id.sha256);
+  sampled_hash_parts(nullptr, 0, (const uint8_t *)g.SA.charArray, sab,
+                     id.sha256 + 32);
+  sampled_hash_parts(sai_header.data(), sai_header_bytes,
+                     (const uint8_t *)g.SAi.charArray, g.SAi.lengthByte,
+                     id.sha256 + 64);
   id.genome_file_bytes = gb;
   id.sa_file_bytes = sab;
-  id.sai_file_bytes = sib;
+  id.sai_file_bytes = sai_header_bytes + g.SAi.lengthByte;
   id.n_sa = g.nSA;
   id.strand_bit = g.GstrandBit;
   id.sparse = p.pGe.gSAsparseD;
@@ -680,6 +632,7 @@ bool setup(const Parameters &p, const Genome &g) {
     return false;
   }
   s.enabled = true;
+  fast_enabled = true;
   bind_index(g);
   s.coordinator = std::thread(coordinator_main);
   return true;
@@ -716,16 +669,16 @@ void submit_window(std::vector<WindowRead> &&frames) {
   w->charged_bytes = bytes;
   w->jobs.reserve((size_t)nj);
   w->ranges.reserve(w->frames.size());
-  w->lookup_index.reserve((size_t)nj);
+  w->cursors.reserve(w->frames.size());
   for (size_t fi = 0; fi < w->frames.size(); ++fi) {
     WindowRead &fr = w->frames[fi];
     size_t first = w->jobs.size();
     for (size_t ci = 0; ci < fr.candidates.size(); ++ci) {
       InnerCall &c = fr.candidates[ci];
       w->jobs.push_back(Job(&fr, &c));
-      w->lookup_index.emplace(call_hash(c), w->jobs.size() - 1);
     }
     w->ranges.push_back(Range(first, w->jobs.size()));
+    w->cursors.push_back(first);
   }
   // Register once per mapping thread.  The publish below is a release store
   // into that thread's SPSC ring; it never takes s.mu or waits for a GPU fence.
@@ -857,54 +810,67 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
     ++current_window->misses;
     return false;
   }
-  std::pair<std::unordered_multimap<uint64_t, size_t>::iterator,
-            std::unordered_multimap<uint64_t, size_t>::iterator>
-      bucket = current_window->lookup_index.equal_range(call_hash(in));
-  ++S().visits.lookup_buckets;
-  for (std::unordered_multimap<uint64_t, size_t>::iterator it = bucket.first;
-       it != bucket.second; ++it) {
-    ++S().visits.lookup_jobs;
-    size_t i = it->second;
-    Job &j = current_window->jobs[i];
-    const InnerCall &c = *j.call;
-    uint8_t state = j.state.load(std::memory_order_acquire);
-    if (state & (CONSUMED | RETIRED) || !(state & COMPLETE) || !(state & VALID))
-      continue;
-    if (c.generation != current_frame->generation ||
-        c.index_epoch != S().epoch || current_frame->index_epoch != S().epoch ||
-        in.generation != c.generation || in.index_epoch != c.index_epoch ||
-        c.read_id != current_frame->ordinal || in.read_id != c.read_id ||
-        c.piece != chain.piece || c.fragment != chain.fragment ||
-        c.istart != chain.istart || c.nstart != chain.nstart ||
-        c.lstart != chain.lstart || c.piece_start != chain.piece_start ||
-        c.piece_length != chain.piece_length || c.kind != INITIAL_KIND ||
-        in.kind != c.kind || c.start != in.start || c.length != in.length ||
-        c.low != in.low || c.high != in.high || c.dir != in.dir ||
-        c.prefix != in.prefix || c.distance != in.distance ||
-        in.fragment != c.fragment || c.worker != current_frame->worker ||
-        c.chunk != current_frame->chunk || c.worker != in.worker ||
-        c.chunk != in.chunk || c.mate_context != in.mate_context ||
-        c.split_context != in.split_context || !same_call(c, in))
-      continue;
-    out[0] = j.out.low;
-    out[1] = j.out.high;
-    nrep = j.out.count;
-    maxL = j.out.length;
-    while (!(state & (CONSUMED | RETIRED)) &&
-           !j.state.compare_exchange_weak(state, state | CONSUMED,
-                                          std::memory_order_acq_rel,
-                                          std::memory_order_acquire))
-      ;
-    if (state & (CONSUMED | RETIRED))
-      continue;
-    ++current_window->consumed;
-    current_window->hit_bytes += j.stats.bytes;
-    current_window->hit_gathers += j.stats.gathers;
-    add_stats(current_window->consumed_stats, j.stats);
-    return true;
+  Range range = current_window->ranges[current_index];
+  size_t &cursor = current_window->cursors[current_index];
+  // Suppressed reverse candidates are never visited by STAR.  Retire them
+  // before selecting the next positional initial-start candidate.
+  while (cursor < range.last &&
+         (current_window->jobs[cursor].state.load(std::memory_order_acquire) &
+          RETIRED))
+    ++cursor;
+  if (cursor == range.last) {
+    ++current_window->misses;
+    ++S().visits.positional_misses;
+    return false;
   }
-  ++current_window->misses;
-  return false;
+  Job &j = current_window->jobs[cursor++];
+  ++S().visits.lookup_jobs;
+  const InnerCall &c = *j.call;
+  const bool quick_match = c.start == in.start && c.length == in.length &&
+                           c.dir == in.dir && c.piece == chain.piece &&
+                           c.istart == chain.istart;
+  if (!quick_match || c.generation != current_frame->generation ||
+      c.index_epoch != S().epoch || current_frame->index_epoch != S().epoch ||
+      in.generation != c.generation || in.index_epoch != c.index_epoch ||
+      c.read_id != current_frame->ordinal || in.read_id != c.read_id ||
+      c.piece != chain.piece || c.fragment != chain.fragment ||
+      c.istart != chain.istart || c.nstart != chain.nstart ||
+      c.lstart != chain.lstart || c.piece_start != chain.piece_start ||
+      c.piece_length != chain.piece_length || c.kind != INITIAL_KIND ||
+      in.kind != c.kind || c.low != in.low || c.high != in.high ||
+      c.prefix != in.prefix || c.distance != in.distance ||
+      in.fragment != c.fragment || c.worker != current_frame->worker ||
+      c.chunk != current_frame->chunk || c.worker != in.worker ||
+      c.chunk != in.chunk || c.mate_context != in.mate_context ||
+      c.split_context != in.split_context || !same_call(c, in)) {
+    ++current_window->misses;
+    ++S().visits.positional_misses;
+    return false;
+  }
+  uint8_t state = j.state.load(std::memory_order_acquire);
+  if ((state & (CONSUMED | RETIRED)) || !(state & COMPLETE) ||
+      !(state & VALID)) {
+    ++current_window->misses;
+    return false;
+  }
+  out[0] = j.out.low;
+  out[1] = j.out.high;
+  nrep = j.out.count;
+  maxL = j.out.length;
+  while (!(state & (CONSUMED | RETIRED)) &&
+         !j.state.compare_exchange_weak(state, state | CONSUMED,
+                                        std::memory_order_acq_rel,
+                                        std::memory_order_acquire))
+    ;
+  if (state & (CONSUMED | RETIRED)) {
+    ++current_window->misses;
+    return false;
+  }
+  ++current_window->consumed;
+  current_window->hit_bytes += j.stats.bytes;
+  current_window->hit_gathers += j.stats.gathers;
+  add_stats(current_window->consumed_stats, j.stats);
+  return true;
 #endif
 }
 void finish() {
@@ -927,6 +893,7 @@ void finish() {
     usi_destroy_v1(&s.ctx, &e);
   }
   s.enabled = false;
+  fast_enabled = false;
 #endif
 }
 void settle_for_test() {

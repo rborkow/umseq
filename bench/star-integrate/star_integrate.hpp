@@ -59,6 +59,10 @@ void reverse_suppressed(uint64_t piece);
 void end_chunk();
 bool setup(const Parameters &, const Genome &);
 bool enabled();
+// Written before mapping workers start and read in their hot paths.  Keep the
+// generated disabled path to one load; do not route it through `enabled()`.
+extern bool fast_enabled;
+inline bool enabled_fast() { return fast_enabled; }
 bool lookup(const Parameters &, const Genome &, char **read1, uint64_t read_len,
             const InnerCall &, uint64_t out_range[2], uint64_t &nrep,
             uint64_t &maxL);

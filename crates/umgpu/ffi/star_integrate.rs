@@ -10,7 +10,7 @@ use std::{
 };
 use umem::{AnyBuf, Buf, Ro};
 use umgpu::{ProbeConfig, ProbeOutput, ProbeRequest, ProbeStats};
-use umseed_probe::index::{ProbeResident, probe_allocate, probe_load, probe_sha256_bytes};
+use umseed_probe::index::{ProbeResident, probe_allocate, probe_load};
 
 const OK: i32 = 0;
 const BAD: i32 = 1;
@@ -98,38 +98,30 @@ fn err(e: *mut UsiErrorV1, code: i32, msg: &str) -> i32 {
 fn clear(e: *mut UsiErrorV1) {
     let _ = err(e, OK, "");
 }
-fn hash(bytes: &[u8]) -> Result<[u8; 32], String> {
-    let h = probe_sha256_bytes(bytes).map_err(|e| e.to_string())?;
-    let mut out = [0; 32];
-    if h.len() != 64 {
-        return Err("malformed resident sha256".into());
-    };
-    let (pairs, tail) = h.as_bytes().as_chunks::<2>();
-    if !tail.is_empty() {
-        return Err("malformed resident sha256".into());
-    }
-    for (i, p) in pairs.iter().enumerate() {
-        out[i] = u8::from_str_radix(std::str::from_utf8(p).map_err(|_| "non-UTF8 sha256")?, 16)
-            .map_err(|_| "non-hex sha256")?;
-    }
-    Ok(out)
-}
 /// v1 sampled identity: first/last MiB followed by 64 evenly spaced 64 KiB
 /// slices.  The order (and deliberate edge/sample overlap) is part of the ABI
-/// contract shared with STAR's load-time file/resident comparison.
-fn sampled_hash(bytes: &[u8]) -> Result<[u8; 32], String> {
+/// contract shared with STAR's resident comparison.  FNV-1a is deliberately
+/// non-cryptographic: this only compares two in-process immutable snapshots.
+fn sampled_hash(bytes: &[u8]) -> [u8; 32] {
     const MIB: usize = 1024 * 1024;
     const SAMPLE: usize = 65536;
     let edge = bytes.len().min(MIB);
-    let mut selected = Vec::with_capacity(edge.saturating_mul(2).saturating_add(SAMPLE * 64));
-    selected.extend_from_slice(&bytes[..edge]);
-    selected.extend_from_slice(&bytes[bytes.len() - edge..]);
+    let mut h = 1469598103934665603u64;
+    let mut feed = |sample: &[u8]| {
+        for &byte in sample {
+            h = (h ^ u64::from(byte)).wrapping_mul(1099511628211);
+        }
+    };
+    feed(&bytes[..edge]);
+    feed(&bytes[bytes.len() - edge..]);
     let max_offset = bytes.len().saturating_sub(SAMPLE);
     for i in 0..64 {
         let offset = max_offset * i / 63;
-        selected.extend_from_slice(&bytes[offset..(offset + SAMPLE).min(bytes.len())]);
+        feed(&bytes[offset..(offset + SAMPLE).min(bytes.len())]);
     }
-    hash(&selected)
+    let mut out = [0; 32];
+    out[..8].copy_from_slice(&h.to_le_bytes());
+    out
 }
 fn same_identity(a: &UsiIdentityV1, b: &UsiIdentityV1) -> bool {
     a.genome_file_bytes == b.genome_file_bytes
@@ -144,13 +136,13 @@ fn identity_for(r: &ProbeResident) -> Result<UsiIdentityV1, String> {
     let mut sha = [0; 96];
     sha[..32].copy_from_slice(&sampled_hash(
         &r.genome.as_slice()[200..200 + r.config.n_genome as usize],
-    )?);
+    ));
     let sa_file = usize::try_from(r.sa_file_bytes).map_err(|_| "SA extent overflow")?;
     if sa_file > r.sa.len() {
         return Err("SA file exceeds resident extent".into());
     }
-    sha[32..64].copy_from_slice(&sampled_hash(&r.sa.as_slice()[..sa_file])?);
-    sha[64..].copy_from_slice(&sampled_hash(r.sai.as_slice())?);
+    sha[32..64].copy_from_slice(&sampled_hash(&r.sa.as_slice()[..sa_file]));
+    sha[64..].copy_from_slice(&sampled_hash(r.sai.as_slice()));
     Ok(UsiIdentityV1 {
         genome_file_bytes: r.config.n_genome,
         sa_file_bytes: sa_file as u64,

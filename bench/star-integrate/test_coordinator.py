@@ -29,6 +29,7 @@ def main():
     key=subprocess.run([str(exe),'generated-key-hook'],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,timeout=30)
     if key.stdout.strip() != 'generated key hook: consumed=1 key_misses=0':
       raise AssertionError('generated hook key fixture did not consume exactly once:\n'+key.stdout+key.stderr)
+    subprocess.run([str(exe),'positional-shuffled'],check=True,timeout=30)
     subprocess.run([str(exe)],env=env,check=True,timeout=30)
     rows=[json.loads(line) for line in sidecar.read_text().splitlines() if line.strip()]
     assert len(rows)==1

@@ -17,14 +17,15 @@ class PatchGuard(unittest.TestCase):
   cpp=(ROOT/'star_integrate.cpp').read_text()
   self.assertIn('usi_search_batch_v1',cpp)
   self.assertIn('target = 65536',cpp)
-  self.assertIn('std::unordered_map',cpp)
   self.assertIn('current_window->ranges[current_index]',cpp)
   self.assertNotIn('find_if(current_window->frames',cpp)
   self.assertIn('in.generation != c.generation',cpp)
   self.assertIn('backend returned invalid successful result',cpp)
   self.assertIn('std::min<uint>(nstart, 2)',(ROOT/'star_integrate_window.cpp').read_text())
   self.assertIn('chain.istart >= 2',cpp)
-  self.assertIn('lookup_index.equal_range',cpp)
+  self.assertNotIn('unordered_multimap',cpp)
+  self.assertIn('current_window->cursors[current_index]',cpp)
+  self.assertIn('positional_misses',cpp)
  def test_real_call_patch_has_oracle_and_cpu_fallback(self):
   class R:
    def replace_once(self,t,o,n):
@@ -70,6 +71,9 @@ class PatchGuard(unittest.TestCase):
   got=m.patch(R(),'STAR.cpp',upstream.read_text())
   self.assertLess(got.index('genomeMain.genomeLoad();'),got.index('star_integrate::setup(P, genomeMain);'))
   self.assertNotIn('setup(chunk.P, chunk.mapGen)',(ROOT/'star_integrate_window.cpp').read_text())
+  cpp=(ROOT/'star_integrate.cpp').read_text()
+  self.assertNotIn('ifstream',cpp)
+  self.assertNotIn('sampled_file_matches',cpp)
  def test_real_source_has_chain_suppression_and_retirement_hooks(self):
   root=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
   if not root.exists(): self.skipTest('pinned private source unavailable')
@@ -84,6 +88,7 @@ class PatchGuard(unittest.TestCase):
   self.assertIn('star_integrate::set_chain(ip, splitR[2][ip], istart, Nstart, Lstart, Lmapped, splitR[0][ip], splitR[1][ip], Nsplit)',read)
   self.assertIn('star_integrate::reverse_suppressed(ip)',read)
   self.assertIn('star_integrate::build_current_inner_call(starIntegrateCall)',inner)
+  self.assertIn('star_integrate::enabled_fast()',inner)
   self.assertNotIn('InnerCall starIntegrateCall={pieceStart',inner)
   self.assertIn('splitR[1][ip], Nsplit)',read)
 if __name__=='__main__': unittest.main()

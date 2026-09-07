@@ -38,11 +38,13 @@ quarantine internal allocations, disable the context, and report code5, never
 free memory a device might touch. Destroy nulls the handle even on quarantine.
 
 Identity is the actual STAR-loaded immutable snapshot: byte lengths plus a
-binary SHA256 over each array's ordered first and last 1 MiB and 64 evenly
-spaced 64 KiB samples (the first/last samples are retained even when they
-overlap), plus nSA/strand bit/sparse. STAR compares every sample to its loaded
-bytes (including the reconstructed SAindex header); the backend computes the
-same scheme from its resident bytes. This sampled identity is bound immediately after `genomeLoad`,
+64-bit FNV-1a digest (stored in the ABI-reserved 32-byte digest slots) over each
+array's ordered first and last 1 MiB and 64 evenly spaced 64 KiB samples (the
+first/last samples are retained even when they overlap), plus nSA/strand
+bit/sparse. This is a consistency check between two in-process resident copies,
+not a security boundary. STAR samples its loaded bytes directly (including the
+reconstructed SAindex header); the backend computes the same scheme from its
+resident bytes. This sampled identity is bound immediately after `genomeLoad`,
 before mapping workers or frames can start, and its wall time is emitted as
 `setup_wall_s` in the sidecar. Validate both snapshots against it, metadata and
 packed extents; a directory name or epoch alone is not identity. No third

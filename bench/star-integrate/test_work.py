@@ -55,10 +55,7 @@ class WorkObserver(unittest.TestCase):
             self.skipTest('pinned source unavailable')
         patch = generator().patch
         comparator = patch(ReplaceOnce(), 'SuffixArrayFuns.cpp', (SOURCE / 'SuffixArrayFuns.cpp').read_text())
-        self.assertEqual(comparator.count('star_integrate_work::compare_begin();'), 1)
-        self.assertEqual(comparator.count('star_integrate_work::compared(ii+1);'), 4)
-        self.assertEqual(comparator.count('star_integrate_work::compared(N-L);'), 4)
-        self.assertNotIn('star_integrate_work::compared(1);', comparator)
+        self.assertNotIn('star_integrate_work::', comparator)
         with tempfile.TemporaryDirectory() as d:
             generated = Path(d) / 'SuffixArrayFuns.cpp'
             generated.write_text(comparator)
@@ -73,6 +70,8 @@ class WorkObserver(unittest.TestCase):
         self.assertEqual(control.count('star_integrate_work::inner_call(starIntegrateHit);'), 1)
         self.assertEqual(control.count('star_integrate_work::fallback_scope()'), 1)
         self.assertEqual(control.count('star_integrate_work::oracle_scope()'), 1)
+        self.assertIn('if (star_integrate::enabled_fast())', control)
+        self.assertIn('maxL>=starIntegrateLIn', control)
         self.assertIn('bool starIntegrateHit=star_integrate::lookup', control)
         self.assertIn('Nrep = maxMappableLength(mapGen, Read1, pieceStart', control)
         with tempfile.TemporaryDirectory() as d:

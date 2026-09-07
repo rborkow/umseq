@@ -24,18 +24,42 @@ def patch(rio,name,text):
         # preparation.  The default macro is a no-op and preserves stock control flow.
         text='#include "star_integrate.hpp"\n#include "star_integrate_work.hpp"\n#include <cstdio>\n'+text
         old='            Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);'
-        new='            uint starIntegrateLIn=maxL;\n            star_integrate::InnerCall starIntegrateCall={};\n            starIntegrateCall.start=pieceStart; starIntegrateCall.length=pieceLength;\n            starIntegrateCall.low=iSA1 & mapGen.SAiMarkNmask; starIntegrateCall.high=iSA2;\n            starIntegrateCall.dir=dirR; starIntegrateCall.prefix=maxL; starIntegrateCall.distance=iDist;\n            starIntegrateCall=star_integrate::build_current_inner_call(starIntegrateCall);\n            // STAR uint is unsigned long long; the coordinator ABI is uint64_t (unsigned long on Linux). Same width, distinct types: marshal through exact-type locals.\n            uint64_t starIntegrateRange[2]={0,0}, starIntegrateNrep=0, starIntegrateMaxL=maxL;\n            bool starIntegrateHit=star_integrate::lookup(P, mapGen, Read1, (uint64_t) Lread, starIntegrateCall, starIntegrateRange, starIntegrateNrep, starIntegrateMaxL);\n            if (starIntegrateHit) { indStartEnd[0]=starIntegrateRange[0]; indStartEnd[1]=starIntegrateRange[1]; Nrep=starIntegrateNrep; maxL=starIntegrateMaxL; }\n            star_integrate_work::inner_call(starIntegrateHit);\n            if (starIntegrateHit) {\n                if (star_integrate::strict()) {\n                    uint cpuRange[2], cpuL=starIntegrateLIn;\n                    star_integrate_work::Scope starIntegrateOracle=star_integrate_work::oracle_scope();\n                    uint cpuN=maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, cpuL, cpuRange);\n                    if (cpuN!=Nrep || cpuL!=maxL || cpuRange[0]!=indStartEnd[0] || cpuRange[1]!=indStartEnd[1]) {\n                        fprintf(stderr, "STAR_INTEGRATE strict mismatch piece=%llu fragment=%llu distance=%llu start=%llu length=%llu low=%llu high=%llu dir=%llu gpu=(%llu,%llu,%llu,%llu) cpu=(%llu,%llu,%llu,%llu)\\n", (unsigned long long) pieceStart, (unsigned long long) iFrag, (unsigned long long) iDist, (unsigned long long) pieceStart, (unsigned long long) pieceLength, (unsigned long long) (iSA1 & mapGen.SAiMarkNmask), (unsigned long long) iSA2, (unsigned long long) dirR, (unsigned long long) Nrep, (unsigned long long) maxL, (unsigned long long) indStartEnd[0], (unsigned long long) indStartEnd[1], (unsigned long long) cpuN, (unsigned long long) cpuL, (unsigned long long) cpuRange[0], (unsigned long long) cpuRange[1]);\n                        abort();\n                    }\n                }\n            } else {\n                star_integrate_work::Scope starIntegrateFallback=star_integrate_work::fallback_scope();\n                star_integrate::note_cpu_fallback();\n                Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);\n            }'
+        new='''            if (star_integrate::enabled_fast()) {
+                uint starIntegrateLIn=maxL;
+                star_integrate::InnerCall starIntegrateCall={};
+                starIntegrateCall.start=pieceStart; starIntegrateCall.length=pieceLength;
+                starIntegrateCall.low=iSA1 & mapGen.SAiMarkNmask; starIntegrateCall.high=iSA2;
+                starIntegrateCall.dir=dirR; starIntegrateCall.prefix=maxL; starIntegrateCall.distance=iDist;
+                starIntegrateCall=star_integrate::build_current_inner_call(starIntegrateCall);
+                uint64_t starIntegrateRange[2]={0,0}, starIntegrateNrep=0, starIntegrateMaxL=maxL;
+                bool starIntegrateHit=star_integrate::lookup(P, mapGen, Read1, (uint64_t) Lread, starIntegrateCall, starIntegrateRange, starIntegrateNrep, starIntegrateMaxL);
+                if (starIntegrateHit) { indStartEnd[0]=starIntegrateRange[0]; indStartEnd[1]=starIntegrateRange[1]; Nrep=starIntegrateNrep; maxL=starIntegrateMaxL; }
+                star_integrate_work::inner_call(starIntegrateHit);
+                if (starIntegrateHit) {
+                    if (star_integrate::strict()) {
+                        uint cpuRange[2], cpuL=starIntegrateLIn;
+                        star_integrate_work::Scope starIntegrateOracle=star_integrate_work::oracle_scope();
+                        star_integrate_work::compare_begin();
+                        uint cpuN=maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, cpuL, cpuRange);
+                        star_integrate_work::compared(cpuL>=starIntegrateLIn ? cpuL-starIntegrateLIn : 0);
+                        if (cpuN!=Nrep || cpuL!=maxL || cpuRange[0]!=indStartEnd[0] || cpuRange[1]!=indStartEnd[1]) {
+                            fprintf(stderr, "STAR_INTEGRATE strict mismatch piece=%llu fragment=%llu distance=%llu start=%llu length=%llu low=%llu high=%llu dir=%llu gpu=(%llu,%llu,%llu,%llu) cpu=(%llu,%llu,%llu,%llu)\\n", (unsigned long long) pieceStart, (unsigned long long) iFrag, (unsigned long long) iDist, (unsigned long long) pieceStart, (unsigned long long) pieceLength, (unsigned long long) (iSA1 & mapGen.SAiMarkNmask), (unsigned long long) iSA2, (unsigned long long) dirR, (unsigned long long) Nrep, (unsigned long long) maxL, (unsigned long long) indStartEnd[0], (unsigned long long) indStartEnd[1], (unsigned long long) cpuN, (unsigned long long) cpuL, (unsigned long long) cpuRange[0], (unsigned long long) cpuRange[1]);
+                            abort();
+                        }
+                    }
+                } else {
+                    star_integrate_work::Scope starIntegrateFallback=star_integrate_work::fallback_scope();
+                    star_integrate_work::compare_begin();
+                    star_integrate::note_cpu_fallback();
+                    Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);
+                    star_integrate_work::compared(maxL>=starIntegrateLIn ? maxL-starIntegrateLIn : 0);
+                }
+            } else {
+                Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);
+            }'''
         return once(rio,text,old,new)
     if name=='SuffixArrayFuns.cpp':
         prefix,tail=text.split('\nuint findMultRange(',1)
-        prefix='#include "star_integrate_work.hpp"\n'+prefix
-        prefix=once(rio,prefix,'    SAstr &= mapGen.GstrandMask;\n','    SAstr &= mapGen.GstrandMask;\n    star_integrate_work::compare_begin();\n')
-        for condition in ('s[ii]!=g[ii]', 's[ii]!=g[-ii]', 's[-ii]!=g[ii]', 's[-ii]!=g[-ii]'):
-            prefix=once(rio,prefix,'            if ('+condition+')\n            {','            if ('+condition+')\n            {\n                star_integrate_work::compared(ii+1);')
-        prefix=once(rio,prefix,'        return N; //exact match','        star_integrate_work::compared(N-L);\n        return N; //exact match')
-        prefix=once(rio,prefix,'        return N;\n    } else if (!dirR && dirG)', '        star_integrate_work::compared(N-L);\n        return N;\n    } else if (!dirR && dirG)')
-        prefix=once(rio,prefix,'        return N;\n    } else {//if (!dirR && !dirG)', '        star_integrate_work::compared(N-L);\n        return N;\n    } else {//if (!dirR && !dirG)')
-        prefix=once(rio,prefix,'        return N;\n    };\n};', '        star_integrate_work::compared(N-L);\n        return N;\n    };\n};')
         return prefix+'\nuint findMultRange('+tail
     if name=='ReadAlignChunk_mapChunk.cpp':
         text='#include "star_integrate.hpp"\n'+text
@@ -136,10 +160,10 @@ def patch(rio,name,text):
         call='                        maxMappableLength2strands(Shift, seedLength, iDir, 0, mapGen.nSA-1, L, splitR[2][ip]);//L=max mappable length, unique or multiple'
         if call in text:
             text=once(rio,text,call,
-                      '                        star_integrate::set_chain(ip, splitR[2][ip], istart, Nstart, Lstart, Lmapped, splitR[0][ip], splitR[1][ip], Nsplit);\n'+call)
+                      '                        if (star_integrate::enabled_fast()) star_integrate::set_chain(ip, splitR[2][ip], istart, Nstart, Lstart, Lmapped, splitR[0][ip], splitR[1][ip], Nsplit);\n'+call)
         if '                            flagDirMap=false;\n' in text:
             text=once(rio,text,'                            flagDirMap=false;\n',
-                      '                            flagDirMap=false;\n                            star_integrate::reverse_suppressed(ip);\n')
+                      '                            flagDirMap=false;\n                            if (star_integrate::enabled_fast()) star_integrate::reverse_suppressed(ip);\n')
         return text
     if name=='Makefile':
         return once(rio,text,'ReadAlign_maxMappableLength2strands.o binarySearch2.o\\\n','ReadAlign_maxMappableLength2strands.o binarySearch2.o star_integrate.o star_integrate_window.o star_integrate_work.o sha256.o\\\n')
