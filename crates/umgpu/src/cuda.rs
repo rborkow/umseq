@@ -1176,3 +1176,130 @@ pub fn seed_probe_reclaim(
         .wait()
         .map_err(|e| e.to_string())
 }
+
+unsafe extern "C" {
+    fn umgpu_seed_probe_v2(
+        g: *const u8,
+        sa: *const u8,
+        sai: *const u8,
+        reads: *const u8,
+        read_bytes: usize,
+        requests: *const crate::ProbeRequestV2,
+        n: usize,
+        config: crate::ProbeConfigV2,
+        out: *mut crate::ProbeOutputV2,
+        stats: *mut crate::ProbeStats,
+        event_ms: *mut f32,
+        stream: *mut std::ffi::c_void,
+    ) -> i32;
+}
+
+/// Synchronous prefix probe. SAindex is read directly from a checked resident lease.
+#[allow(clippy::too_many_arguments)]
+pub fn seed_probe_v2(
+    ctx: &Context,
+    genome: &GpuLease<umem::Ro>,
+    sa: &GpuLease<umem::Ro>,
+    sai: &GpuLease<umem::Ro>,
+    reads: &GpuLease<umem::Ro>,
+    read_bytes: usize,
+    requests: &GpuLease<umem::Ro>,
+    output: &GpuLease<Rw>,
+    stats: &GpuLease<Rw>,
+    config: crate::ProbeConfigV2,
+    n: usize,
+) -> Result<f32, Error> {
+    ctx.activate()?;
+    let c = config.inner;
+    if ctx.host_register
+        || ctx.props.pageable_memory_access_uses_host_page_tables != 1
+        || n == 0
+        || n > 4_000_000
+        || !(32..=53).contains(&c.strand_bit)
+        || c.n_genome == 0
+        || c.n_genome > (8 << 30)
+        || c.n_sa == 0
+        || c.n_sa > (64u64 << 30) / 4
+        || config.sai_bytes > sai.len() as u64
+        || read_bytes == 0
+        || read_bytes > reads.len()
+    {
+        return Err(Error::InvalidInput("PROBE V2 config/count/ATS domain"));
+    }
+    ctx.check_lease(genome, "PROBE V2 genome", c.n_genome as usize + 400)?;
+    ctx.check_lease(
+        sa,
+        "PROBE V2 SA",
+        ((c.n_sa - 1) * (c.strand_bit + 1) / 8 + 8) as usize,
+    )?;
+    ctx.check_lease(sai, "PROBE V2 SAindex", config.sai_bytes as usize)?;
+    ctx.check_lease(reads, "PROBE V2 reads", read_bytes)?;
+    ctx.check_lease(
+        requests,
+        "PROBE V2 requests",
+        n * size_of::<crate::ProbeRequestV2>(),
+    )?;
+    ctx.check_lease(
+        output,
+        "PROBE V2 output",
+        n * size_of::<crate::ProbeOutputV2>(),
+    )?;
+    ctx.check_lease(stats, "PROBE V2 stats", n * size_of::<crate::ProbeStats>())?;
+    // SAFETY: all seven leases are context/extent checked and remain live through
+    // the shim's synchronous stream drain, including on failure.
+    let (g, sa_p, sai_p, r, q, o, s) = unsafe {
+        (
+            genome.as_ptr(),
+            sa.as_ptr(),
+            sai.as_ptr(),
+            reads.as_ptr(),
+            requests.as_ptr(),
+            output.as_ptr(),
+            stats.as_ptr(),
+        )
+    };
+    let ranges = [
+        (g as usize, genome.len()),
+        (sa_p as usize, sa.len()),
+        (sai_p as usize, sai.len()),
+        (r as usize, reads.len()),
+        (q as usize, requests.len()),
+        (o as usize, output.len()),
+        (s as usize, stats.len()),
+    ];
+    for i in 5..7 {
+        for j in 0..i {
+            if ranges[i].0 < ranges[j].0.saturating_add(ranges[j].1)
+                && ranges[j].0 < ranges[i].0.saturating_add(ranges[i].1)
+            {
+                return Err(Error::InvalidInput("PROBE V2 writable overlap"));
+            }
+        }
+    }
+    if [q as usize, o as usize, s as usize]
+        .iter()
+        .any(|p| p % 8 != 0)
+    {
+        return Err(Error::InvalidInput("PROBE V2 record alignment"));
+    }
+    let mut ms = 0.0;
+    // SAFETY: the checked leases above guarantee all index and batch storage until
+    // the CUDA shim drains; no pointer is retained by the shim.
+    check(unsafe {
+        umgpu_seed_probe_v2(
+            g,
+            sa_p,
+            sai_p,
+            r,
+            read_bytes,
+            q.cast(),
+            n,
+            config,
+            o.cast(),
+            s.cast(),
+            &mut ms,
+            ctx.default_stream().raw,
+        )
+    })?;
+    Ok(ms)
+}

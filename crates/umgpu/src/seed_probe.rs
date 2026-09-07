@@ -57,6 +57,61 @@ pub struct ProbeSlices<'a> {
     pub requests: &'a [ProbeRequest],
 }
 
+/// Separate V2 transport; V1 layouts and entry points remain unchanged.
+pub const PROBE_ABI_VERSION: u64 = 2;
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProbeRequestV2 {
+    pub inner: ProbeRequest,
+    pub distance: u64,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProbeOutputV2 {
+    pub inner: ProbeOutput,
+    /// 0 legacy, 1 prefix only, 2 unique, 3 inner search after prefix walk.
+    pub branch: u64,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ProbeConfigV2 {
+    pub inner: ProbeConfig,
+    pub index_bases: u64,
+    pub sai_width: u64,
+    pub absent_mask: u64,
+    pub n_mask: u64,
+    pub n_mask_c: u64,
+    pub sparse: u64,
+    pub seed_search_lmax: u64,
+    pub sai_offset: u64,
+    pub sai_bytes: u64,
+    pub starts: [u64; 16],
+}
+// SAFETY: FFI records consist solely of consecutive u64 words, with no padding.
+unsafe impl umem::Pod for ProbeRequestV2 {}
+// SAFETY: FFI record consists solely of consecutive u64 words, with no padding.
+unsafe impl umem::Pod for ProbeOutputV2 {}
+// SAFETY: FFI record consists solely of consecutive u64 words, with no padding.
+unsafe impl umem::Pod for ProbeConfigV2 {}
+const _: () = {
+    assert!(size_of::<ProbeRequestV2>() == 88);
+    assert!(std::mem::offset_of!(ProbeRequestV2, distance) == 80);
+    assert!(size_of::<ProbeOutputV2>() == 48);
+    assert!(std::mem::offset_of!(ProbeOutputV2, branch) == 40);
+    assert!(size_of::<ProbeConfigV2>() == 224);
+    assert!(std::mem::offset_of!(ProbeConfigV2, index_bases) == 24);
+    assert!(std::mem::offset_of!(ProbeConfigV2, starts) == 96);
+    assert!(std::mem::offset_of!(ProbeConfigV2, sai_width) == 32);
+    assert!(std::mem::offset_of!(ProbeConfigV2, absent_mask) == 40);
+    assert!(std::mem::offset_of!(ProbeConfigV2, n_mask) == 48);
+    assert!(std::mem::offset_of!(ProbeConfigV2, n_mask_c) == 56);
+    assert!(std::mem::offset_of!(ProbeConfigV2, sparse) == 64);
+    assert!(std::mem::offset_of!(ProbeConfigV2, seed_search_lmax) == 72);
+    assert!(std::mem::offset_of!(ProbeConfigV2, sai_offset) == 80);
+    assert!(std::mem::offset_of!(ProbeConfigV2, sai_bytes) == 88);
+    assert!(align_of::<ProbeConfigV2>() == 8);
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;

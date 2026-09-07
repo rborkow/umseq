@@ -74,3 +74,5 @@ per-frame 40,000-job consumption scan.
    positional mismatch, and never searches a hash bucket.
 3. GREEN: generated comparator code has no observer hook; enabled-only hooks and
    call-site accounting leave the disabled inner-search path as the stock call.
+
+- **P2C-INTEGRATE-V2-T3 (2026-09-07):** Mac exhaustive prefix-grid oracle and workspace fmt/clippy/tests pass; V1 ABI retained, V2 prefix-only/unique/search and distinct rejections added. Exact 999,914 replay driver ready; CUDA, strict 20M and Tier 0 GPU gates pending Spark. Contract, Terra handoff and evidence: `bench/PHASE2C-integrate-v2-t3.md`.

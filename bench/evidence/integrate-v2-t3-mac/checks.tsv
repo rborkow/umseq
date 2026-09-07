@@ -1,0 +1,8 @@
+check	exit	result
+cargo fmt --all --check	0	pass
+cargo clippy --workspace --all-targets -- -D warnings	0	pass
+cargo test --workspace	0	pass
+clang-format --dry-run --Werror (six owned C/C++/CUDA files)	0	pass
+C11 ABI header syntax/static asserts	0	pass
+loaded Genome helper syntax check	1	blocked: local STAR includes omp.h, unavailable on Mac
+GPU compilation/device grid/999914 replay/20M strict/Tier0 GPU	NA	not run; Spark orchestrator required

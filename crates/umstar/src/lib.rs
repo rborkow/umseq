@@ -4,3 +4,7 @@
 mod implementation;
 
 pub use implementation::{UsiContext, UsiErrorV1, UsiIdentityV1};
+
+pub use implementation::prefix::{PrefixSession, UsiPrefixContext};
+
+pub mod prefix_oracle;

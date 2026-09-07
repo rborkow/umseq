@@ -84,3 +84,49 @@ extern "C" int umgpu_seed_probe(const uint8_t *g, const uint8_t *sa,
     cudaEventDestroy(end);
   return int(rc);
 }
+
+__global__ void probe_prefix_kernel(const uint8_t *g, const uint8_t *sa,
+                                    const uint8_t *sai, const uint8_t *reads,
+                                    size_t read_bytes,
+                                    const ProbeRequestV2 *requests, size_t n,
+                                    ProbeConfigV2 config, ProbeOutputV2 *out,
+                                    ProbeStats *stats) {
+  const size_t i = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (i >= n)
+    return;
+  ProbePrefixSearch search{g, sa, sai, reads, read_bytes, config, requests[i]};
+  out[i] = search.run();
+  stats[i] = search.stats;
+}
+extern "C" int umgpu_seed_probe_v2(const uint8_t *g, const uint8_t *sa,
+                                   const uint8_t *sai, const uint8_t *reads,
+                                   size_t read_bytes,
+                                   const ProbeRequestV2 *requests, size_t n,
+                                   ProbeConfigV2 config, ProbeOutputV2 *out,
+                                   ProbeStats *stats, float *event_ms,
+                                   cudaStream_t stream) {
+  cudaEvent_t begin = nullptr, end = nullptr;
+  cudaError_t rc = cudaEventCreate(&begin);
+  if (rc == cudaSuccess)
+    rc = cudaEventCreate(&end);
+  if (rc == cudaSuccess)
+    rc = cudaEventRecord(begin, stream);
+  if (rc == cudaSuccess) {
+    probe_prefix_kernel<<<(n + 127) / 128, 128, 0, stream>>>(
+        g, sa, sai, reads, read_bytes, requests, n, config, out, stats);
+    rc = cudaGetLastError();
+  }
+  if (rc == cudaSuccess)
+    rc = cudaEventRecord(end, stream);
+  // The live genome/SA/SAi/read/request/output leases survive every drain path.
+  const cudaError_t drained = cudaStreamSynchronize(stream);
+  if (rc == cudaSuccess)
+    rc = drained;
+  if (rc == cudaSuccess)
+    rc = cudaEventElapsedTime(event_ms, begin, end);
+  if (begin)
+    cudaEventDestroy(begin);
+  if (end)
+    cudaEventDestroy(end);
+  return int(rc);
+}

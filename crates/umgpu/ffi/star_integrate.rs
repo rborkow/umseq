@@ -570,6 +570,9 @@ pub unsafe extern "C" fn usi_destroy_v1(ctx: *mut *mut UsiContext, error: *mut U
     .unwrap_or_else(|_| err(error, UNCERTAIN, "panic at destroy boundary"))
 }
 
+#[path = "star_prefix.rs"]
+pub mod prefix;
+
 #[cfg(test)]
 mod tests {
     use super::*;

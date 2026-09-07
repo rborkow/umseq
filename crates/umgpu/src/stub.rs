@@ -203,6 +203,24 @@ pub fn seed_probe_reclaim(
     Err("PROBE CUDA unavailable".into())
 }
 
+/// Prefix probe requires CUDA; the independent host oracle lives in umstar tests.
+#[allow(clippy::too_many_arguments)]
+pub fn seed_probe_v2(
+    _ctx: &Context,
+    _genome: &umem::GpuLease<umem::Ro>,
+    _sa: &umem::GpuLease<umem::Ro>,
+    _sai: &umem::GpuLease<umem::Ro>,
+    _reads: &umem::GpuLease<umem::Ro>,
+    _read_bytes: usize,
+    _requests: &umem::GpuLease<umem::Ro>,
+    _output: &umem::GpuLease<umem::Rw>,
+    _stats: &umem::GpuLease<umem::Rw>,
+    _config: crate::ProbeConfigV2,
+    _n: usize,
+) -> Result<f32, Error> {
+    Err(Error::Unsupported)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

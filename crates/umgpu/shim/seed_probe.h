@@ -72,7 +72,8 @@ template <class Warp = ProbeScalar> struct ProbeSearchImpl {
       return 0;
     }
     stats.directions |= ProbeU64(1) << ((1 - r.dir) * 2 + !forward);
-    // Preserve the SA gather, but form no sequence address for an empty comparison.
+    // Preserve the SA gather, but form no sequence address for an empty
+    // comparison.
     if (prefix == length) {
       move_lower = false;
       return length;
@@ -217,3 +218,94 @@ template <class Warp = ProbeScalar> struct ProbeSearchImpl {
 };
 
 using ProbeSearch = ProbeSearchImpl<>;
+
+// STAR ReadAlign_maxMappableLength2strands.cpp:17-97, sparse=1 only.
+// This host/device body is also executed by the Mac oracle harness.
+struct ProbePrefixSearch {
+  const uint8_t *genome, *sa, *sai, *reads;
+  ProbeU64 read_bytes;
+  ProbeConfigV2 c;
+  ProbeRequestV2 request;
+  ProbeStats stats{};
+  PROBE_FN ProbeOutputV2 reject(ProbeU64 status) {
+    return {{0, 0, 0, 0, status}, 0};
+  }
+  PROBE_FN ProbeOutputV2 run() {
+    ProbeRequest r = request.inner;
+    if (r.tag == 0) {
+      ProbeSearch search{genome, sa, reads, read_bytes, c.inner, r};
+      const auto result = search.run();
+      stats = search.stats;
+      return {result, 0};
+    }
+    if (r.tag != 1 || r.dir > 1)
+      return reject(1);
+    if (c.sparse != 1 || c.seed_search_lmax != 0 || request.distance != 0)
+      return reject(5);
+    if (r.read_len == 0 || r.read_len > 4096 || r.length == 0 ||
+        r.start >= r.read_len || r.s0 > read_bytes ||
+        r.read_len > read_bytes - r.s0 || r.s1 > read_bytes ||
+        r.read_len > read_bytes - r.s1 ||
+        (r.dir == 1 && r.length > r.read_len - r.start) ||
+        (r.dir == 0 && r.length > r.start + 1))
+      return reject(2);
+    if (!sai || c.index_bases == 0 || c.index_bases > 15 || c.sai_width == 0 ||
+        c.sai_width > 63 || c.inner.n_sa == 0 || c.sai_offset > c.sai_bytes ||
+        c.sai_bytes - c.sai_offset < 8 || c.starts[0] != 0)
+      return reject(7);
+    for (ProbeU64 k = 0; k < c.index_bases; ++k)
+      if (c.starts[k + 1] != c.starts[k] + (ProbeU64(1) << (2 * (k + 1))))
+        return reject(7);
+    const ProbeU64 entries = c.starts[c.index_bases];
+    if ((entries - 1) > (~ProbeU64(0) - 63) / c.sai_width ||
+        (entries - 1) * c.sai_width / 8 + 8 > c.sai_bytes - c.sai_offset)
+      return reject(7);
+    ProbeU64 lind = probe_min(c.index_bases, r.length), ind1 = 0;
+    for (ProbeU64 ii = 0; ii < lind; ++ii) {
+      const auto b = reads[r.s0 + (r.dir == 1 ? r.start + ii : r.start - ii)];
+      if (b > 3)
+        return reject(8);
+      ind1 = (ind1 << 2) + (r.dir == 1 ? b : 3 - b);
+    }
+    ProbeU64 isa1 = 0;
+    while (lind > 0) {
+      isa1 = probe_packed(sai + c.sai_offset, c.starts[lind - 1] + ind1,
+                          c.sai_width);
+      if ((isa1 & c.absent_mask) == 0)
+        break;
+      --lind;
+      ind1 >>= 2;
+    }
+    if (!lind)
+      return reject(6);
+    ProbeU64 isa2 = c.inner.n_sa - 1;
+    bool good = false;
+    if (c.starts[lind - 1] + ind1 + 1 < c.starts[lind]) {
+      const auto next = probe_packed(
+          sai + c.sai_offset, c.starts[lind - 1] + ind1 + 1, c.sai_width);
+      if ((next & c.absent_mask) == 0) {
+        isa2 = (next & c.n_mask) - 1;
+        good = true;
+      }
+    }
+    const bool no_n = (isa1 & c.n_mask_c) == 0;
+    r.low = isa1 & c.n_mask;
+    r.high = isa2;
+    r.prefix = good && no_n ? lind : 0;
+    r.tag = 0;
+    if (r.low > r.high || r.high >= c.inner.n_sa)
+      return reject(7);
+    if (lind < c.index_bases && no_n && good)
+      return {{lind, isa1, isa2, isa2 - isa1 + 1, 0}, 1};
+    ProbeSearch search{genome, sa, reads, read_bytes, c.inner, r};
+    if (isa1 == isa2 && no_n && good) {
+      bool ordering = false;
+      const auto length = search.compare(isa1, r.length, lind, ordering);
+      stats = search.stats;
+      return {{length, isa1, isa1, 1, search.status}, 2};
+    }
+    const auto result = search.run();
+    stats = search.stats;
+    return {result, 3};
+  }
+};
