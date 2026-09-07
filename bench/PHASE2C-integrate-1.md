@@ -231,3 +231,42 @@ What is established, each with raw evidence:
 PIPELINE-RUN is not funded under the ≥8% rule. Deployment recommendation unchanged from
 `bench/COST-CURVE.md`: the umbam chain is the product; the STAR seed lane is a proven
 kernel awaiting an integration architecture.
+
+## Round 5a (INTEGRATE v2 T1, `91981c8`): floor to zero, GPU arm +2.3% mapping-phase
+
+Evidence: `integrate-gate-host10/`, `integrate-timing-host5/`,
+`bench/evidence/integrate-1-host/timing-round5a-raw.tsv`, `timing-round5a-r*-gpu-stats.jsonl`.
+
+Gate (i) `PARITY_MATCH` (fifth). 134–136M consumed (96%), 0 CPU tails, positional consumption
+(`key_misses` 8–10M are the frames whose candidate the CPU fell back on; no hash).
+
+| arm (20M, 20 thr, 3 rotated repeats) | startup | mapping wall | user | sys | user+sys |
+|---|---|---|---|---|---|
+| stock | 8–10 s | 47–48 s | 726 | 28 | **754** |
+| integrated, hooks bypassed | 7–8 s | 46–47 s | 728 | 26 | **753 (−0.2%)** |
+| integrated, GPU on | 74–90 s | **47–49 s** | 743 | 74 | 818 (+8.4%) |
+
+- **Bypass floor gone**: +6.5% → −0.2%. `compared()` out of the inner loop and `enabled_fast()`
+  gating did what Task 0 said they would.
+- **GPU-arm user CPU 829 → 743 (−86 CPU-s)**: positional consumption removed `lookup`'s hash
+  (Task 0 said ~45 at 20M) plus the floor (~48). Mapping wall now equals stock.
+- **Mapping-phase CPU-s: 772, +2.3%** over stock (user 743 + stock's sys 28). The GPU arm
+  is now within noise of stock on the mapping phase, with 96% of inner seed searches on the
+  device. Gate (iii) bar is −8%; T3 (prefix on device) is the next measured step.
+- **Setup did *not* improve** (74–90 s wall, ~46 sys CPU-s). Item A removed STAR-side file
+  sampling, but the dominant cost was never that: `usi_init` → `probe_load`
+  (`crates/umseed-probe/src/index.rs:91-213`) reads Genome/SA/SAindex **from disk into a
+  second 30 GB resident copy** on every run. The identity check was the small part. Fix
+  is below; it's the last fixed cost and it is not a hashing problem.
+
+### The second index copy
+
+T6 (`docs/design-phase2b.md:54-60`) established that on GB10 a plain host `mmap` buffer is
+device-accessible through HMM/ATS with no registration. STAR's own `Genome`/`SA`/`SAindex`
+are `new char[]` (`Genome_genomeLoad.cpp:272-289`, `PackedArray.cpp:32`) — also plain host
+memory, also device-accessible. The kernel could gather from **STAR's arrays directly**: no
+second copy, no 74–90 s load, 30 GB less RSS. The open question is page size: T6's rate was
+measured on THP-backed `umem`; the probe's 4K-page control ran at 0.07× (P2C-SEED-GPU-PROBE).
+`new char[30 GB]` under glibc is `mmap`'d and gets THP only if `transparent_hugepage=always`
+or STAR calls `madvise` (it doesn't). Measured next, not assumed: the same probe over STAR's
+arrays (a) as-is, (b) after `madvise(MADV_HUGEPAGE)` + a touch pass, vs the `umem` copy.
