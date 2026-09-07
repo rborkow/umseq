@@ -5,6 +5,12 @@ Supersedes the sequencing in `.hermes/plans/2026-09-06_092218-star-seed-search.m
 the `P2C-REPLAY-SCALE` backlog entry; keeps every gate in that plan, reorders them so the
 cheap disqualifying measurements come first.
 
+## Current sequencing override (user, after accepted SPLIT + PROBE)
+
+Run **P2C-REAL-REQUESTS (Terra)** and **P2C-STAR-INTEGRATE-DESIGN (Astra, design only)** in parallel. Real prefix-narrowed requests (~5.4 loops versus synthetic~35) are the next falsifier: bounded~1M captured requests, unchanged SSIRv1/parser, existing CPU20 versus thread GPU,3 repeats, captured STAR tuples against both arms. Report distributions and ratio. >=5x funds remaining rigor; a collapse toward2x needs a decision. Then stop for explicit authorization of SEED-CUDA and STAR integration implementation together.
+
+Hold PE-HOST-FAULTS/2, OWNED-SEARCH-SESSION, OWNED-REQUEST-TESTS and FULL-INDEX-CONTRACT cap-matrix work; no shipping-grade trace/allocation hardening ahead of this measurement. One independent review pass per card. Main accepted both preceding results and now estimates the hypothesis at~75%; the original odds/ladder below are retained history where superseded. Integration design evaluates all three batching mechanisms, duplicate-index memory versus private umem loading, and a C ABI, without implementation.
+
 ## The hypothesis, stated so it can be falsified
 
 > On a unified-memory workstation, STAR's suffix-array seed search — 39% of STAR's CPU,

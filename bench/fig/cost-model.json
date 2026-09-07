@@ -2,7 +2,43 @@
  "scenarios_cpu_min": {
   "nf-core stock (measured)": 222.89999999999998,
   "umbam CPU replaces BAM chain": 148.48666666666665,
-  "umbam CPU+GPU": 147.0533333333333
+  "umbam CPU+GPU": 147.0533333333333,
+  "umbam + GPU seed search (PROJECTED, 1.07\u20131.15\u00d7)": 138.7725856697819
+ },
+ "projection": {
+  "label": "umbam + GPU seed search (PROJECTED, 1.07\u20131.15\u00d7)",
+  "projected": true,
+  "comparator": "umbam CPU replaces BAM chain",
+  "baseline_cpu_min": 148.48666666666665,
+  "factor_bounds": [
+   1.07,
+   1.15
+  ],
+  "cpu_min_bounds": [
+   129.11884057971014,
+   138.7725856697819
+  ],
+  "capacity_bounds": [
+   1.07,
+   1.15
+  ],
+  "baseline_capacity_per_month_80pct": 4654.963408611324,
+  "capacity_per_month_bounds_80pct": [
+   4980.810847214117,
+   5353.207919903022
+  ],
+  "assumptions": [
+   "unmeasured capacity projection atop the umbam CPU baseline",
+   "CPU-min/sample is comparator CPU-min/sample divided by factor",
+   "capacity is comparator capacity multiplied by factor",
+   "no additional hardware capex is implied",
+   "calibrated composed scenarios are not measured full-pipeline runs"
+  ]
+ },
+ "chart": {
+  "projected_style": "dashed",
+  "projected_label": "umbam + GPU seed search (PROJECTED, 1.07\u20131.15\u00d7)",
+  "projection_envelope": true
  },
  "umbam": {
   "CPU (20 thr)": [
@@ -63,6 +99,18 @@
    0.8,
    156.67784930637413,
    2.136409421974275
+  ],
+  [
+   "umbam + GPU seed search (PROJECTED, 1.07\u20131.15\u00d7)",
+   0.32,
+   66.41081129618823,
+   5.040264181985918
+  ],
+  [
+   "umbam + GPU seed search (PROJECTED, 1.07\u20131.15\u00d7)",
+   0.8,
+   166.02702824047057,
+   2.0161056727943674
   ]
  ],
  "assumed": {

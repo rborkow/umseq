@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Cost-curve model + figures for the uni-rnaseq memo.
 
-Every number is from a measured run (bench/), except the ones marked ASSUMED, which are
-parameters on the command line. Run: python3 scripts/cost_curve.py  ->  bench/fig/*.png
+Every number is from a measured run (bench/), except the ones marked ASSUMED or PROJECTED.
+Run: python3 scripts/cost_curve.py  ->  bench/fig/*.png
 """
 import argparse, json, os
 import numpy as np
@@ -66,6 +66,13 @@ scenarios = {
     "umbam CPU replaces BAM chain":  sum(NFCORE.values()) - NFCORE_BAMCHAIN_CPU + UMBAM["CPU (20 thr)"][1],
     "umbam CPU+GPU":                 sum(NFCORE.values()) - NFCORE_BAMCHAIN_CPU + UMBAM["CPU + GPU"][1],
 }
+PROJECTION_LABEL = "umbam + GPU seed search (PROJECTED, 1.07–1.15×)"
+PROJECTION_FACTORS = (1.07, 1.15)
+PROJECTION_COMPARATOR = "umbam CPU replaces BAM chain"
+projection_baseline = scenarios[PROJECTION_COMPARATOR]
+projection_cpu_bounds = (projection_baseline / PROJECTION_FACTORS[1], projection_baseline / PROJECTION_FACTORS[0])
+projection_cpu = projection_cpu_bounds[1]  # conservative capacity endpoint: 1.07×
+chart_scenarios = {**scenarios, PROJECTION_LABEL: projection_cpu}
 for k, v in scenarios.items():
     print(f"{k:34s} {v:6.1f} cpu-min/sample  -> {samples_per_day(v,0.8):5.1f}/day @80%  {samples_per_day(v,0.32):5.1f}/day @32%")
 
@@ -91,9 +98,10 @@ styles = {
     "nf-core stock (measured)": ("#7f8c8d", "--"),
     "umbam CPU replaces BAM chain": ("#2980b9", "-"),
     "umbam CPU+GPU": ("#27ae60", "-"),
+    PROJECTION_LABEL: ("#d97706", "--"),
 }
 caps = {}
-for name, cpu in scenarios.items():
+for name, cpu in chart_scenarios.items():
     c, ls = styles[name]
     cap = samples_per_day(cpu, UTIL) * 30
     caps[name] = cap
@@ -101,6 +109,12 @@ for name, cpu in scenarios.items():
     ax.plot(vol, cost, color=c, ls=ls, lw=2, label=f"DGX Spark — {name}: one box ≤ {cap:,.0f}/mo")
     ax2.step(vol, boxes, where="post", color=c, ls=ls, lw=2)
     ax.axvline(cap, color=c, ls=":", lw=1, alpha=.7)
+projection_cost_low, _ = per_sample_cost(A.spark_price, A.life_months, vol, projection_cpu_bounds[1])
+projection_cost_high, _ = per_sample_cost(A.spark_price, A.life_months, vol, projection_cpu_bounds[0])
+ax.fill_between(vol, projection_cost_low, projection_cost_high, color="#d97706", alpha=.12,
+                label="PROJECTED capacity range: 1.07–1.15× baseline")
+ax.axvspan(caps[PROJECTION_LABEL], caps[PROJECTION_LABEL] * PROJECTION_FACTORS[1] / PROJECTION_FACTORS[0],
+           color="#d97706", alpha=.10)
 cost_ms, boxes_ms = per_sample_cost(A.studio_price, A.life_months, vol, scenarios["umbam CPU replaces BAM chain"]*20/32)
 ax.plot(vol, cost_ms, color="#8e44ad", ls=":", lw=2, label=f"Mac Studio M5 Ultra (ASSUMED ${A.studio_price/1000:.0f}k, 32 cores, untested)")
 ax2.step(vol, boxes_ms, where="post", color="#8e44ad", ls=":", lw=2)
@@ -108,7 +122,7 @@ ax.set_xscale("log"); ax.set_yscale("log")
 ax.set_ylabel("$ / sample (hardware over %.0f mo + energy)" % A.life_months)
 ax.set_title("Cost curve: $/sample vs monthly volume. Below capacity every box is capex ÷ volume;\nthroughput decides when you need the next box", fontsize=11)
 ax.grid(True, which="both", alpha=.25)
-ax.set_ylim(0.05, 300); ax.set_xlim(1, 20000)
+ax.set_ylim(0.02, 300); ax.set_xlim(1, 20000)
 ax.legend(fontsize=8, loc="upper right")
 be = A.spark_price / A.life_months / A.batch_per_sample
 ax.annotate(f"break-even {be:.0f} samples/mo\n(${A.spark_price:,.0f} over {A.life_months:.0f} mo)", (be, A.batch_per_sample),
@@ -187,9 +201,37 @@ for name, cpu in scenarios.items():
         spd = samples_per_day(cpu, util)
         be_samples = A.spark_price / (A.batch_per_sample - 0.05)
         rows.append((name, util, spd, be_samples / spd))
+for util in (0.32, 0.8):
+    spd = samples_per_day(projection_cpu, util)
+    be_samples = A.spark_price / (A.batch_per_sample - 0.05)
+    rows.append((PROJECTION_LABEL, util, spd, be_samples / spd))
 print("\nscenario, util, samples/day, days to break even vs Batch (Spark $%.0f):" % A.spark_price)
 for r in rows:
     print(f"  {r[0]:34s} {r[1]:.0%}  {r[2]:6.1f}/day  {r[3]:5.1f} days")
-json.dump({"scenarios_cpu_min": scenarios, "umbam": UMBAM, "nfcore": NFCORE, "rows": rows,
-           "assumed": vars(A)}, open(f"{A.out}/cost-model.json", "w"), indent=1)
+json.dump({"scenarios_cpu_min": {**scenarios, PROJECTION_LABEL: projection_cpu},
+           "projection": {
+               "label": PROJECTION_LABEL,
+               "projected": True,
+               "comparator": PROJECTION_COMPARATOR,
+               "baseline_cpu_min": projection_baseline,
+               "factor_bounds": list(PROJECTION_FACTORS),
+               "cpu_min_bounds": list(projection_cpu_bounds),
+               "capacity_bounds": list(PROJECTION_FACTORS),
+               "baseline_capacity_per_month_80pct": caps[PROJECTION_COMPARATOR],
+               "capacity_per_month_bounds_80pct": [
+                   caps[PROJECTION_COMPARATOR] * PROJECTION_FACTORS[0],
+                   caps[PROJECTION_COMPARATOR] * PROJECTION_FACTORS[1],
+               ],
+               "assumptions": [
+                   "unmeasured capacity projection atop the umbam CPU baseline",
+                   "CPU-min/sample is comparator CPU-min/sample divided by factor",
+                   "capacity is comparator capacity multiplied by factor",
+                   "no additional hardware capex is implied",
+                   "calibrated composed scenarios are not measured full-pipeline runs",
+               ],
+           },
+           "chart": {"projected_style": "dashed", "projected_label": PROJECTION_LABEL,
+                     "projection_envelope": True},
+           "umbam": UMBAM, "nfcore": NFCORE, "rows": rows, "assumed": vars(A)},
+          open(f"{A.out}/cost-model.json", "w"), indent=1)
 print("wrote", A.out)

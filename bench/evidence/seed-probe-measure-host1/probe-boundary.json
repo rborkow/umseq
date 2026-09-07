@@ -1,0 +1,28 @@
+{
+  "cases": {
+    "20m": {
+      "boundary": "inner-only",
+      "direct_bytes": 26706688,
+      "hook_overhead": "report separately; do not correct CPU timings",
+      "inner_bytes": 12615582076,
+      "inner_fraction": 0.9978875116287448,
+      "pairs": 20000000
+    },
+    "5m": {
+      "boundary": "inner-only",
+      "direct_bytes": 6677868,
+      "hook_overhead": "report separately; do not correct CPU timings",
+      "inner_bytes": 3153344355,
+      "inner_fraction": 0.9978867654944337,
+      "pairs": 5000000
+    }
+  },
+  "source_sha256": {
+    "/home/rborkows/uni-rnaseq-seed-lab/evidence/seed-split-run2-continuation/20m-parity/parity.json": "dbbc150ff22f8a5ed882b64f977c3d21a481387e40e3a62f74535d7215ffec66",
+    "/home/rborkows/uni-rnaseq-seed-lab/evidence/seed-split-run2-continuation/5m-counters/seed-split-counters.json": "85d2ed390b921d7a0219a4dea0db96caeababc261bc2e5e91132339fe3051af9",
+    "/home/rborkows/uni-rnaseq-seed-lab/evidence/seed-split-run2-continuation/5m-parity/parity.json": "f98e5a85d8efa96dce8d00dd2c83da90daf2cdc84ee0fa77fb96b6a3a31aea55",
+    "/home/rborkows/uni-rnaseq-seed-lab/evidence/seed-split-run2-continuation/run.status": "51d5dc5b75e8cd879e7d86cf35b8d789eef2a10fb51ccface55eddaab9a4a04b",
+    "/home/rborkows/uni-rnaseq-seed-lab/evidence/seed-split-run2/20m-counters/seed-split-counters.json": "216e49eb8ca446da77094452d4da73140b3077025b1078f7cb7386d6902e1db4"
+  },
+  "status": "PROBE_INNER_BOUNDARY_VALIDATED"
+}

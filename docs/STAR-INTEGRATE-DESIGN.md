@@ -2,6 +2,12 @@
 
 ## Current decision (supersedes historical alternatives below)
 
+**CHAIN-POSITION is in:** initial starts cover **76.4015868% of inner gathers**
+and **88.7551% of inner compared bytes**, with full20M stock parity intact.
+`bench/PHASE2C-chain-position.md` records the raw evidence. **Mechanism(a) only;
+no grid20.** Implementation has not started at this check-in. The conditional
+mechanism-selection rule below is now resolved.
+
 REAL-REQUESTS is accepted at6.60× with999,914/999,914 STAR tuples on both arms; review `docs/review-seed-real-requests.md` (`e3b6cee`). Kernel work is complete. First measure CHAIN-POSITION initial-start gather coverage and report it. Then INTEGRATE-1 is authorized: accept duplicate G/SA, initial-start speculation, exact-tuple lookup at the original call site, stock CPU fallback/oracle, unchanged storeAligns/read/chunk/RNG consumption. Grid20 is included only if initial coverage<50%. **Continuations are dropped**, not deferred; no allocator ownership patch. Batch target64k aggregated by one coordinator,256k if chunk capacity allows; underfilled tails use CPU. Private copy and compile flag, existing thread kernel/transport with a C-compatible header.
 
 Astra freezes the request/result contract and reviews consumption-order code once; Terra implements. Gates: unchanged SPLIT stock SAM/order/tags/SJ/non-timing-log parity, report/check in before timing; hit/miss/unused-candidate counts and compared-byte work; three paired STAR CPU-time repeats (target>=12%,memo-positive>=8%,<5% with parity is an honest negative). Wall/RSS/startup reported, not gated. Only>=8% authorizes the six-sample nf-core integrated STAR+umbam run. Same shared lock; renewed deadline2026-09-07 20:00PDT. Older authorization, timing, and options below are the original design record, not current instructions.

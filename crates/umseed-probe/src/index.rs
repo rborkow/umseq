@@ -16,6 +16,8 @@ pub struct ProbeResident {
     pub genome: Buf<Ro>,
     pub sa: Buf<Ro>,
     pub sai: Buf<Ro>,
+    /// Original file extent, including packed padding not recoverable from n_sa.
+    pub sa_file_bytes: u64,
     pub config: ProbeConfig,
     pub hashes: String,
     pub load_seconds: f64,
@@ -368,6 +370,7 @@ pub fn probe_load(dir: &Path, small: bool) -> Result<ProbeResident> {
         genome: genome.freeze(),
         sa: sa.freeze(),
         sai: sai.freeze(),
+        sa_file_bytes: sizes[1],
         config: ProbeConfig {
             n_genome: ng,
             n_sa: ns,

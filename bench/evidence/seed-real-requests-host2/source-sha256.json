@@ -1,0 +1,246 @@
+{
+  "Cargo.lock": {
+    "bytes": 31873,
+    "sha256": "026a51db76b86ab63908b9c6058e9cbc02d420fc805908f8d6751413e676ec07"
+  },
+  "Cargo.toml": {
+    "bytes": 108,
+    "sha256": "b19ad41bbdff2de7f3f1e01c7b6669773b568002da34ce241e8a021ed85b2d28"
+  },
+  "bench/real-requests/audit_reverse.py": {
+    "bytes": 2531,
+    "sha256": "ffb31201cf6bfe2d410937063eb90d241b4b132a66cd9fab589cb401e62efa3e"
+  },
+  "bench/real-requests/make_real_inner_capture.py": {
+    "bytes": 6528,
+    "sha256": "165e7f1591b8a87401de156f0231153a2d752706e4514ae85395de59b033e9d7"
+  },
+  "bench/real-requests/real_binding.py": {
+    "bytes": 7940,
+    "sha256": "4932478f4fd7b175810eec05ac00feeb060dca63e1a2870f5e9526b303a20b20"
+  },
+  "bench/real-requests/real_inner_capture_impl.hpp": {
+    "bytes": 14405,
+    "sha256": "12660635af58644ae45c81ffca0740d12f91ba9fa6d68607bd53ca7a99a887d1"
+  },
+  "bench/real-requests/resume_host.py": {
+    "bytes": 5292,
+    "sha256": "ca8880d2c0f8ed5ef0943194a97acd175aeaf6b6fdba2d949d47b7291e7e4ee5"
+  },
+  "bench/real-requests/run_host.py": {
+    "bytes": 8821,
+    "sha256": "002270cd07727c12869c5a707d2f2c47bd6d62be6fb518b866ef7828672a7188"
+  },
+  "bench/real-requests/run_real_requests_host.sh": {
+    "bytes": 506,
+    "sha256": "4bfafb4ef3f5fc9f32ef3354bace0079e5deb7cfd7b23b79e74194b3f7ef0316"
+  },
+  "bench/real-requests/run_resume_host.sh": {
+    "bytes": 433,
+    "sha256": "6ce85e1ca9a5e8ea09abe91927beb4f948b385486e3d6562f9343ef2abf84e20"
+  },
+  "bench/real-requests/ssir_to_umprobe.py": {
+    "bytes": 5000,
+    "sha256": "5f49263232b75ddb864a217c64c93b13bcccfcb7e796508fcf391e3c88de32b0"
+  },
+  "bench/real-requests/ssir_validate.cpp": {
+    "bytes": 1346,
+    "sha256": "9838eb98e769aac60f1f02c5c966be8f63f29713b7329294b4b694a5e7785b5c"
+  },
+  "bench/real-requests/summarize.py": {
+    "bytes": 3299,
+    "sha256": "6c8a24b7a6b8163effa59a7106c888e9f7ecd2f0e843d2cae554b233d78ef049"
+  },
+  "bench/real-requests/tests_real_binding.py": {
+    "bytes": 7266,
+    "sha256": "d6ac848b23f4f665ebc2d9a1d07147858aa399c3a22d56792ae94e1deca541e7"
+  },
+  "bench/real-requests/tests_real_capture.py": {
+    "bytes": 2094,
+    "sha256": "9cf83668d24571ad53b63db5ed7cf385523668b4f3e4b60b7cf73b678a92be60"
+  },
+  "crates/umem/Cargo.toml": {
+    "bytes": 228,
+    "sha256": "2ade5487d17ce7c4d9eacc32eaee8c8b11b0ed91f471b63db99352f0d1ec609f"
+  },
+  "crates/umem/benches/allocation.rs": {
+    "bytes": 833,
+    "sha256": "a2862a0179f202b500736fcb2394a25d650a974f9503bed434a518850f089adb"
+  },
+  "crates/umem/examples/thp_probe.rs": {
+    "bytes": 1396,
+    "sha256": "b216e65d2b34ce68bc3f2107a115ed63a51d991f7017266ec92ac93fc790b747"
+  },
+  "crates/umem/examples/thp_repro.rs": {
+    "bytes": 1257,
+    "sha256": "b43fe476a4caae241736576573b3628b22b4e7fd3dd1431f17f3a8143fa3aad6"
+  },
+  "crates/umem/src/backing.rs": {
+    "bytes": 16512,
+    "sha256": "9becee834bec79a729c1518dad3d9f32bdb2565a57bfe61290d491b0d069f804"
+  },
+  "crates/umem/src/lib.rs": {
+    "bytes": 25188,
+    "sha256": "35eb9ab5816328b77e3497b27b0a311c5bad52096e171be6bd3c8d4bbd95e557"
+  },
+  "crates/umem/src/quarantine.rs": {
+    "bytes": 572,
+    "sha256": "5450f9fcc0f5ae7c0ecf8ed2bff22c52bd5a438bf74ba7f8d3bc7a9aa826f0d4"
+  },
+  "crates/umem/src/smaps.rs": {
+    "bytes": 4239,
+    "sha256": "27a8a4a9e6ebd5b271074c1f18da1fb40c290d21e92a4d3b2f7e6c5316790014"
+  },
+  "crates/umem/tests/ownership.rs": {
+    "bytes": 131,
+    "sha256": "cdb1f38395bdf1db4f894ada2a9ae5bae91d092fe23071c429d6a6e3e3f404dd"
+  },
+  "crates/umem/tests/round_trip.rs": {
+    "bytes": 2839,
+    "sha256": "b06677fed097ba92596ca2b488280c3549cc60e7fa1939ad942d781a22e573f4"
+  },
+  "crates/umem/tests/thp.rs": {
+    "bytes": 563,
+    "sha256": "05dea3a4deaa0fa94930ef711b9b70acd76cf003e4203fb07531f76a36d6ce91"
+  },
+  "crates/umem/tests/ui/slice_after_lease.rs": {
+    "bytes": 288,
+    "sha256": "bc67a60368049254d0f87073051ece88c45ceab0a04e5c1f088db3f48c2cfec2"
+  },
+  "crates/umem/tests/ui/slice_after_lease.stderr": {
+    "bytes": 524,
+    "sha256": "ce46cbb9a94f0d73e6674828b09343ab8c9835644a28adfde68ec988770e66e9"
+  },
+  "crates/umgpu/Cargo.toml": {
+    "bytes": 223,
+    "sha256": "809b64a361bf1ac5d0162f1e27f2743755d8752f3b0d84df1b6a2255074bd5e3"
+  },
+  "crates/umgpu/build.rs": {
+    "bytes": 2597,
+    "sha256": "813e50f7d55a38f647bbe30138bae05b4cee9ebdeb277cfef14aea01473c8674"
+  },
+  "crates/umgpu/shim/LICENSE.star": {
+    "bytes": 1072,
+    "sha256": "551e5bc4f91bf85b75c848aabba5acbcff4f4adf75e606cd17787038a155e69f"
+  },
+  "crates/umgpu/shim/seed_probe.cu": {
+    "bytes": 3841,
+    "sha256": "bf91825d4ea1c274bf2b9978a3652f4caa678fe8c00fd88b61f24eac1d4ba704"
+  },
+  "crates/umgpu/shim/seed_probe.h": {
+    "bytes": 8856,
+    "sha256": "1a9dc3d13f647cfcf559a6b7870b8d3df218f87456a89b047567185fb46a67da"
+  },
+  "crates/umgpu/shim/umgpu_shim.cu": {
+    "bytes": 21685,
+    "sha256": "b2372de60e430e93cc8ca98d0a978215df404aadc89ccace4f01d74e823d99dc"
+  },
+  "crates/umgpu/shim/umgpu_shim.h": {
+    "bytes": 2503,
+    "sha256": "6489bcc5742afebbf681d4e8b56d4788a72ea228948546db60979e9e6341e9cb"
+  },
+  "crates/umgpu/src/cuda.rs": {
+    "bytes": 37683,
+    "sha256": "62e60b629e4c2729e1655fcbb3a5eeae90761f9c1aae96727888fa2b0520cab5"
+  },
+  "crates/umgpu/src/lib.rs": {
+    "bytes": 2330,
+    "sha256": "0dc6320d802c4dbb5400f4f43c2043d810c171cf9e5cf303972f6e57b9ab21bf"
+  },
+  "crates/umgpu/src/seed_probe.rs": {
+    "bytes": 2537,
+    "sha256": "6e35b3f72f007b9c9e3fae8041ce29f16e6b6ed4afa81bb5afbbed2261ea1e41"
+  },
+  "crates/umgpu/src/stub.rs": {
+    "bytes": 4257,
+    "sha256": "23f562425b6a62a2f726e90f79a441d8d5c4fd32c915bd9422c743df50346165"
+  },
+  "crates/umgpu/tests/sort.rs": {
+    "bytes": 4580,
+    "sha256": "d4fcff16ed6bc763f0e83b3f4cef34776c12e1e6191c543d720a41f62ed2b66b"
+  },
+  "crates/umseed-probe/Cargo.toml": {
+    "bytes": 355,
+    "sha256": "244967ab223ca3a28a01a0b6e6b24e73f1800e26b0c2abf8f737fb0be9b0463d"
+  },
+  "crates/umseed-probe/LICENSE.star": {
+    "bytes": 1072,
+    "sha256": "551e5bc4f91bf85b75c848aabba5acbcff4f4adf75e606cd17787038a155e69f"
+  },
+  "crates/umseed-probe/PROBE-IMPLEMENTATION.md": {
+    "bytes": 15187,
+    "sha256": "babae1426a22ba80033767a58d8a0bc64b05583763bec3e5d63f5b645aea8573"
+  },
+  "crates/umseed-probe/PROBE-WARP-IMPLEMENTATION.md": {
+    "bytes": 6241,
+    "sha256": "43749b827cfb729265b6fc055442c0b78bfa05ba89ebec428440902424797a09"
+  },
+  "crates/umseed-probe/scripts/check-probe-cuda-syntax.sh": {
+    "bytes": 737,
+    "sha256": "7043d5cfc016ee99a731c5f7622d97714291ea46a985e5468cbdd98fc8b17181"
+  },
+  "crates/umseed-probe/scripts/probe-spark.sh": {
+    "bytes": 4385,
+    "sha256": "b576da193cdfbe26b7a497636c51fd32430aaaf30bf48435f5a913afc8bd2173"
+  },
+  "crates/umseed-probe/src/cpu.rs": {
+    "bytes": 7206,
+    "sha256": "aea756169c3332e8057cd92666a32705ed277957bf64ce7ceafb20c4e8b55409"
+  },
+  "crates/umseed-probe/src/index.rs": {
+    "bytes": 14333,
+    "sha256": "d6f0a66548a91a609741abf26a5c9d73cd452c4278a0254e2a4b583db032500e"
+  },
+  "crates/umseed-probe/src/lib.rs": {
+    "bytes": 114,
+    "sha256": "9781696f0ee1b585ac09bb704f525d7b8d785a42df3a901f8552a5b295826dd5"
+  },
+  "crates/umseed-probe/src/main.rs": {
+    "bytes": 30245,
+    "sha256": "8701da831b8f64d7ea456e6e0bf29b33bca4ba5154c114f89551bf5d86f79659"
+  },
+  "crates/umseed-probe/src/requests.rs": {
+    "bytes": 11912,
+    "sha256": "e0209c667647e769410fc4da56e653056f19290221c0b0a104b17484d6f14d97"
+  },
+  "crates/umseed-probe/tests/probe_cuda_syntax/cuda_runtime.h": {
+    "bytes": 1401,
+    "sha256": "8f43dbd4f8e1f1648bc9c100bb831eb2c3435abd5d35149f0c1694768b8c6da1"
+  },
+  "crates/umseed-probe/tests/probe_loader.rs": {
+    "bytes": 3266,
+    "sha256": "f77f09856f64106f6c26b6e69e7ce5789e093236560790d7aad519aa578bc979"
+  },
+  "crates/umseed-probe/tests/probe_search.rs": {
+    "bytes": 10095,
+    "sha256": "22f8bafee27af868e53fabe504f629964acc99be43c99354d10b9649c1f2ff22"
+  },
+  "crates/umseed-probe/tests/probe_transport.cpp": {
+    "bytes": 1730,
+    "sha256": "34e38edd6a6699a3eb0bee068cc146c6823dc16b8ee109f6696a2e6ecb2030e4"
+  },
+  "crates/umseed-probe/tests/probe_warp.cpp": {
+    "bytes": 5533,
+    "sha256": "108ef16a8bb93a0aa34022cda82e38ddda27a15fdf6ce3f267b63c599ae6b90b"
+  },
+  "crates/umseed-probe/tests/probe_warp_host.h": {
+    "bytes": 2941,
+    "sha256": "623e33997494983136fb8a1589305f5a26ef9d0aa5a10252aa3f738c6aebb210"
+  },
+  "tooling/replay/format.cpp": {
+    "bytes": 32207,
+    "sha256": "7cd27f299e92f52eb884201a867e77d26ca457da0a84fed98635d1ec087df6dd"
+  },
+  "tooling/replay/format.hpp": {
+    "bytes": 2013,
+    "sha256": "83a32f27de65da0c907968c1158dc08ced51974e6f0f3cbda6ccd9e992816369"
+  },
+  "tooling/replay/sha256.cpp": {
+    "bytes": 4644,
+    "sha256": "e71657d7a2b966a3d0e27fbac26f574b0f5f6354dc8a043948367aad7d69d6a1"
+  },
+  "tooling/replay/sha256.hpp": {
+    "bytes": 702,
+    "sha256": "824e6ffaaabadd1ca2a26fc42c5e13eeaef0b7f0cf9ce64daa6093c396b207b7"
+  }
+}

@@ -1,0 +1,1 @@
+["python3", "-B", "/home/rborkows/uni-rnaseq-probe-lab/chain-source-v1/bench/chain-position/make_chain_position.py", "--tooling", "/home/rborkows/uni-rnaseq-probe-lab/chain-source-v1/tooling/replay", "--source", "/home/rborkows/uni-rnaseq-seed-lab/real-index-input-2.7.11b/source", "--private-root", "/home/rborkows/uni-rnaseq-probe-lab/chain-position-host1/private"]

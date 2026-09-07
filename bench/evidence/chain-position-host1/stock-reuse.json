@@ -1,0 +1,66 @@
+{
+  "root": "/home/rborkows/uni-rnaseq-probe-lab/real-requests-host1/stock",
+  "argv": [
+    "/home/rborkows/uni-rnaseq-seed-lab/seed-split-private-v2/baseline/STAR",
+    "--runMode",
+    "alignReads",
+    "--runThreadN",
+    "20",
+    "--runRNGseed",
+    "777",
+    "--genomeDir",
+    "/home/rborkows/uni-rnaseq/data/index/star_full",
+    "--genomeLoad",
+    "NoSharedMemory",
+    "--readFilesIn",
+    "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_1.fastq.gz",
+    "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_2.fastq.gz",
+    "--readFilesCommand",
+    "zcat",
+    "--twopassMode",
+    "None",
+    "--genomeType",
+    "Full",
+    "--genomeTransformType",
+    "None",
+    "--outSAMtype",
+    "SAM",
+    "--outSAMorder",
+    "PairedKeepInputOrder",
+    "--outSAMunmapped",
+    "Within",
+    "--outFileNamePrefix",
+    "/home/rborkows/uni-rnaseq-probe-lab/real-requests-host1/stock/"
+  ],
+  "parity": {
+    "status": "PARITY_MATCH_COUNTERS_ONLY",
+    "input_reads": {
+      "stock": 20000000,
+      "counters": 20000000
+    },
+    "alignment_records": 53710530,
+    "normalization": "header argv executable and --outFileNamePrefix only"
+  },
+  "files": {
+    "Aligned.out.sam": {
+      "bytes": 13049558721,
+      "sha256": "19ba8710dff2446f50cb671734287a1ee9fac3a2c5bfd1adc87a62a40b7f45af"
+    },
+    "SJ.out.tab": {
+      "bytes": 6990981,
+      "sha256": "fbd826b4cb8a150600374edf73a488d7d868c77ad50c6050db3b9f4ce5def8bc"
+    },
+    "Log.progress.out": {
+      "bytes": 246,
+      "sha256": "e4947209ba69b69769fb8568cb6d21e96484840ee598dc9001da720ecf866bd8"
+    },
+    "Log.final.out": {
+      "bytes": 2029,
+      "sha256": "7f38d7fe8856178f5571d8c8bd2371c06d7db12bc2508c833d0543d66190ac38"
+    },
+    "Log.out": {
+      "bytes": 14854,
+      "sha256": "da6be8e74a717e7be8b9ba07a2349e661f0d26e6cda4da62c217af4ba5430ca7"
+    }
+  }
+}

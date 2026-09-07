@@ -1,0 +1,11 @@
+PROBE synthetic SA_SEARCH_FULL (not captured STAR scheduler requests)
+count=4000000
+seed=188140
+visited_reads=4005246
+sampled_reads=500000
+skipped_non_acgt=1040
+source_fastq=/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_1.fastq.gz
+source_sha256=47ce5be22f6c0d3a6510a821235ad2126dce533d3004f5d01a9f9d69638fd584
+index_parameters_sha256=20d334fccd47efc59fbe3667d0cd69f5171e0e2fc7b16a2a57ca11370643d246
+request_sha256=c72a0eea30d9caef930481be96f901261dfed54ea2600a65fcf3087b530ac428
+seedSearchLmax=0 unlimited (pinned parametersDefault:575); N=remaining read length; grid=20; s1=position-wise complement

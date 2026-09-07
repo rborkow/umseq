@@ -1,29 +1,12 @@
 // SPDX-License-Identifier: MIT
 // PROBE structural port of replay/search.cpp; see LICENSE.star.
 #pragma once
-#include <cstddef>
-#include <cstdint>
+#include "seed_probe_abi.h"
 #ifdef __CUDACC__
 #define PROBE_FN __host__ __device__
 #else
 #define PROBE_FN
 #endif
-using ProbeU64 = uint64_t;
-struct ProbeRequest {
-  ProbeU64 tag, s0, s1, read_len, start, length, prefix, low, high, dir;
-};
-struct ProbeOutput {
-  ProbeU64 length, low, high, count, status;
-};
-struct ProbeStats {
-  ProbeU64 gathers, bytes, loops, comparisons, max_compare, directions;
-};
-struct ProbeConfig {
-  ProbeU64 n_genome, n_sa, strand_bit;
-};
-static_assert(sizeof(ProbeRequest) == 80 && sizeof(ProbeOutput) == 40 &&
-                  sizeof(ProbeStats) == 48 && sizeof(ProbeConfig) == 24,
-              "PROBE ABI");
 PROBE_FN inline ProbeU64 probe_min(ProbeU64 a, ProbeU64 b) {
   return a < b ? a : b;
 }

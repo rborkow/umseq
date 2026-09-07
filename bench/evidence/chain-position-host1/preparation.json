@@ -1,0 +1,13 @@
+{
+  "base_tooling": "/home/rborkows/uni-rnaseq-probe-lab/chain-source-v1/tooling/replay",
+  "changed": [
+    "STAR.cpp",
+    "ReadAlign_oneRead.cpp",
+    "ReadAlign_mapOneRead.cpp",
+    "ReadAlign_maxMappableLength2strands.cpp",
+    "SuffixArrayFuns.cpp"
+  ],
+  "patch_sha256": "a768f0e0ac2f553b666fede07bc3dda6d9db72a9c1ed2c7f83c50521e63d079d",
+  "source_inventory_sha256": "ce8d613d1675c6f0bba2fa7a7b41e36e069a0fd42ba3435ce549b1f9b1f38712",
+  "status": "PREPARED_COUNTERS_ONLY_NO_SSIR"
+}

@@ -1,0 +1,1378 @@
+{
+  "AlignVsTranscript.h": {
+    "bytes": 170,
+    "sha256": "c3713f7dfff0f2e66c38170cdae17cdc8bad257f55b507f9d113dc1e22ba8148"
+  },
+  "BAMbinSortByCoordinate.cpp": {
+    "bytes": 3481,
+    "sha256": "c6db83dea84586227b9c33455f044a14bc4c071598bcfdb13f9d14ce55d257ff"
+  },
+  "BAMbinSortByCoordinate.h": {
+    "bytes": 336,
+    "sha256": "f42323a77e39386c9e93da9818c274e2a8947c318aba19f39f677169a4fedc68"
+  },
+  "BAMbinSortUnmapped.cpp": {
+    "bytes": 4012,
+    "sha256": "ed4bf4e1866f89fb69f3293346da6e6a5eca685f48d7abbfeb091fdcf6476853"
+  },
+  "BAMbinSortUnmapped.h": {
+    "bytes": 303,
+    "sha256": "e8be7aa723afb4fc7db0e2eab13b6e50732571457d510092d4b100069cdb5020"
+  },
+  "BAMfunctions.cpp": {
+    "bytes": 6743,
+    "sha256": "ca7faa893c749db90777b2e5c48ddb56bb91c5159483ba22c0cd36b5e295df92"
+  },
+  "BAMfunctions.h": {
+    "bytes": 3264,
+    "sha256": "24ae61be831accbec19b46a87e227821b8d704707d0df448025fce0de1e8ca88"
+  },
+  "BAMoutput.cpp": {
+    "bytes": 7010,
+    "sha256": "12b8e120b181964996f47177195bbe52a25cfdc605fa9614930a6a5cc9e00fcc"
+  },
+  "BAMoutput.h": {
+    "bytes": 1217,
+    "sha256": "0fc676c33b0748fcd216a1cf4152946d050e53497777b8c2f6de1c06778572e5"
+  },
+  "Chain.cpp": {
+    "bytes": 5014,
+    "sha256": "d48d64e7ba78d6d13382e0fdb93ab9641486251e77d56e3bf2cf5c67e8fc98ba"
+  },
+  "Chain.h": {
+    "bytes": 716,
+    "sha256": "d7a2922315abc3ccf4cb5a4fc3ba3366238aad40838da04ce8dec3e9a5f86471"
+  },
+  "ChimericAlign.cpp": {
+    "bytes": 1427,
+    "sha256": "349be7139d8518b3864a6680e9d01662283dcc6b4d296903c49eb5d504c7650e"
+  },
+  "ChimericAlign.h": {
+    "bytes": 1297,
+    "sha256": "b55c719978db9c56d22f4183f61b9c581ae3fe51f9a7c84744e714871923be9c"
+  },
+  "ChimericAlign_chimericBAMoutput.cpp": {
+    "bytes": 5462,
+    "sha256": "076d74764691a18af95b53b9388a677be9b2b3acfb3ad9edfb06d2ffcf894f9a"
+  },
+  "ChimericAlign_chimericJunctionOutput.cpp": {
+    "bytes": 1790,
+    "sha256": "8fe67cefcd859e657f9d1f2881dfe5757cb7aa2c16f871fde19bbc8f581b6649"
+  },
+  "ChimericAlign_chimericStitching.cpp": {
+    "bytes": 6550,
+    "sha256": "7e004ab84473afa1d914fce54c4ee7b1a92e7ae6d5058f840d7c19af29978cd4"
+  },
+  "ChimericDetection.cpp": {
+    "bytes": 390,
+    "sha256": "c9182a6284abc57f1b3755af8f4daf55479ca192810442f9c857bffcf797b5bd"
+  },
+  "ChimericDetection.h": {
+    "bytes": 772,
+    "sha256": "e25c2390ebd9b48102e51d4cf0f73062cdcd606b7c224e9986610524a0ba4352"
+  },
+  "ChimericDetection_chimericDetectionMult.cpp": {
+    "bytes": 6387,
+    "sha256": "6c7d9250fbb1b72b38c67ce16d3b4ea1f3f47ced34a8388e30f3daa601729985"
+  },
+  "ChimericSegment.cpp": {
+    "bytes": 1745,
+    "sha256": "04626d428b777f80ef6e38a1c4ec1ceaa85039f2916911f7c8b00c3a808cad74"
+  },
+  "ChimericSegment.h": {
+    "bytes": 546,
+    "sha256": "bb086a8ab9621e859469bcf4b04f68ee8ca408e5949cda8f8e2fc7722fc2f6a1"
+  },
+  "ChimericTranscript.h": {
+    "bytes": 488,
+    "sha256": "d010357e10b6c898d626af8ea95d3517d623390a3b996176405215c41f8ad0d6"
+  },
+  "ClipCR4.cpp": {
+    "bytes": 2826,
+    "sha256": "ff398e5cce959ee753e913c9497376151598ea2b788721d722bbab9552cf64a3"
+  },
+  "ClipCR4.h": {
+    "bytes": 806,
+    "sha256": "ac05d9bd4b89046b83732e1ccc1706882f7e0a6a2b34b9857e2cbd42b51446ec"
+  },
+  "ClipMate.h": {
+    "bytes": 803,
+    "sha256": "0c9b461e6b4e28931f3f871bc70bec540a68bc3aaa98181673d7a47cfa2dc95b"
+  },
+  "ClipMate_clip.cpp": {
+    "bytes": 2395,
+    "sha256": "5984fcab7743aebb2e1c3a79c650d61ab7477a6b824ef1b6d8132338f92912ae"
+  },
+  "ClipMate_clipChunk.cpp": {
+    "bytes": 1925,
+    "sha256": "f685a456665f8f3f6e6b56b149d11d76c00de9157352b7f60da8b8f3542046b4"
+  },
+  "ClipMate_initialize.cpp": {
+    "bytes": 742,
+    "sha256": "55488425a7f78fd92ea5b366be8f9c0b4c5c533bc68b97163fca8ce7036a7e5e"
+  },
+  "ErrorWarning.cpp": {
+    "bytes": 1305,
+    "sha256": "e0931d14f98a1916abb99ec344fb50ffd68bd5a63a49855586a1b41f1d753a18"
+  },
+  "ErrorWarning.h": {
+    "bytes": 319,
+    "sha256": "f2e927b958a4230c6fd85535203e2e711ff4d651c8060add98d58f85a8639671"
+  },
+  "GTF.cpp": {
+    "bytes": 8211,
+    "sha256": "9254afb2a2fa8ff3e751d9bfafd2b86f4d389ee8b6e647ad09416dd61962229c"
+  },
+  "GTF.h": {
+    "bytes": 922,
+    "sha256": "4fb9ffd8118f9a97762d392cd5dd950dbdad6cd9888f06119febb4116a98224f"
+  },
+  "GTF_superTranscript.cpp": {
+    "bytes": 11934,
+    "sha256": "6553a3ebeda538df7327b91730c7d63b3477aecdd77d4e0f95c9d1b87a673f29"
+  },
+  "GTF_transcriptGeneSJ.cpp": {
+    "bytes": 8662,
+    "sha256": "dccd988d45418def20a8086fadb7b57a15b9a703e1ccc3586dc3642286c2c297"
+  },
+  "Genome.cpp": {
+    "bytes": 9999,
+    "sha256": "ee10043fa3c0053ad4e587fa5ffe2c6baf51e552613ce0a60182c84f1dac0126"
+  },
+  "Genome.h": {
+    "bytes": 4051,
+    "sha256": "9483ed26c8739a4c04cc85856257bb0142a6c66a95666e1b3e5333f3b5ee5112"
+  },
+  "Genome_genomeGenerate.cpp": {
+    "bytes": 18425,
+    "sha256": "3d8fe6cf3685e25cc76c3dcfba12ed68ff2b5946bab22ddedc7996a077ba2124"
+  },
+  "Genome_genomeLoad.cpp": {
+    "bytes": 23528,
+    "sha256": "f6a85ef14d13e814d3291ee86ce17599590fb778f65268bbe2eafdf37bc77542"
+  },
+  "Genome_genomeOutLoad.cpp": {
+    "bytes": 2168,
+    "sha256": "51d51a2a4f665b6ee6d9158cc9cc07fc21ef2ed075c67e87912909eedf6410d9"
+  },
+  "Genome_insertSequences.cpp": {
+    "bytes": 1284,
+    "sha256": "8a72b76d09291d81ca49fcc395ff193803bc4d6144c107e35e5a6a175ea08c7a"
+  },
+  "Genome_transformGenome.cpp": {
+    "bytes": 12807,
+    "sha256": "3b0807d1543e0a10cda68cfff9d19849e157048d4976191cd1e44b7efa96c12e"
+  },
+  "GlobalVariables.cpp": {
+    "bytes": 105,
+    "sha256": "f4ccc14a0adadc10b2a124adde5244813c611bcc88210d2ed544c08e06fd6020"
+  },
+  "GlobalVariables.h": {
+    "bytes": 157,
+    "sha256": "15f402cde661a5cc115382d805f4c07e41640dfea1e54b8f692c97acae8e9ae9"
+  },
+  "InOutStreams.cpp": {
+    "bytes": 1015,
+    "sha256": "14d75d256e0ce9e350bdeff6d9d7162cd44626f7e3cbd116a060c270a149b453"
+  },
+  "InOutStreams.h": {
+    "bytes": 540,
+    "sha256": "a152688ffce13341f3ef96901a21537c065d2d79de0e20b588ae0d670687eede"
+  },
+  "IncludeDefine.h": {
+    "bytes": 5887,
+    "sha256": "0a55688ea42ca47041f2e53011f311300be7891ac3b10bd9de7767bed62af956"
+  },
+  "LICENSE": {
+    "bytes": 1072,
+    "sha256": "551e5bc4f91bf85b75c848aabba5acbcff4f4adf75e606cd17787038a155e69f"
+  },
+  "Makefile": {
+    "bytes": 9332,
+    "sha256": "199cf60ecf522d34a1979e22a782f2dcfe2726fb994efd4c84308dfc6b6d9b99"
+  },
+  "OutSJ.cpp": {
+    "bytes": 4969,
+    "sha256": "1e0383cf8ec87833993796388329b7697af2043eca5324034c60b3efd2f8c6ff"
+  },
+  "OutSJ.h": {
+    "bytes": 1582,
+    "sha256": "c60630a0024845aef8cc778e18684e77195f90bc7ecc9c7918ce28c21b211099"
+  },
+  "PackedArray.cpp": {
+    "bytes": 1116,
+    "sha256": "f1aeb9cfa77754d75bfd69b3a0816bd1318a4088c480a5934520f9f85aaf2586"
+  },
+  "PackedArray.h": {
+    "bytes": 788,
+    "sha256": "f876319310d0f3eb405dbd6dbc5c8e7793f360f07497dd46e52e80c7ce5ab77d"
+  },
+  "ParameterInfo.h": {
+    "bytes": 3239,
+    "sha256": "be3bcaf9d18188bf3e29eda47dba2d644f2af43b343bdab5651e2d6d85f15670"
+  },
+  "Parameters.cpp": {
+    "bytes": 72533,
+    "sha256": "f303bd6fb1d541924d9f501ffc5266b49f6bda48dfbf593b5ad0d139abd72ae1"
+  },
+  "Parameters.h": {
+    "bytes": 12025,
+    "sha256": "0bb9b86c1159f5fe1f12c241fc5ca3dc7d7a36f67f5bc26cc4fbd9dfbd723387"
+  },
+  "ParametersChimeric.h": {
+    "bytes": 948,
+    "sha256": "cd09b75ad62d3e892ecb314f746ec4c19b0706e9fd615f7d69bfc77f097a540b"
+  },
+  "ParametersChimeric_initialize.cpp": {
+    "bytes": 5373,
+    "sha256": "12d46f39ff22e1a1cc9d5ee169946b1bf433827494b9aef8edfaf36451d07c60"
+  },
+  "ParametersClip.h": {
+    "bytes": 621,
+    "sha256": "4de79db0d8cda758a3cbbf7b8f9527297e55deb79d623565a0e5c521c5b21685"
+  },
+  "ParametersClip_initialize.cpp": {
+    "bytes": 5517,
+    "sha256": "ca59ff54a49da94444d41d4595f6fd33bb6433ca1613803c5f021a345d90c8e1"
+  },
+  "ParametersGenome.cpp": {
+    "bytes": 2769,
+    "sha256": "f7ae6d62627b976614c6e804846d9b3c7a89a442f8d73a5e591fee1a67194706"
+  },
+  "ParametersGenome.h": {
+    "bytes": 1492,
+    "sha256": "95c0de173c2a9e4a23002f456b060f349baf2f3a251fd659aa287a6393171ee0"
+  },
+  "ParametersSolo.cpp": {
+    "bytes": 37379,
+    "sha256": "a08f59600248dbc22a593ecf19ddab5429f6432d7da5d2b7750896d3390ef1c4"
+  },
+  "ParametersSolo.h": {
+    "bytes": 6964,
+    "sha256": "46558240ef417718dfbd9c2acc921ceacea9fcad9a36634ac1238794a25c53ba"
+  },
+  "Parameters_closeReadsFiles.cpp": {
+    "bytes": 400,
+    "sha256": "9c476fdb88bf3c370eb9445c1c19632cac18a1dcce53a87ebc7b79357f10945d"
+  },
+  "Parameters_openReadsFiles.cpp": {
+    "bytes": 5213,
+    "sha256": "9a868132fa48a3b9dda5e79a802abd8d6c80430b27c33e1531d26fcb1a7823cc"
+  },
+  "Parameters_readFilesInit.cpp": {
+    "bytes": 8835,
+    "sha256": "d9672c1b51c578a3c2f781917c06a5820a27ffb5df498509562a4544e8c37c46"
+  },
+  "Parameters_readSAMheader.cpp": {
+    "bytes": 1816,
+    "sha256": "36cb976f306358464e7b3a30099e29868656482143d2203b8f6775c9fed34eb4"
+  },
+  "Parameters_samAttributes.cpp": {
+    "bytes": 11899,
+    "sha256": "8d5f074755e0e5aacaa763d079020102a178f16d3bf78f2fa9cf347b040e6b9e"
+  },
+  "Quantifications.cpp": {
+    "bytes": 1126,
+    "sha256": "84563f355c50ba7b87f23812d905927ebec27f9c8d7714dd848114b7c116c88c"
+  },
+  "Quantifications.h": {
+    "bytes": 662,
+    "sha256": "7d315502780691220bf3b9e86d544caeddd56a3ef0edf82072e144197f3faba6"
+  },
+  "ReadAlign.cpp": {
+    "bytes": 4711,
+    "sha256": "c222d7f923c57652abf3fa4cf734a86ffacd5453ccdb4fbfbcca9852d40c5b15"
+  },
+  "ReadAlign.h": {
+    "bytes": 9271,
+    "sha256": "a5edf0b7b9b880eec6ea1f610fbb8c07716a855649c36c36dd0327df8534f3c4"
+  },
+  "ReadAlignChunk.cpp": {
+    "bytes": 6122,
+    "sha256": "bce6c5cd11d3b3ddac00f21e3058945c0139c678bdf0b453ce24d55de2677537"
+  },
+  "ReadAlignChunk.h": {
+    "bytes": 1525,
+    "sha256": "8a8ec5563637e49d752f1725432fd556caba4083e1fd4bbb2f0566f457550eb5"
+  },
+  "ReadAlignChunk_mapChunk.cpp": {
+    "bytes": 6824,
+    "sha256": "e27e8ec505f05f073e16e606a04e0817e6432c60e94d04d4d3c30e6a09613b84"
+  },
+  "ReadAlignChunk_processChunks.cpp": {
+    "bytes": 17604,
+    "sha256": "250c1c61a2fb9be783e5627cb4b4d776e264d754cde2cf869e46d0a579744a3a"
+  },
+  "ReadAlign_CIGAR.cpp": {
+    "bytes": 2752,
+    "sha256": "d5bd49fb93f637bd36826f9ff4da1b88e63142f6ff25ac21dff2fe55416c821e"
+  },
+  "ReadAlign_alignBAM.cpp": {
+    "bytes": 27750,
+    "sha256": "164bc33ddca4d8cb5057d33b1050a4b1ee6af9eb62359308e296feea9d8cdfe8"
+  },
+  "ReadAlign_assignAlignToWindow.cpp": {
+    "bytes": 5297,
+    "sha256": "96a6a1ca0fa56b63e5eeb0d1f38311b52d748c0021c386aded65e087f51b1f07"
+  },
+  "ReadAlign_calcCIGAR.cpp": {
+    "bytes": 2299,
+    "sha256": "3e92b38834419af1c610d8907a0624e6301ed9c83afe22ef41ff3871502d899a"
+  },
+  "ReadAlign_chimericDetection.cpp": {
+    "bytes": 1922,
+    "sha256": "e83d7e5dd81150d123adeb09f7ad78839e5f2cdf9897e433faeeb4b4f3169238"
+  },
+  "ReadAlign_chimericDetectionOld.cpp": {
+    "bytes": 14081,
+    "sha256": "0aaf72c4c884633df0f4059fba250799fdbd3f2f174f9c9b53bf845c159308bd"
+  },
+  "ReadAlign_chimericDetectionOldOutput.cpp": {
+    "bytes": 3654,
+    "sha256": "02f91d3ed125fe6e9fa893b148e7cf71ecc33190e77b03d2144630c537767113"
+  },
+  "ReadAlign_chimericDetectionPEmerged.cpp": {
+    "bytes": 1084,
+    "sha256": "edb0549cffa248837a61fc68611b6a2755b6edd60c4edad9e1276ebbc1e89af2"
+  },
+  "ReadAlign_createExtendWindowsWithAlign.cpp": {
+    "bytes": 3562,
+    "sha256": "1e8e3813a066390427e12defc13004e5b678663ab16c048d097b9056b84a942d"
+  },
+  "ReadAlign_mapOneRead.cpp": {
+    "bytes": 5255,
+    "sha256": "28fccbe8df679125525a783b8e84352d5e4e3edc73fa33bc0c352a07683775aa"
+  },
+  "ReadAlign_mapOneReadSpliceGraph.cpp": {
+    "bytes": 1151,
+    "sha256": "228b0e5a64b44772f5ea62ebefcdbe7379211fc8ea0fbd2cc5f120379edcd5d5"
+  },
+  "ReadAlign_mappedFilter.cpp": {
+    "bytes": 901,
+    "sha256": "27e695f0b752d5e36871a1f72a081c1420f749c1a4c05e282d907e7f8ccafaf9"
+  },
+  "ReadAlign_maxMappableLength2strands.cpp": {
+    "bytes": 4889,
+    "sha256": "cdff4d368b127cab3e9e3cdb3c09708940472d12f3c43fa271dbeb048f3ba6b6"
+  },
+  "ReadAlign_multMapSelect.cpp": {
+    "bytes": 3966,
+    "sha256": "d4379f1b91b4100649599e256e587ca3639da88ae96cc86aa2045b45b029e9b0"
+  },
+  "ReadAlign_oneRead.cpp": {
+    "bytes": 4534,
+    "sha256": "76aa9321c3cf63cc45acd8c16d0b841faec1b9b0aac3e78bbdea865867da9538"
+  },
+  "ReadAlign_outputAlignments.cpp": {
+    "bytes": 16576,
+    "sha256": "fa85b7106b2aa29d1de9d9d899078f701b8c18dbeb53456b8e8f1eb663e566c7"
+  },
+  "ReadAlign_outputSpliceGraphSAM.cpp": {
+    "bytes": 5728,
+    "sha256": "c0e9eec6a92039b9db44c46b8e5d6158fb4a2070e0a5788893d4ec6f8d273981"
+  },
+  "ReadAlign_outputTranscriptCIGARp.cpp": {
+    "bytes": 2786,
+    "sha256": "c3316d152ebac5993a544457f27945fb1f9e194f091c53360c703f2ca3f69f6a"
+  },
+  "ReadAlign_outputTranscriptSAM.cpp": {
+    "bytes": 14615,
+    "sha256": "b11673285edd158300b32ee77b20cea9890dcb4665a5c42e615113c4c35ae313"
+  },
+  "ReadAlign_outputTranscriptSJ.cpp": {
+    "bytes": 3265,
+    "sha256": "57a815139cf4a0bb6912ea55a6527bebac6066729eaf345f24f1da78e95291de"
+  },
+  "ReadAlign_outputVariation.cpp": {
+    "bytes": 163,
+    "sha256": "fbebdef6f29f00e051babc9956af5cc0dc40582949d04b50c5b45950a40867fb"
+  },
+  "ReadAlign_peOverlapMergeMap.cpp": {
+    "bytes": 13052,
+    "sha256": "c46fe04e47192bc2792565830378a130b0a412539c8b1d204cb7355286a74fd3"
+  },
+  "ReadAlign_quantTranscriptome.cpp": {
+    "bytes": 4424,
+    "sha256": "4b0816764956fb56db48d153c0f2c7176dd5aaec70ceb288fe950ea83570be65"
+  },
+  "ReadAlign_stitchPieces.cpp": {
+    "bytes": 13936,
+    "sha256": "c34b9fb0705be6ed2517c921e2513e508cc5b29d7f180d9f0c3534034e8de307"
+  },
+  "ReadAlign_stitchWindowSeeds.cpp": {
+    "bytes": 12229,
+    "sha256": "8cb44befc6b019ff71d91bded33db91e48229fe43e410e44dc7bc17f35d3d684"
+  },
+  "ReadAlign_storeAligns.cpp": {
+    "bytes": 5747,
+    "sha256": "6352dc72a86d2a07578caf5b7710052b6274366479b53671e810d9a33398a6d1"
+  },
+  "ReadAlign_transformGenome.cpp": {
+    "bytes": 3027,
+    "sha256": "e4b1a6007565ece2bb132a79473d935ef05d679aa8eed5f9521b63a8625c0c0a"
+  },
+  "ReadAlign_waspMap.cpp": {
+    "bytes": 4071,
+    "sha256": "506f94281348ebabaeb257e45746c0003dabd3273a5b0141164bf363b86dfbca"
+  },
+  "ReadAnnotations.h": {
+    "bytes": 1655,
+    "sha256": "86000759f930d4ae0a2b1ab1f87643398280f8ff1361b1bffef1d7d941a08603"
+  },
+  "STAR.cpp": {
+    "bytes": 11255,
+    "sha256": "e78db2798a32c3f275c1cca717579977224e25c9e0dadba9541f3d038b8683e6"
+  },
+  "SequenceFuns.cpp": {
+    "bytes": 14323,
+    "sha256": "9b0dcb17490feea51e96bbe9eac99943fda40fe04d703e1ac81343a46b59e143"
+  },
+  "SequenceFuns.h": {
+    "bytes": 1539,
+    "sha256": "66f975beb0e6c9d72ca57a2957fe3601e691859e097cae91188d6932a07ec677"
+  },
+  "SharedMemory.cpp": {
+    "bytes": 6458,
+    "sha256": "9d769797c1bd81edca8afbd6c884b1ce359017541141c243b2eab97cdc5de6eb"
+  },
+  "SharedMemory.h": {
+    "bytes": 3504,
+    "sha256": "002d83da1cfb11bb859fcdb8306b1fb9f2c71359db8ffbad14e250de3fc3c5d8"
+  },
+  "SimpleGoodTuring/ReadMe.txt": {
+    "bytes": 3127,
+    "sha256": "8e87bb5dd60c384e8e386a601d053c27641461da8eb8104060c53f5440bbf374"
+  },
+  "SimpleGoodTuring/sgt.h": {
+    "bytes": 10746,
+    "sha256": "2edda77c55ba4373fcce908ff0d53ad952a0ed7620d479371baa2db5edc73eee"
+  },
+  "SjdbClass.h": {
+    "bytes": 264,
+    "sha256": "7b7f188a241c8beeeb804e4ea44c722f966a9117cc24538ae5bf9c2a19ce98a6"
+  },
+  "Solo.cpp": {
+    "bytes": 3245,
+    "sha256": "33f059b629c62b91d06f7c365e9cf7f9be917e6e08064b933b40fa171a430939"
+  },
+  "Solo.h": {
+    "bytes": 556,
+    "sha256": "311e77d3f576e63fe335ff1a200bd750e523c0ec86a0a97803a0aec9377b6e7d"
+  },
+  "SoloBarcode.cpp": {
+    "bytes": 6348,
+    "sha256": "da84f5a70b9ae7665de854554dee7ddbf11889862d122acd25d6fe374c7cd667"
+  },
+  "SoloBarcode.h": {
+    "bytes": 1303,
+    "sha256": "90fb66c769d23e8d4b66c581f7f5805f06574526171f465565141895ca4cdb25"
+  },
+  "SoloBarcode_extractBarcode.cpp": {
+    "bytes": 1131,
+    "sha256": "a0553205134146a0081f4aaf1510a492ad21d012d60d74ae60cc5ed13563e137"
+  },
+  "SoloCommon.h": {
+    "bytes": 2165,
+    "sha256": "93868869b5e66d8ab94e7aba97e2e5adcc01d09786025d1590e254e144405a6b"
+  },
+  "SoloFeature.cpp": {
+    "bytes": 2207,
+    "sha256": "f3a7443a1fdb849d652048fba0e01b1f1bab634575874a9b427d3836083ac883"
+  },
+  "SoloFeature.h": {
+    "bytes": 4028,
+    "sha256": "4185cb5055d5519c87cf5a68a7f65acc73ae3fa25d31dc428148f645ff4134c7"
+  },
+  "SoloFeatureTypes.h": {
+    "bytes": 651,
+    "sha256": "5f7d2bb2ea1eec942115271fa6ea5479740fecd2877672593aa9cbe739dd4efe"
+  },
+  "SoloFeature_addBAMtags.cpp": {
+    "bytes": 791,
+    "sha256": "a82e844594127424fdf29a20936906132e12e4624966784f998cca1746e81e12"
+  },
+  "SoloFeature_cellFiltering.cpp": {
+    "bytes": 5796,
+    "sha256": "5134339f861572cee4c329004169babe803cda181fa2dad60f7c59be5b10a034"
+  },
+  "SoloFeature_collapseUMI_Graph.cpp": {
+    "bytes": 7027,
+    "sha256": "b35965f41bd65fb8124876a595fb0a50277014ad11d65f035ad115477d7b3aac"
+  },
+  "SoloFeature_collapseUMIall.cpp": {
+    "bytes": 28564,
+    "sha256": "d2cfbafa3bc933b55b3b2cb55860811c65a0b9863e2290958aae920bda6be295"
+  },
+  "SoloFeature_countCBgeneUMI.cpp": {
+    "bytes": 4751,
+    "sha256": "ae124ffba531e2bcc56d5a9386916aed5a4b43ab29ec9a813936449bcc8dbacf"
+  },
+  "SoloFeature_countSmartSeq.cpp": {
+    "bytes": 6184,
+    "sha256": "a23b5dbb34dd35cfc793831be1131fb4a43efba5d7db8821f05fe53a590cd383"
+  },
+  "SoloFeature_countVelocyto.cpp": {
+    "bytes": 7395,
+    "sha256": "d99af8573a5f4d2eed3b1591dda48a426f021c2164335bc05ee0137c5a7c82f5"
+  },
+  "SoloFeature_emptyDrops_CR.cpp": {
+    "bytes": 10786,
+    "sha256": "4dbbefadc28ff21cee5f6ab3c656d3001bfbf75c0585b140ed297fa73275570c"
+  },
+  "SoloFeature_loadRawMatrix.cpp": {
+    "bytes": 5983,
+    "sha256": "d736d66ccb848f086e3b731b003538095345b1b2778627026efe7a86dc0c5d90"
+  },
+  "SoloFeature_outputResults.cpp": {
+    "bytes": 11196,
+    "sha256": "1797225698f0ce551b70e3fc76914cf41aa1e59a721b14bc592a24708d5b0653"
+  },
+  "SoloFeature_processRecords.cpp": {
+    "bytes": 3226,
+    "sha256": "56e8735464c69ecc23fb9368836766293693dc0ec32b152913d401660b604861"
+  },
+  "SoloFeature_quantTranscript.cpp": {
+    "bytes": 14784,
+    "sha256": "993bf1445a2fb03a0181882c83d2e1cd6481c8c20f83b611e2453d6c53390df2"
+  },
+  "SoloFeature_redistributeReadsByCB.cpp": {
+    "bytes": 2813,
+    "sha256": "b3b182331e601bef19b8d1ca116cf38c1924a7cdee05ba017027011952d1b821"
+  },
+  "SoloFeature_statsOutput.cpp": {
+    "bytes": 5695,
+    "sha256": "46ddede74e503aaed0c5cbd5b3f053b8423f5a064bee5464b76ff655b5db10f5"
+  },
+  "SoloFeature_sumThreads.cpp": {
+    "bytes": 3853,
+    "sha256": "d8e55e4434f192f6fd000f7241921729cc3088030a17ec61c923ecbac6a563db"
+  },
+  "SoloFilteredCells.h": {
+    "bytes": 996,
+    "sha256": "bc7e7d0a6cb2411b653c98b6e3694d3e31e95723c0fe0ea09d41eddb91a92c6a"
+  },
+  "SoloRead.cpp": {
+    "bytes": 581,
+    "sha256": "874a73ea609d25d58df320463332b70b6425756951b72d927e8f897f37594a47"
+  },
+  "SoloRead.h": {
+    "bytes": 481,
+    "sha256": "9526d0b122400bd0358a66d1ecbd7c654b6d6070e8e203173f506a5ad0350d36"
+  },
+  "SoloReadBarcode.cpp": {
+    "bytes": 1290,
+    "sha256": "3913a9b1420401758758990d757e5ac443bf6a748aba5b5f42f5b239db20fe34"
+  },
+  "SoloReadBarcode.h": {
+    "bytes": 1479,
+    "sha256": "968775590bc37f3f73174a48d14a3a8289ae4801db47a1d24a7260a4b6b70825"
+  },
+  "SoloReadBarcodeStats.h": {
+    "bytes": 933,
+    "sha256": "d3e6302d6809b8858e78ec5a8ac7fd0d18e0c087f55c275d79ceb74061f2528f"
+  },
+  "SoloReadBarcode_getCBandUMI.cpp": {
+    "bytes": 18634,
+    "sha256": "7fa473b91b86a1092b942eed68e6d408fe988a9005351a01e35b088bfa476508"
+  },
+  "SoloReadFeature.cpp": {
+    "bytes": 1991,
+    "sha256": "8132da88c6fe520c1b11200fae2e857867ac0c00ea7acd4923b50d7a8a1db52c"
+  },
+  "SoloReadFeature.h": {
+    "bytes": 1350,
+    "sha256": "90493c8290bcff5bd71e47d22b2b863fd62dad716f262c14b4462d146c8a0b9c"
+  },
+  "SoloReadFeatureStats.h": {
+    "bytes": 1558,
+    "sha256": "de58cf487ec32ac3e5bfed8669ed590893e8b4425647a820d4ce3a58c6c6eea8"
+  },
+  "SoloReadFeature_inputRecords.cpp": {
+    "bytes": 7009,
+    "sha256": "02005bd7e8c86ed9607847a908d0f6a5b5c70c99145c348b09d9aec35aba22e7"
+  },
+  "SoloReadFeature_record.cpp": {
+    "bytes": 12482,
+    "sha256": "32d85312e9044fc10d3015bc7b478bc535eeb9bd779c904e3e9fbc58610c2f35"
+  },
+  "SoloRead_record.cpp": {
+    "bytes": 445,
+    "sha256": "a9c799e889d65a1fd926aab68bb418c920fbefbdbacfc35250c4e343e2c8b372"
+  },
+  "SpliceGraph.cpp": {
+    "bytes": 1087,
+    "sha256": "c96dac9d20cd090e66e8ea9c8c13989e6ce629eaf827c00194f81181ae3420b7"
+  },
+  "SpliceGraph.h": {
+    "bytes": 1662,
+    "sha256": "ba0723cffbde74d492a5056e91685344d826204db2c31c245649f21eddbf61ef"
+  },
+  "SpliceGraph_findSuperTr.cpp": {
+    "bytes": 7909,
+    "sha256": "ac4d2549cb32c321df610a08baf699929cda7a3bb912549ca270a2dee45bf4a5"
+  },
+  "SpliceGraph_swScoreSpliced.cpp": {
+    "bytes": 9283,
+    "sha256": "d9c824fa6143ce22d53e281cda9fee1b813af98308060eb9387611242da1393a"
+  },
+  "SpliceGraph_swTraceBack.cpp": {
+    "bytes": 565,
+    "sha256": "a8b27ec4c182a7ea9d7501dd9ab8ede438216a64cc91475f778a639c155484ef"
+  },
+  "Stats.cpp": {
+    "bytes": 8945,
+    "sha256": "8120977869f2360d1486f3f5f3e52e6032f53ce255e569ac86026047fa12f92f"
+  },
+  "Stats.h": {
+    "bytes": 1519,
+    "sha256": "ec5029ae0b7e7ca5798525b836b42ac93b7d3ef99d6f134a36fd6495c75ce16a"
+  },
+  "SuffixArrayFuns.cpp": {
+    "bytes": 12020,
+    "sha256": "3e33a7568fb181fdad65fce125f818aa18634f5c33a8c44dca45a567ff3b31ff"
+  },
+  "SuffixArrayFuns.h": {
+    "bytes": 936,
+    "sha256": "f35e70b6359a919b9adccf3cb6f625a0ba6c8344098526fd637f4c84b58af710"
+  },
+  "SuperTranscriptome.cpp": {
+    "bytes": 3706,
+    "sha256": "c38b97c33fe410d93b33d973f36b73b1b1dc0e78d1da2e2ff07b0435ee8cbe94"
+  },
+  "SuperTranscriptome.h": {
+    "bytes": 1203,
+    "sha256": "4a04370dc22e9d26c1756412906221d8c1c99161669b2060dd4d9ae42ba8429a"
+  },
+  "Test.hpp": {
+    "bytes": 147,
+    "sha256": "b0c67c31e84a575fd808097c6fd0dc0534bd020c4fd40a9c50a76f0c01797a1a"
+  },
+  "ThreadControl.cpp": {
+    "bytes": 159,
+    "sha256": "36cca68786a85a7a336554d9dd6b78b3830de1f47dd6b88b559eb68b4288b3af"
+  },
+  "ThreadControl.h": {
+    "bytes": 676,
+    "sha256": "966eb9cc9b166a598e4c0853ea8ec07b6cbb438e75d5582485fc2982593d29c6"
+  },
+  "TimeFunctions.cpp": {
+    "bytes": 581,
+    "sha256": "b00ba65f0831defa4a84ec8eff06af2d0d806af312354f6f8d1ef9b01daaf19c"
+  },
+  "TimeFunctions.h": {
+    "bytes": 168,
+    "sha256": "fe4af9be5d3872145195d45b33ea44234b36123c34b723eef5094558fdbdad81"
+  },
+  "Transcript.cpp": {
+    "bytes": 1533,
+    "sha256": "4fca46a05cf57ce222699e570c41f275a7d75a1d4bd4c9a34a6fa062cd90b9c8"
+  },
+  "Transcript.h": {
+    "bytes": 2867,
+    "sha256": "a5e3c904966d1b3d23084a8543b6497d495bc767f77969772c7294fd71efbc86"
+  },
+  "Transcript_alignScore.cpp": {
+    "bytes": 2152,
+    "sha256": "0188598f8fe151d39dfb0e28ae8c4d7776251fd312321adc483ba7bf24094e92"
+  },
+  "Transcript_convertGenomeCigar.cpp": {
+    "bytes": 6347,
+    "sha256": "0f75b8de539502d8be1984badc5818454c6f021dbbb799f17da5ea4a3c4013f5"
+  },
+  "Transcript_generateCigarP.cpp": {
+    "bytes": 2566,
+    "sha256": "bcd1d502a1c60a3abe74df0d860d667778b2af878f60d557965328ff532d3833"
+  },
+  "Transcript_transformGenome.cpp": {
+    "bytes": 6516,
+    "sha256": "c4dbd9342ab970d9bc345f130fcfc11c839335931c40153b410ec6a2c46d9019"
+  },
+  "Transcript_variationAdjust.cpp": {
+    "bytes": 2291,
+    "sha256": "c8d8869163604efedd36bf36b779e3fa3241def43982702e91a3e40fd9cefe41"
+  },
+  "Transcript_variationOutput.cpp": {
+    "bytes": 86,
+    "sha256": "69eb6a8b6a64a6837bb743ce3252fe580da5c2bf59d60937f12d0820cf53bf60"
+  },
+  "Transcriptome.cpp": {
+    "bytes": 7008,
+    "sha256": "ae4cc400fc192a39ea1e8e362649fb77d34d7a9eff91261254be3624258ac4db"
+  },
+  "Transcriptome.h": {
+    "bytes": 2356,
+    "sha256": "eb91787a6c0f7869893fa0dd6d80f26c9c782af0cab238e2048183e8e2310173"
+  },
+  "Transcriptome_alignExonOverlap.cpp": {
+    "bytes": 10451,
+    "sha256": "458c2118847938b4dc0c4e4bb4ace44575270c8f8e0f40cc77a025eceeac41cc"
+  },
+  "Transcriptome_classifyAlign.cpp": {
+    "bytes": 12358,
+    "sha256": "447a9dfe2ccccffc48a90ced90198962756c077164321c5122548a6649be0bcb"
+  },
+  "Transcriptome_geneCountsAddAlign.cpp": {
+    "bytes": 2640,
+    "sha256": "c5fdc5ac5a8d3bc55518093439a7fefa51c2c18eed013a08d61ea5a776a4dc9c"
+  },
+  "Transcriptome_geneFullAlignOverlap.cpp": {
+    "bytes": 2321,
+    "sha256": "f14abf6f94645d69f10cafa1d9b27bfbe1ccd2f1f6f84b9a54324963ea4cadbc"
+  },
+  "Transcriptome_geneFullAlignOverlap_ExonOverIntron.cpp": {
+    "bytes": 1865,
+    "sha256": "1d8412c4e189db492117a1a624718f87acebd7e2fb636d50d1f27fe409685565"
+  },
+  "Transcriptome_quantAlign.cpp": {
+    "bytes": 5274,
+    "sha256": "0deb0526f49394d92d2be22857a7c7a0632129f066fdaadcc621343996570e5b"
+  },
+  "VERSION": {
+    "bytes": 31,
+    "sha256": "a7109a4509b59221209d8d2e553c274689009104f8f03d67517dea2ab172ee87"
+  },
+  "Variation.cpp": {
+    "bytes": 6139,
+    "sha256": "90528f56ff60b117003e63d27bac3e485bd9d6f74e660a07264490da34e2fd7e"
+  },
+  "Variation.h": {
+    "bytes": 1410,
+    "sha256": "15b097ed4b10486856e028e0fb5bc68483384d4cb0a22444c557d26d32ea7c0e"
+  },
+  "bamRemoveDuplicates.cpp": {
+    "bytes": 10578,
+    "sha256": "f1556e188766a9d21c79bcca2ac9bb4db8c4f83aefec2c3ffcd324e4beefcf48"
+  },
+  "bamRemoveDuplicates.h": {
+    "bytes": 235,
+    "sha256": "59a3b90a6aa438a291353717112b741d68438bfe6dfbf7ece44585c433418f60"
+  },
+  "bamSortByCoordinate.cpp": {
+    "bytes": 4818,
+    "sha256": "d9aa60ea1ae0034911a09f177f89e20d7aac32282e3ee72aed67f28107bcc359"
+  },
+  "bamSortByCoordinate.h": {
+    "bytes": 256,
+    "sha256": "cebc4ef31bd324ad24609958f8be3c77c9984ef3fabb65c3bf5cdd7b2bfa1721"
+  },
+  "bam_cat.c": {
+    "bytes": 4700,
+    "sha256": "8ceb77529243c3c0738dd027630b94924756ac7b6d434d907edb7498fc509a2f"
+  },
+  "bam_cat.h": {
+    "bytes": 163,
+    "sha256": "d730a66e4059292b7fc2d00b4666facb3eb28637a89fef8754ba6189f7f2ebc7"
+  },
+  "binarySearch2.cpp": {
+    "bytes": 928,
+    "sha256": "f793e8bca4d26019727865c8145d1018839c34ce41a495787557bf7843217a50"
+  },
+  "binarySearch2.h": {
+    "bytes": 150,
+    "sha256": "1e6c025ec01771c966ee3773472a440e34e77dad07b5be9d542d05adea3a6af7"
+  },
+  "blocksOverlap.cpp": {
+    "bytes": 1330,
+    "sha256": "cd232640757e849b419db19d127548375b48dfdb8330b31edda63e4e5b3cbdb1"
+  },
+  "blocksOverlap.h": {
+    "bytes": 168,
+    "sha256": "359b6936ed394acbb6b3439b3cc4bdc97c6ba58ce48f6c4c49541620bd0c8e19"
+  },
+  "extendAlign.cpp": {
+    "bytes": 2484,
+    "sha256": "1aa080441241c4ceb59ed7893a2b7b020b47b85683e41ab18bc27a1df6d69213"
+  },
+  "extendAlign.h": {
+    "bytes": 254,
+    "sha256": "dd2e1f549c4cb00a4c482ecc812046b8839f97a14b44ceba19c5826b778c3368"
+  },
+  "funCompareUintAndSuffixes.cpp": {
+    "bytes": 1338,
+    "sha256": "e0f8f2444d36f3e07405d1f64267030a9ab255c52c9dc5df4db9b10b124b53a4"
+  },
+  "funCompareUintAndSuffixes.h": {
+    "bytes": 263,
+    "sha256": "cf7548918f72949df43f894df79dbcb97c4169907cb5b4248637cfc84d48a420"
+  },
+  "funCompareUintAndSuffixesMemcmp.cpp": {
+    "bytes": 1205,
+    "sha256": "2ba6cf2880e039e2da812adad6e44a4216ad791035f83650b03de91f08e0e28d"
+  },
+  "funCompareUintAndSuffixesMemcmp.h": {
+    "bytes": 291,
+    "sha256": "1dfffd61f5553d0c0d49589d0a6984b70855c5e23d654fd0ac7b6e33df04b6af"
+  },
+  "funPrimaryAlignMark.cpp": {
+    "bytes": 2037,
+    "sha256": "19d23ed8a6eb88ef2bbe8b2160222b0e6f10dfcd4741657a424d7dc3c996f969"
+  },
+  "funPrimaryAlignMark.h": {
+    "bytes": 249,
+    "sha256": "fb971da7701cf692cb4ff72e0fc2db3d55cd9f38df218e1897e3946d4de608c9"
+  },
+  "genomeGenerate.h": {
+    "bytes": 62,
+    "sha256": "abbe731b99b1de32bce2a8b899ee384f008c71883f3b144d4d36131b463cacae"
+  },
+  "genomeParametersWrite.cpp": {
+    "bytes": 2098,
+    "sha256": "58c6c41029ef72c46adec18e797272a8b4e9255c98b27c866af3852025b6ebda"
+  },
+  "genomeParametersWrite.h": {
+    "bytes": 216,
+    "sha256": "00b4452e9b7191c305f31aac6c458110e9277077e3804645745fd901ca63ab85"
+  },
+  "genomeSAindex.cpp": {
+    "bytes": 8191,
+    "sha256": "668659d86c76e26e8ea4dd1049f50fc3751f495b8926a8e218d2825a39daffa2"
+  },
+  "genomeSAindex.h": {
+    "bytes": 479,
+    "sha256": "c2d72c445f4d691ca4bd62f1a28d36076cfd54497db9caf4983faaba22da5ade"
+  },
+  "genomeScanFastaFiles.cpp": {
+    "bytes": 4171,
+    "sha256": "313eab6f7bdc19049c5e90bcc25b8ee0e87d7d466eff7dc61900788017720193"
+  },
+  "genomeScanFastaFiles.h": {
+    "bytes": 231,
+    "sha256": "576c9875252f06533361d031fd6896cd82150ae79916120cc3dfcdc41259f4e3"
+  },
+  "htslib/.gitignore": {
+    "bytes": 202,
+    "sha256": "53e6ae99973c6c83f6a955d3eb9835339b5ff69c37b4be5dd2bf76a71a312c89"
+  },
+  "htslib/.travis.yml": {
+    "bytes": 146,
+    "sha256": "6140d0b2b3ade2cb821f43275f92cf65c58cb3846cb6c94bdf02d97edc45a492"
+  },
+  "htslib/Makefile": {
+    "bytes": 11303,
+    "sha256": "c8334225fb69c8d20d4343bbe1bdabdd5741e02eb2bde03bfda1b93a49724fcc"
+  },
+  "htslib/README.md": {
+    "bytes": 796,
+    "sha256": "37aaf60801e1687a68c10346e087ef154820c05771941836b1a871978478b256"
+  },
+  "htslib/bgzf.c": {
+    "bytes": 31551,
+    "sha256": "27871beb0e540f1e13921f781af079f94a818e20c1c9acea3ea1031b3a7e7684"
+  },
+  "htslib/bgzip.c": {
+    "bytes": 9142,
+    "sha256": "346422dd9abb2a00ddd34bcc2ad37a061254dea4451ab78451aa731d2d27635b"
+  },
+  "htslib/config.h": {
+    "bytes": 57,
+    "sha256": "84eb607a340a356e7bc8a88992b505277c103bd7e1746880800154a44e8682c3"
+  },
+  "htslib/cram/cram.h": {
+    "bytes": 2304,
+    "sha256": "60cbfd6f7d39df134c1256457d554d7a1b9d09c7fafb168c07ee1c3b238a0e88"
+  },
+  "htslib/cram/cram_codecs.c": {
+    "bytes": 43006,
+    "sha256": "06b5f71b248a5ae943f793922185aa2366350456d7afeda2f9f3485b0ce286d3"
+  },
+  "htslib/cram/cram_codecs.h": {
+    "bytes": 4866,
+    "sha256": "aa9ba7e4ca7251326bd1f042b69627d3d2fce76c5e8044389a4b71a13274e618"
+  },
+  "htslib/cram/cram_decode.c": {
+    "bytes": 57442,
+    "sha256": "569a2c861c3d53e9c42db54fc91f9da2d09bc251579b94611c56d1890aa3a0e6"
+  },
+  "htslib/cram/cram_decode.h": {
+    "bytes": 3515,
+    "sha256": "0e725c07424d8ae991e10739e15abaac93e1965c71c57b1f8192bc9e0a7b2e2a"
+  },
+  "htslib/cram/cram_encode.c": {
+    "bytes": 72369,
+    "sha256": "41d9758226a547ba4d6296e32e05345c8b09512874d4afbb889494ba610d9bb1"
+  },
+  "htslib/cram/cram_encode.h": {
+    "bytes": 3315,
+    "sha256": "5554c37504d4ce1c0681fce5a573513212d5e043e1217aca844b2a583465537d"
+  },
+  "htslib/cram/cram_index.c": {
+    "bytes": 12599,
+    "sha256": "72ebd8c444c65326dc5c637586c34977999037e58714712c74e6a6fe7f9257e1"
+  },
+  "htslib/cram/cram_index.h": {
+    "bytes": 3211,
+    "sha256": "7666b6941ffd809fc91320519cfdaf05a60c22c443c59898e12c7243b8d9843d"
+  },
+  "htslib/cram/cram_io.c": {
+    "bytes": 89915,
+    "sha256": "39839fc3a3eefe63d3579129aad8747f46e23cb53ca76f2d0a57209ed5d8d989"
+  },
+  "htslib/cram/cram_io.h": {
+    "bytes": 14834,
+    "sha256": "e6d849d73deb75e56e661f26e34cb3e29f3de44aa260578d7a0c2dce33dbfca8"
+  },
+  "htslib/cram/cram_samtools.c": {
+    "bytes": 4843,
+    "sha256": "38e64fe182fb228e03b482d5e86a84b1dbbafe3303c491e8538178bc18e824f8"
+  },
+  "htslib/cram/cram_samtools.h": {
+    "bytes": 3489,
+    "sha256": "10e30fc368e34fef90ba819c7fce84882936b8d9af8a90e18bb62ee4dc4b2042"
+  },
+  "htslib/cram/cram_stats.c": {
+    "bytes": 9501,
+    "sha256": "07168d5a426724d7961ec60d7ac9c91324541337cc7019709bf7f6d5a0b04648"
+  },
+  "htslib/cram/cram_stats.h": {
+    "bytes": 2279,
+    "sha256": "ce86e85c2aa3931ac0ab6f9be7e9964ad0bda7a6f70b6745b897b2e90c20b3ab"
+  },
+  "htslib/cram/cram_structs.h": {
+    "bytes": 21846,
+    "sha256": "2d29eba8edab9f17b9588ffac43cc051f7771bfb0a7ab536232598cca023c77c"
+  },
+  "htslib/cram/files.c": {
+    "bytes": 2508,
+    "sha256": "8957b94a2db8218ab97848510c973453f56927478f0a5b64fc100698fc22d358"
+  },
+  "htslib/cram/mFILE.c": {
+    "bytes": 15686,
+    "sha256": "9a5264a3b538e3e19d4d15721fce3b2e9f288576d4e0c7d939b5df9aee92a39a"
+  },
+  "htslib/cram/mFILE.h": {
+    "bytes": 2999,
+    "sha256": "a89fe6b07c2a0abbd9bf58b11d4d38dca385923eff8a972e49c470089dc8b489"
+  },
+  "htslib/cram/md5.c": {
+    "bytes": 8461,
+    "sha256": "dceae37d45d1230b13e9269aa6269b68894aae066db389a0161921939d231802"
+  },
+  "htslib/cram/md5.h": {
+    "bytes": 1479,
+    "sha256": "b48b94d9a3274588cc0d1b1fbe1cca840ca6e70633857212617f676166dd06ec"
+  },
+  "htslib/cram/misc.h": {
+    "bytes": 4306,
+    "sha256": "920d1b1236f6fd855f490bb82e8fc9dd3907f9c0d4db642cc7c6334b3dbcc11e"
+  },
+  "htslib/cram/open_trace_file.c": {
+    "bytes": 11015,
+    "sha256": "5f449051460fda5b392670dc0f6724f2b8f8ef9236d888ac717f959311839271"
+  },
+  "htslib/cram/open_trace_file.h": {
+    "bytes": 4742,
+    "sha256": "9a38ed161ee98c6b597fa692293771de30ffa04822088928b9b94d97c4b72924"
+  },
+  "htslib/cram/os.h": {
+    "bytes": 9330,
+    "sha256": "66a73e185c901fa3e7977666c4a30b206117fea1a741bdc3c09aa1ec72bdaaab"
+  },
+  "htslib/cram/pooled_alloc.c": {
+    "bytes": 4155,
+    "sha256": "a71072ac81709b2c320560d0d894935f5b1d21c30c670a5befe0a77c4412db31"
+  },
+  "htslib/cram/pooled_alloc.h": {
+    "bytes": 2077,
+    "sha256": "9a30517982d6ec7dbb31d8b95472901dea374b2f96e78b95847b6bf6af7993ec"
+  },
+  "htslib/cram/sam_header.c": {
+    "bytes": 28121,
+    "sha256": "4cc82311770e493669796a1f99701cff5df011e12ed715e156e65262f4a2e63f"
+  },
+  "htslib/cram/sam_header.h": {
+    "bytes": 13686,
+    "sha256": "eca37855be63b131aef1351065505d60d8a6e5bfde65d38c5985edee4bd1c439"
+  },
+  "htslib/cram/string_alloc.c": {
+    "bytes": 4152,
+    "sha256": "0e6be70eaf51078638ff691ac15fc0ba08b9172a33bfe75e6024aaf880cc0446"
+  },
+  "htslib/cram/string_alloc.h": {
+    "bytes": 2321,
+    "sha256": "df1cfcc4e6c799ae462377adfe89182c1b9bec8461d007e4161ad98b0177741b"
+  },
+  "htslib/cram/thread_pool.c": {
+    "bytes": 16363,
+    "sha256": "9ac9938630b94becfdfadf1e556f01975bdf93439d4a846750b5bb5a49b57c0d"
+  },
+  "htslib/cram/thread_pool.h": {
+    "bytes": 6356,
+    "sha256": "b30170badc7b0088ac2ba51d4ec925f1af207e7b5f36c3d02366b74b0b1138de"
+  },
+  "htslib/cram/vlen.c": {
+    "bytes": 12224,
+    "sha256": "a8ddd7f2e9f4e6965d8212f2bf587ed37c012e5dcf00332f5fd3377b81d4d79a"
+  },
+  "htslib/cram/vlen.h": {
+    "bytes": 1815,
+    "sha256": "c64ffb293343f03b5c24bce87557e344c2e28efdebf6cd62ecbed03c68bae05a"
+  },
+  "htslib/cram/zfio.c": {
+    "bytes": 4947,
+    "sha256": "7c6867443ee4940d86dce4cb5f25b757d5393b4c55cfd3581e70aed70df7490e"
+  },
+  "htslib/cram/zfio.h": {
+    "bytes": 2021,
+    "sha256": "444f5917a615bb560ded533b1798536dcc912598a02b03579a22897fb7e056ca"
+  },
+  "htslib/faidx.5": {
+    "bytes": 3601,
+    "sha256": "7f5d61a68e1c01144575c7496f5679483485cffee040aa3cf53f5dc6de1ff7e1"
+  },
+  "htslib/faidx.c": {
+    "bytes": 10753,
+    "sha256": "d28f3109cee85870bb29d48d487c3460cb7f75f2bb5de91da443dcfba5f87bee"
+  },
+  "htslib/hfile.c": {
+    "bytes": 14445,
+    "sha256": "f235267649b1fae420ec58b93ea59e474dcfdfc311de39316be09c630c00a27a"
+  },
+  "htslib/hfile_internal.h": {
+    "bytes": 3536,
+    "sha256": "70fc91f4844cc7ee3db62a1a7042faa154c5c0fc624e15290fa1e7a58dda4e58"
+  },
+  "htslib/hfile_net.c": {
+    "bytes": 2860,
+    "sha256": "52e4f23a77a1a7d83caf1d1b905fc6330509ae338e0519b85a98953c5db36812"
+  },
+  "htslib/hts.c": {
+    "bytes": 38473,
+    "sha256": "65817d5ea8b25ab7249432d12d98316c08a76a79fdab973705b62d5bb8b888dd"
+  },
+  "htslib/htslib.mk": {
+    "bytes": 3763,
+    "sha256": "5bc132ba354706ea1c67a338145d4c25c7fcaf11dd8eb6a24c7d8d7bf9348ae3"
+  },
+  "htslib/htslib/bgzf.h": {
+    "bytes": 9857,
+    "sha256": "9638516c0496f19347ff33101b581e6a90e24d185b41679a81de0c23d5e35568"
+  },
+  "htslib/htslib/faidx.h": {
+    "bytes": 3700,
+    "sha256": "f617f16520c0ac65fab5348c784fbba53cacfea8be5750f9f1df75de9526bc9c"
+  },
+  "htslib/htslib/hfile.h": {
+    "bytes": 6559,
+    "sha256": "6c7632b5e2d0b62ab17fa908b01877259d7ab8f294967afda9dd56b5ca77fd90"
+  },
+  "htslib/htslib/hts.h": {
+    "bytes": 9189,
+    "sha256": "26d9a2fc09d6a347d8a96fa6351aa062d232d3ef51fbc1d8bff60d9bf3f30709"
+  },
+  "htslib/htslib/hts_defs.h": {
+    "bytes": 1722,
+    "sha256": "4277eefdcef61c83dad25af674f6f194fdacefd964fd171d7bfabd03b6ce3c1e"
+  },
+  "htslib/htslib/kfunc.h": {
+    "bytes": 1431,
+    "sha256": "a3ee46dbb9957217e1d43d024de4a45f5b42459066c0a819e3016ecbea3c9160"
+  },
+  "htslib/htslib/khash.h": {
+    "bytes": 21224,
+    "sha256": "41e778a9b0d79addccb83263667533ff2af81a8836da7edc6160dfade150968a"
+  },
+  "htslib/htslib/khash_str2int.h": {
+    "bytes": 2456,
+    "sha256": "26d38be1be71bf8c8568b2f3d213e6bbcbd26184aa498de6f67cf87b2710da19"
+  },
+  "htslib/htslib/klist.h": {
+    "bytes": 4651,
+    "sha256": "47368e3dd36028d096bc5106d31bd097f360b3b5e58f0c785f383c1adc53317a"
+  },
+  "htslib/htslib/knetfile.h": {
+    "bytes": 1612,
+    "sha256": "c874934128c551fc0bc9bbe65d4605cf537780ac088c458687b572fd4eec42e7"
+  },
+  "htslib/htslib/kseq.h": {
+    "bytes": 8934,
+    "sha256": "bee65d55a4910f51966188a118f4b8a50b9e75e972108a043a8765eec8341a6f"
+  },
+  "htslib/htslib/ksort.h": {
+    "bytes": 10125,
+    "sha256": "bd5fba9d83217ef6af40fc0580247ede47af1f6a436a6cf1b818e41d7b43effa"
+  },
+  "htslib/htslib/kstdint.h": {
+    "bytes": 2312,
+    "sha256": "9c1d2b38b5d4a756ede1608b114cad019d8cd168c0578fe6b0a897f32c7b4d21"
+  },
+  "htslib/htslib/kstring.h": {
+    "bytes": 6653,
+    "sha256": "26025b699925289407f2eb0d8f436aceed28d105bd9b329c4547c0b3aafa3ba4"
+  },
+  "htslib/htslib/sam.h": {
+    "bytes": 13565,
+    "sha256": "edd76b4e9cf78c2d9ad840182e387b91f9dcd6f00ffcf88ee0f59ddfc954391c"
+  },
+  "htslib/htslib/synced_bcf_reader.h": {
+    "bytes": 10696,
+    "sha256": "d0b63c05fd5bc99f7496cb1277acdc7abe48cce26c64f23a9098f79ffda94823"
+  },
+  "htslib/htslib/tbx.h": {
+    "bytes": 1470,
+    "sha256": "16d4d2f250c59f272a1717b849693d6356ebb94dd2c07703c668a4dbec47cc21"
+  },
+  "htslib/htslib/vcf.h": {
+    "bytes": 34965,
+    "sha256": "3486609897d78270a319877af726690f566872e35f8fe3004482e5b499f3c2e6"
+  },
+  "htslib/htslib/vcf_sweep.h": {
+    "bytes": 346,
+    "sha256": "8fdfdc20c7e8cac51f80cb7b35965bcbd5c95408e899d79a30ee191705938407"
+  },
+  "htslib/htslib/vcfutils.h": {
+    "bytes": 2875,
+    "sha256": "389059e7d0b6d00070fb50c05202672164bb9cdf0fcecfd5b25fa890b0ab76c4"
+  },
+  "htslib/htslib_vars.mk": {
+    "bytes": 985,
+    "sha256": "7ebacf6adc727856825e0eaf5b9de53744d336dcdc40e9e987f3a212d1efec1b"
+  },
+  "htslib/kfunc.c": {
+    "bytes": 7935,
+    "sha256": "b5025ccdfc1ca51e7393c29a323f2b4c6074c612addb46199075d06e9f0a9405"
+  },
+  "htslib/knetfile.c": {
+    "bytes": 18309,
+    "sha256": "f7e7248d31751700c4314dc983fd8cb535ce6adad7b20d57903487f13d6b0778"
+  },
+  "htslib/kstring.c": {
+    "bytes": 5651,
+    "sha256": "ad779c5886b130f565b0912300f11c7b1db86b0cedf94324fd70e771fef12c7b"
+  },
+  "htslib/sam.5": {
+    "bytes": 1591,
+    "sha256": "ec0b10980d855d93b1a6237fb4290410429960396db1a445ac71763529e848d5"
+  },
+  "htslib/sam.c": {
+    "bytes": 55310,
+    "sha256": "ec9101874c9a528952759b65136bce1073553e0e66dbf48eac92c32f9a86699f"
+  },
+  "htslib/synced_bcf_reader.c": {
+    "bytes": 38694,
+    "sha256": "24b8bda691d6e39acd258c5545068e04f24be3f89ab2174a0088b758c1b348d3"
+  },
+  "htslib/tabix.1": {
+    "bytes": 3862,
+    "sha256": "1e5c98f042c2f2b1f54a018a964ab011100fb8b13d5761ff31960aa21f4becc4"
+  },
+  "htslib/tabix.c": {
+    "bytes": 13325,
+    "sha256": "22565252fbf98da8282fea5cdd31cff23851ba2182434eb577757d04d9bc4cbb"
+  },
+  "htslib/tbx.c": {
+    "bytes": 7721,
+    "sha256": "00bb9fa5203e3c0d89539dcbd5bfcfcbf6a0a9318362c5daf3bf8f7e3b8184a0"
+  },
+  "htslib/vcf.5": {
+    "bytes": 2310,
+    "sha256": "42673804d3b01de8553e2a66315a81c0b07b5fdb988ebc6869130a88305e4b6b"
+  },
+  "htslib/vcf.c": {
+    "bytes": 96823,
+    "sha256": "d2a3a111f77506f37d6b30226b237e72747cd33bc3b19dc9015bf4b20cff0f73"
+  },
+  "htslib/vcf_sweep.c": {
+    "bytes": 4163,
+    "sha256": "052e2a4e894f59e89e95dd7da8a73e446af68097916083b85e247ec06c5887ba"
+  },
+  "htslib/vcfutils.c": {
+    "bytes": 24475,
+    "sha256": "4a1baffc6f61a5dda8855904ea00d2da9ab9f488e25c71e3c3d46e17ce6e8848"
+  },
+  "insertSeqSA.cpp": {
+    "bytes": 12040,
+    "sha256": "30ec5822900f49e232ddd86e577cda63dfdbb1cecc61205a0d8dac31239d3273"
+  },
+  "insertSeqSA.h": {
+    "bytes": 318,
+    "sha256": "5b5aa11fbe3e0c58356e7097d235af1f82b7d9596473f18d49371861eb418264"
+  },
+  "mapThreadsSpawn.cpp": {
+    "bytes": 1718,
+    "sha256": "b8ce2f8f64b5547ec56906a0cbd93eacebd329f24a23b597712c2de82c8898ef"
+  },
+  "mapThreadsSpawn.h": {
+    "bytes": 181,
+    "sha256": "ee3d09d827928d7d30fc4e3a70334a83e4220da8135ff6adc33c1fb6603eb26f"
+  },
+  "opal/LICENSE": {
+    "bytes": 1079,
+    "sha256": "333b9c923edc201ac961bfe0f3b720621fc30f761a5eb3c204b555571c99e184"
+  },
+  "opal/opal.cpp": {
+    "bytes": 69992,
+    "sha256": "87abdb0d848bf4466474082080cf6772b332744663197274070838e7d4bc88df"
+  },
+  "opal/opal.h": {
+    "bytes": 8325,
+    "sha256": "b13bb1f5367dad6556dae903f4d344bb5f4da05fb608744e170d5ed861c1aa24"
+  },
+  "opal/simde_avx2.h": {
+    "bytes": 1292013,
+    "sha256": "dee756f2ff8387733868d1bf7893f99aeeb03583f1b43fb25c5469261fe374e9"
+  },
+  "outputSJ.cpp": {
+    "bytes": 7396,
+    "sha256": "744bc9102efdf4f68cd0a0f44dd28e71871659623d0ff771b9502255c76f262f"
+  },
+  "outputSJ.h": {
+    "bytes": 105,
+    "sha256": "06412e22e5166c09c1c2f9639f84f7c930d8246864fe887b488890ec2f82527c"
+  },
+  "parametersDefault": {
+    "bytes": 55490,
+    "sha256": "8cf9d46f8817921592f4fac6c2da3a094c0e54b1be0d67b4a9eb5f4b34d35a80"
+  },
+  "readBarcodeLoad.h": {
+    "bytes": 203,
+    "sha256": "7ca46b463eaf4d32368af3999ede2212729f18a6d3a7c8b85af3892654e47750"
+  },
+  "readLoad.cpp": {
+    "bytes": 4658,
+    "sha256": "696023e6827042ec507cf2ac4d84443643a50e598fbcc37831e00ae133bc5fc2"
+  },
+  "readLoad.h": {
+    "bytes": 391,
+    "sha256": "04ab96f887b47f722f67cd996256c01e9adc64c1e0e712136b5b3a3510ac0bee"
+  },
+  "samHeaders.cpp": {
+    "bytes": 4145,
+    "sha256": "3bfe2cff312f8c48833e6de6de0ca6eb122e5eeea109eb1821a9837efa2e671d"
+  },
+  "samHeaders.h": {
+    "bytes": 208,
+    "sha256": "79746c42ee4d62792542e377b6f966621de949c83d276d798fb208a89e7f43e3"
+  },
+  "serviceFuns.cpp": {
+    "bytes": 7600,
+    "sha256": "ee860d4535b8d04ef3e76e624a7d222823ac93aefede7f45e137377751ff4998"
+  },
+  "signalFromBAM.cpp": {
+    "bytes": 8583,
+    "sha256": "f0608019ff9447c5f38088642e445baae0f3a7735c19722ec1db756460569861"
+  },
+  "signalFromBAM.h": {
+    "bytes": 283,
+    "sha256": "062b890748f731bb8d56cd03c0603d15f9739d97e53d64d79adc80ce3040ce16"
+  },
+  "sjAlignSplit.cpp": {
+    "bytes": 575,
+    "sha256": "29bb5b3df70f4a8bb9ea72834ed67f3b5284381e25082317718114eda77fc279"
+  },
+  "sjAlignSplit.h": {
+    "bytes": 240,
+    "sha256": "c28341baa151881592a16efd939130d2d945550c9cb2517af95c66baecb877ac"
+  },
+  "sjdbBuildIndex.cpp": {
+    "bytes": 13264,
+    "sha256": "1e050eba0686aa88c5ea1d992c529215a22c07eae62d8f9d184a602ea4621588"
+  },
+  "sjdbBuildIndex.h": {
+    "bytes": 278,
+    "sha256": "066d409e8341c37ce68756269ff911b4aa6c9bd15784b62c91ed0321565d0ce8"
+  },
+  "sjdbInsertJunctions.cpp": {
+    "bytes": 6174,
+    "sha256": "2bb05df7d1665f86c7ce0667e94fdaa8910c0d806565faece0af4fe54c681e3b"
+  },
+  "sjdbInsertJunctions.h": {
+    "bytes": 242,
+    "sha256": "14cdf4d622091e1215d5a56f2568d7833fb184eaacbe74db64bea5282d250338"
+  },
+  "sjdbLoadFromFiles.cpp": {
+    "bytes": 1167,
+    "sha256": "fbafeee5c81447b968d31caf749e14f5386365c9fd6aca5e7a3a441e7010602c"
+  },
+  "sjdbLoadFromFiles.h": {
+    "bytes": 198,
+    "sha256": "da3dc5a92bf76102cd4f8941109e50a753dd59fc8dd53ee47088d6d5b0420cca"
+  },
+  "sjdbLoadFromStream.cpp": {
+    "bytes": 896,
+    "sha256": "fce127fc96d34d9e2539b1e05feb85f25a14a40d54365c8f570066c40d00e983"
+  },
+  "sjdbLoadFromStream.h": {
+    "bytes": 185,
+    "sha256": "ae582d7638d1798ee746adf421d557e6c4f062ba8e4ae4abc7aae269c6e77ef0"
+  },
+  "sjdbPrepare.cpp": {
+    "bytes": 10315,
+    "sha256": "fe8269c7c9ba47132d9d8d3076589d099b9f9d3cbc749dbf31381140bbbc7b46"
+  },
+  "sjdbPrepare.h": {
+    "bytes": 241,
+    "sha256": "d82dbc48e13349a8fa0ebd7f6b950121da8a51979866b94e665e6b189ea9c6e2"
+  },
+  "soloInputFeatureUMI.cpp": {
+    "bytes": 1354,
+    "sha256": "0639397f292cd8e933b6f56eefbbb9dfb8cd3425f6702011cf4aa1884340700b"
+  },
+  "soloInputFeatureUMI.h": {
+    "bytes": 439,
+    "sha256": "ac7b18870b2738f50b25185864e7316038dc6ba9d880fca0f4d8f80f81914e7b"
+  },
+  "sortSuffixesBucket.h": {
+    "bytes": 88,
+    "sha256": "6da1efdc5aacdd913e0aba4fe990c092f5007eca8525bb52cc17c01a8a1e2b20"
+  },
+  "stitchAlignToTranscript.cpp": {
+    "bytes": 20675,
+    "sha256": "84d31fff54c1d5a3b8eda85f0d1abdd49227536b58e371d1e8146f526913fc5d"
+  },
+  "stitchAlignToTranscript.h": {
+    "bytes": 306,
+    "sha256": "53b0b59e982b3463e7b74f4f1583b4c30daac250fc1b0fbdf6ebec75ac1a926d"
+  },
+  "stitchGapIndel.cpp": {
+    "bytes": 1975,
+    "sha256": "cffb0ce5535117d44290b25a63aec8b650ec37f66786ddba5e229c0d088c3fba"
+  },
+  "stitchWindowAligns.cpp": {
+    "bytes": 16327,
+    "sha256": "2e38ad92980341af9bcccf48fb76a3bad6f2934a550f1e453ab9760140a9482e"
+  },
+  "stitchWindowAligns.h": {
+    "bytes": 533,
+    "sha256": "f97cce62b7fb4a9e09e7521d83cbc1dc3e74e23cab24c6b251e30da5df55c54d"
+  },
+  "streamFuns.cpp": {
+    "bytes": 7028,
+    "sha256": "3d108260710811b22433dbf1e100b7333c4d057a1ddd002ed7ec9ff1106d41bb"
+  },
+  "streamFuns.h": {
+    "bytes": 847,
+    "sha256": "05ded052748f60b0258196d48a754126919936092ea510b351b1c472954236e5"
+  },
+  "stringSubstituteAll.cpp": {
+    "bytes": 413,
+    "sha256": "8acefbc1f6ee5a0476d89673844918d0cc09ddc3444ae34a29834530acafff2d"
+  },
+  "stringSubstituteAll.h": {
+    "bytes": 178,
+    "sha256": "13fc9fee26fa88b86648a7f68c2d50852d1815924dc5b7a50f1930568f9b9e16"
+  },
+  "sysRemoveDir.cpp": {
+    "bytes": 677,
+    "sha256": "7bd3dc835300bb0fd90c86fb18b784c0cfd0b58da848105ee1307bfa0503ca3b"
+  },
+  "sysRemoveDir.h": {
+    "bytes": 117,
+    "sha256": "068797768ce12c98fa48bd59cd0636eafc2cf64dc84c590f2d3e708054e7c949"
+  },
+  "systemFunctions.cpp": {
+    "bytes": 621,
+    "sha256": "52b4d42ae489360b6648fb82e99e2ba561a38acf4ebe590af5f159c98525b3da"
+  },
+  "systemFunctions.h": {
+    "bytes": 87,
+    "sha256": "8c362ee417bed051cd49903d4bb49b6e2214c98e0d068bc610b3da929949bfc5"
+  },
+  "twoPassRunPass1.cpp": {
+    "bytes": 3108,
+    "sha256": "287b18b27ab0a593c51c1afbbc117347f136fff0ca693448c72a4490fa81e6da"
+  },
+  "twoPassRunPass1.h": {
+    "bytes": 267,
+    "sha256": "07901af998d59bca5682f65c8c6a34ab852db4ad93d7b461276702bdfac227af"
+  }
+}

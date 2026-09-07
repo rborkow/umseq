@@ -1,0 +1,1 @@
+["make", "-j4", "STAR", "CXX=/usr/bin/g++", "CC=/usr/bin/gcc", "CXXFLAGSextra=", "LDFLAGSextra=", "CXXFLAGS_SIMD=", "BUILD_DATE=real-index-private", "BUILD_PLACE=real-index-private", "-C", "/home/rborkows/uni-rnaseq-probe-lab/chain-position-host1/private/counters"]

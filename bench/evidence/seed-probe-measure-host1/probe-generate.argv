@@ -1,0 +1,1 @@
+/home/rborkows/uni-rnaseq-probe-lab/probe-source-v1/target/release/umseed-probe generate --fastq /home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_1.fastq.gz --index /home/rborkows/uni-rnaseq/data/index/star_full --output /home/rborkows/uni-rnaseq-probe-lab/probe-measure-host1/probe-requests.bin --count 4000000 --seed 188140 

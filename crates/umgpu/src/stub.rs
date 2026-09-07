@@ -89,11 +89,44 @@ pub fn seed_probe<T: Send>(
     _n: usize,
     _cpu: impl FnOnce(crate::ProbeSlices<'_>) -> T + Send,
 ) -> Result<(f32, f64, T), Error> {
-    seed_probe_variant(
+    seed_probe_with_read_bytes(
         _ctx,
         _genome,
         _sa,
         _reads,
+        _reads.len(),
+        _requests,
+        _output,
+        _stats,
+        _config,
+        _start,
+        _n,
+        _cpu,
+    )
+}
+
+/// Unavailable without CUDA.
+#[allow(clippy::too_many_arguments)]
+pub fn seed_probe_with_read_bytes<T: Send>(
+    _ctx: &Context,
+    _genome: &umem::GpuLease<umem::Ro>,
+    _sa: &umem::GpuLease<umem::Ro>,
+    _reads: &umem::GpuLease<umem::Ro>,
+    _read_bytes: usize,
+    _requests: &umem::GpuLease<umem::Ro>,
+    _output: &umem::GpuLease<umem::Rw>,
+    _stats: &umem::GpuLease<umem::Rw>,
+    _config: crate::ProbeConfig,
+    _start: usize,
+    _n: usize,
+    _cpu: impl FnOnce(crate::ProbeSlices<'_>) -> T + Send,
+) -> Result<(f32, f64, T), Error> {
+    seed_probe_variant_with_read_bytes(
+        _ctx,
+        _genome,
+        _sa,
+        _reads,
+        _read_bytes,
         _requests,
         _output,
         _stats,
@@ -112,6 +145,40 @@ pub fn seed_probe_variant<T: Send>(
     _genome: &umem::GpuLease<umem::Ro>,
     _sa: &umem::GpuLease<umem::Ro>,
     _reads: &umem::GpuLease<umem::Ro>,
+    _requests: &umem::GpuLease<umem::Ro>,
+    _output: &umem::GpuLease<umem::Rw>,
+    _stats: &umem::GpuLease<umem::Rw>,
+    _config: crate::ProbeConfig,
+    _start: usize,
+    _n: usize,
+    _variant: crate::ProbeVariant,
+    _cpu: impl FnOnce(crate::ProbeSlices<'_>) -> T + Send,
+) -> Result<(f32, f64, T), Error> {
+    seed_probe_variant_with_read_bytes(
+        _ctx,
+        _genome,
+        _sa,
+        _reads,
+        _reads.len(),
+        _requests,
+        _output,
+        _stats,
+        _config,
+        _start,
+        _n,
+        _variant,
+        _cpu,
+    )
+}
+
+/// Unavailable selected variant with an explicit logical read arena extent.
+#[allow(clippy::too_many_arguments)]
+pub fn seed_probe_variant_with_read_bytes<T: Send>(
+    _ctx: &Context,
+    _genome: &umem::GpuLease<umem::Ro>,
+    _sa: &umem::GpuLease<umem::Ro>,
+    _reads: &umem::GpuLease<umem::Ro>,
+    _read_bytes: usize,
     _requests: &umem::GpuLease<umem::Ro>,
     _output: &umem::GpuLease<umem::Rw>,
     _stats: &umem::GpuLease<umem::Rw>,

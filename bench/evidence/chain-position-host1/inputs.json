@@ -1,0 +1,10 @@
+{
+  "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_1.fastq.gz": {
+    "bytes": 1673877067,
+    "sha256": "47ce5be22f6c0d3a6510a821235ad2126dce533d3004f5d01a9f9d69638fd584"
+  },
+  "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_2.fastq.gz": {
+    "bytes": 1670072151,
+    "sha256": "2c099629ed89b7669d4c375b7cec92a8af39f53281c807e2282a02de9e3f8567"
+  }
+}

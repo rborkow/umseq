@@ -1,0 +1,9 @@
+{
+  "source_files": 20,
+  "requests": 999914,
+  "request_fields_and_buffers_matched": 999914,
+  "captured_star_tuples_matched": 999914,
+  "skipped": 0,
+  "request_sha256": "eeb46b2da2e830b9cc9b70af2569b132412eb1bba9582b54037399de2ca65283",
+  "star_tuple_sha256": "cb7e6fce3d1d17e3b879c1c0534277ac3c331b7b39d99f39ac5d5617627117f0"
+}

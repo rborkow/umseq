@@ -1,7 +1,7 @@
 # Cost curve — first full draft (2026-09-06)
 
 Model: `scripts/cost_curve.py` → `bench/fig/*.png`, `bench/fig/cost-model.json`. Every input
-is a measured number from `bench/` except those marked **ASSUMED** (CLI flags on the script).
+is a measured number from `bench/` except those marked **ASSUMED** (CLI flags) or **PROJECTED** (the seed-search scenario).
 
 ## Inputs
 
@@ -30,9 +30,18 @@ with a scheduler that keeps 20 cores busy (Nextflow's stock overlap reached 32%)
 | nf-core stock | 223 | 41 (measured 41.5 ✔) | 103 | 8 |
 | + umbam CPU | 148 | 62 | 155 | 5 |
 | + umbam CPU+GPU | 147 | 63 | 157 | 5 |
+| umbam + GPU seed search (**PROJECTED**, 1.07–1.15×) | **129–139** | — | **1.07–1.15× baseline** | — |
 
-The model reproduces the measured Tier 2A throughput (41.3 predicted vs 41.5 observed), so
-the other rows are extrapolations of a calibrated model, not guesses.
+The model reproduces the measured Tier 2A throughput (41.3 predicted vs 41.5 observed).
+The umbam rows compose measured component costs in that calibrated model; they are not
+directly measured full-pipeline runs. The seed-search row adds an explicitly unmeasured projection.
+
+The fourth row is an **unmeasured capacity projection**, not a new measurement or a
+full-pipeline run. Its exact comparator is `umbam CPU replaces BAM chain` (the ~148.5
+CPU-min/sample baseline). The model projects CPU-min/sample as `baseline / factor` and
+capacity as `baseline capacity × factor`, with the explicitly bounded factor **1.07–1.15×**;
+there is no unexplained midpoint. The chart uses a dashed conservative 1.07× line and a light
+envelope through 1.15×. No additional hardware capex is implied.
 
 **Break-even is ~9 samples/month** ($4,000 / 36 mo / $12). Below one box's capacity the $/sample
 curve is just capex ÷ volume and is identical for every software scenario; the software only
@@ -66,6 +75,10 @@ with umbam at 80%). Energy is $0.01–0.02/sample and never matters.
   latency (2.8 → 1.7 min), correctness-for-free (no staging, byte-identical), and a proven
   pattern. The pipeline is CPU-bound in STAR/salmon; until the GPU touches alignment, the
   UM-specific thesis has no cost number attached.
+- **Projected next scenario:** `umbam + GPU seed search (PROJECTED, 1.07–1.15×)` is motivation
+  for the integration experiment, not evidence. The kernel is accepted; scheduler coverage
+  sets the prize at 7–15%. Integration is not measured yet. The target is **≥12% STAR CPU
+  reduction**; **≥8%** is the gate for a six-sample pipeline measurement.
 - **Unified memory specifically:** on this box it removed the staging step the old PoC died
   on, and kernels read the resident table at ~145 GB/s. That's necessary for the alignment
   experiment, not sufficient; it's why STAR is the next card and why the Mac Studio is

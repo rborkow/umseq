@@ -1,0 +1,1 @@
+cuobjdump --dump-sass target/release/umseed-probe 

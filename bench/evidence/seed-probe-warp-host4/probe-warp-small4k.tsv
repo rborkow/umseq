@@ -1,0 +1,32 @@
+# PROBE ONLY; same-algorithm agreement != upstream oracle; SA_SEARCH_FULL synthetic grid, remaining read length; variant=warp; pages=4K verified zero huge bytes; split=inner-only; validated20M/5M=/home/rborkows/uni-rnaseq-probe-lab/probe-measure-host1/probe-boundary.json; original probe-measure-host1 inputs
+# PROBE index_hashes=Genome:44c54824a99ddcde29eee65ed77e1896adc2a75ecc4979a2096f3beb6040b0f6,SA:dc08616e0b01a8c1f9713e71a4eaf8d2354e559a4e1146aa294b3fbc507663d5,SAindex:975941953bc1348047b81799ca639ccb5e880faf0a04a3c640d065bdad1c620e,genomeParameters.txt:20d334fccd47efc59fbe3667d0cd69f5171e0e2fc7b16a2a57ca11370643d246,chrStart.txt:f61aef4f45ee4f41768bfce5c9879305326b86b342faef778d7670442ed4e853,chrLength.txt:d658af0c38effb24ff025667596d331fbd92cf2706bd8824840b54f727a6ea6c,chrName.txt:2a6ad41315a63770960b8d52773ce6067bbde58388bed67462354a18dc736333,chrNameLength.txt:2d8b1126abff7210cdcbeb1076d962d4e28113bea82b9a5ab6181e80b25de74b,sjdbInfo.txt:47b5b072d8d91160a493d341d2f074f144d0fb3deed5589dbd453118e2602588 request_sha256=c72a0eea30d9caef930481be96f901261dfed54ea2600a65fcf3087b530ac428 index_load_validation_s=58.140470 setup_s=59.237230 workers=20 bytes_copied_constant=0 (not a dynamic detector); index_SAindex_resident_bytes=1565873619
+# PROBE synthetic/optimistic proof-of-capability only: SA_SEARCH_FULL, not captured STAR scheduler requests; not a correctness gate or SEED-CUDA
+# PROBE compared_bytes and logical_gpu_GBs count scalar-equivalent logical work; warp speculative sequence reads after the first mismatch are actual extra loads excluded from these metrics
+# PROBE mean/max_warp_byte_imbalance are software group-of-32 request-cost proxies, not hardware activity counters or actual intra-warp imbalance for warp-per-request
+# PROBE request provenance: PROBE synthetic SA_SEARCH_FULL (not captured STAR scheduler requests)
+# PROBE request provenance: count=4000000
+# PROBE request provenance: seed=188140
+# PROBE request provenance: visited_reads=4005246
+# PROBE request provenance: sampled_reads=500000
+# PROBE request provenance: skipped_non_acgt=1040
+# PROBE request provenance: source_fastq=/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_1.fastq.gz
+# PROBE request provenance: source_sha256=47ce5be22f6c0d3a6510a821235ad2126dce533d3004f5d01a9f9d69638fd584
+# PROBE request provenance: index_parameters_sha256=20d334fccd47efc59fbe3667d0cd69f5171e0e2fc7b16a2a57ca11370643d246
+# PROBE request provenance: request_sha256=c72a0eea30d9caef930481be96f901261dfed54ea2600a65fcf3087b530ac428
+# PROBE request provenance: seedSearchLmax=0 unlimited (pinned parametersDefault:575); N=remaining read length; grid=20; s1=position-wise complement
+# PROBE CPU pointer genome=0xf11d4e000000 bytes=3263384238 page_report=PageReport { len: 3263384238, huge_bytes: 0, kind: Small, observed_at: SystemTime { tv_sec: 1788732654, tv_nsec: 145657930 }, fallback: false }
+# PROBE CPU pointer sa=0xf11e10c00000 bytes=25352264482 page_report=PageReport { len: 25352264482, huge_bytes: 0, kind: Small, observed_at: SystemTime { tv_sec: 1788732652, tv_nsec: 13464298 }, fallback: false }
+# PROBE CPU pointer reads=0xf11cd8a00000 bytes=75000000 page_report=PageReport { len: 75000000, huge_bytes: 0, kind: Small, observed_at: SystemTime { tv_sec: 1788732705, tv_nsec: 965202245 }, fallback: false }
+# PROBE CPU pointer requests=0xf11cdd400000 bytes=320000000 page_report=PageReport { len: 320000000, huge_bytes: 0, kind: Small, observed_at: SystemTime { tv_sec: 1788732705, tv_nsec: 755445587 }, fallback: false }
+mode	requests_per_arm	repeat	cpu_workers	cpu_s	gpu_wall_s	gpu_event_ms	device_call_wall_s	combined_s	cpu_rps	gpu_rps	GPU_RPS_over_CPU20_RPS	cpu_gpu_output_checksum	sa_gathers	compared_bytes	loop_trips	comparisons	mean_request_bytes	max_request_bytes	mean_loops	max_loops	mean_compare_bytes	max_compare_bytes	mean_warp_byte_imbalance	max_warp_byte_imbalance	logical_gpu_GBs	combined_rps	cpu_slowdown	gpu_slowdown
+# PROBE warmup requests=64000 rounds=8 event_ms=1030.7743 elapsed_s=1.035390; checks included, every GPU output consumed
+PROBE-isolated	64000	1	20	0.017857025	0.129325633	129.183548	0.129220112	0.000000000	3584023.655	494874.825	0.138078	66204de98c47a2bc	2383829	7786621	2255829	2383829	121.666	438	35.247	55	3.266	68	2.058719	3.712175	0.207672	0.000000	0.000000	0.000000
+PROBE-isolated	64000	2	20	0.016891469	0.126358182	126.264099	0.126291301	0.000000000	3788894.856	506496.683	0.133679	66204de98c47a2bc	2383829	7786621	2255829	2383829	121.666	438	35.247	55	3.266	68	2.058719	3.712175	0.212549	0.000000	0.000000	0.000000
+PROBE-isolated	64000	3	20	0.016754748	0.128413885	128.319458	0.128344525	0.000000000	3819812.748	498388.473	0.130475	66204de98c47a2bc	2383829	7786621	2255829	2383829	121.666	438	35.247	55	3.266	68	2.058719	3.712175	0.209146	0.000000	0.000000	0.000000
+# PROBE overlap controls repeat=1 half=32000 CPU_first_half_s=0.009381330 GPU_second_half_device_s=0.062418833 GPU_second_half_total_s=0.062496609 cpu_checksum=53ec64e5feebd59d gpu_checksum=4334022c77178ce4
+PROBE-overlap	32000	1	20	0.010804279	0.063626933	63.619457	0.063626933	0.063649765	2961789.491	502931.675	0.169807	4334022c77178ce4	1191678	3902811	1127678	1191678	121.963	438	35.240	55	3.275	68	2.055451	3.389630	0.211172	1005502.534063	1.151679	1.019355
+# PROBE overlap controls repeat=2 half=32000 CPU_first_half_s=0.008856031 GPU_second_half_device_s=0.062310912 GPU_second_half_total_s=0.062386224 cpu_checksum=53ec64e5feebd59d gpu_checksum=4334022c77178ce4
+PROBE-overlap	32000	2	20	0.010580438	0.063580228	63.572639	0.063580228	0.063601269	3024449.460	503301.121	0.166411	4334022c77178ce4	1191678	3902811	1127678	1191678	121.963	438	35.240	55	3.275	68	2.055451	3.389630	0.211327	1006269.230257	1.194716	1.020371
+# PROBE overlap controls repeat=3 half=32000 CPU_first_half_s=0.010494406 GPU_second_half_device_s=0.063882389 GPU_second_half_total_s=0.063960757 cpu_checksum=53ec64e5feebd59d gpu_checksum=4334022c77178ce4
+PROBE-overlap	32000	3	20	0.011649226	0.067188833	67.181313	0.067188833	0.067212530	2746963.618	476269.621	0.173380	4334022c77178ce4	1191678	3902811	1127678	1191678	121.963	438	35.240	55	3.275	68	2.055451	3.389630	0.199977	952203.406121	1.110041	1.051758
+# PROBE COMPLETE agreement; same algorithm, not upstream oracle

@@ -1,0 +1,12 @@
+CHAIN_POSITION_ONE_MAPPING cutoff=1788836400
+RUNNING prepare
+prepare exit=0
+RUNNING build
+build exit=0
+RUNNING counters
+counters exit=0
+RUNNING summary
+summary exit=0
+RUNNING parity
+parity exit=0
+COMPLETE_REQUIRES_ORCHESTRATOR_VERIFICATION

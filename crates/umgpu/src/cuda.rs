@@ -947,11 +947,47 @@ pub fn seed_probe<T: Send>(
     n: usize,
     cpu: impl FnOnce(crate::ProbeSlices<'_>) -> T + Send,
 ) -> Result<(f32, f64, T), Error> {
-    seed_probe_variant(
+    seed_probe_with_read_bytes(
         ctx,
         genome,
         sa,
         reads,
+        reads.len(),
+        requests,
+        output,
+        stats,
+        config,
+        start,
+        n,
+        cpu,
+    )
+}
+
+/// PROBE synchronous launch with an explicit logical read arena extent.
+///
+/// This permits an owning caller to retain a larger allocation between calls
+/// without exposing stale capacity bytes to the kernel.
+#[allow(clippy::too_many_arguments)]
+pub fn seed_probe_with_read_bytes<T: Send>(
+    ctx: &Context,
+    genome: &GpuLease<umem::Ro>,
+    sa: &GpuLease<umem::Ro>,
+    reads: &GpuLease<umem::Ro>,
+    read_bytes: usize,
+    requests: &GpuLease<umem::Ro>,
+    output: &GpuLease<Rw>,
+    stats: &GpuLease<Rw>,
+    config: crate::ProbeConfig,
+    start: usize,
+    n: usize,
+    cpu: impl FnOnce(crate::ProbeSlices<'_>) -> T + Send,
+) -> Result<(f32, f64, T), Error> {
+    seed_probe_variant_with_read_bytes(
+        ctx,
+        genome,
+        sa,
+        reads,
+        read_bytes,
         requests,
         output,
         stats,
@@ -970,6 +1006,40 @@ pub fn seed_probe_variant<T: Send>(
     genome: &GpuLease<umem::Ro>,
     sa: &GpuLease<umem::Ro>,
     reads: &GpuLease<umem::Ro>,
+    requests: &GpuLease<umem::Ro>,
+    output: &GpuLease<Rw>,
+    stats: &GpuLease<Rw>,
+    config: crate::ProbeConfig,
+    start: usize,
+    n: usize,
+    variant: crate::ProbeVariant,
+    cpu: impl FnOnce(crate::ProbeSlices<'_>) -> T + Send,
+) -> Result<(f32, f64, T), Error> {
+    seed_probe_variant_with_read_bytes(
+        ctx,
+        genome,
+        sa,
+        reads,
+        reads.len(),
+        requests,
+        output,
+        stats,
+        config,
+        start,
+        n,
+        variant,
+        cpu,
+    )
+}
+
+/// PROBE selected variant with an explicit logical read arena extent.
+#[allow(clippy::too_many_arguments)]
+pub fn seed_probe_variant_with_read_bytes<T: Send>(
+    ctx: &Context,
+    genome: &GpuLease<umem::Ro>,
+    sa: &GpuLease<umem::Ro>,
+    reads: &GpuLease<umem::Ro>,
+    read_bytes: usize,
     requests: &GpuLease<umem::Ro>,
     output: &GpuLease<Rw>,
     stats: &GpuLease<Rw>,
@@ -1007,7 +1077,10 @@ pub fn seed_probe_variant<T: Send>(
         "PROBE packed SA",
         ((config.n_sa - 1) * (config.strand_bit + 1) / 8 + 8) as usize,
     )?;
-    ctx.check_lease(reads, "PROBE reads", 1)?;
+    if read_bytes == 0 || read_bytes > reads.len() {
+        return Err(Error::InvalidInput("PROBE logical read extent"));
+    }
+    ctx.check_lease(reads, "PROBE reads", read_bytes)?;
     ctx.check_lease(requests, "PROBE requests", request_end)?;
     ctx.check_lease(output, "PROBE output", n * 40)?;
     ctx.check_lease(stats, "PROBE stats", n * 48)?;
@@ -1049,7 +1122,7 @@ pub fn seed_probe_variant<T: Send>(
         crate::ProbeSlices {
             genome: std::slice::from_raw_parts(gp, genome.len()),
             sa: std::slice::from_raw_parts(sp, sa.len()),
-            reads: std::slice::from_raw_parts(rp, reads.len()),
+            reads: std::slice::from_raw_parts(rp, read_bytes),
             requests: std::slice::from_raw_parts(qp.cast(), requests.len() / 80),
         }
     };
@@ -1064,7 +1137,7 @@ pub fn seed_probe_variant<T: Send>(
                 gp,
                 sp,
                 rp,
-                reads.len(),
+                read_bytes,
                 qp.cast(),
                 start,
                 n,

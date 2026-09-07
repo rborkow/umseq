@@ -1,0 +1,1 @@
+cargo test --offline --release --locked -p umseed-probe --features cuda 

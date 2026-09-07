@@ -1,0 +1,26 @@
+REAL_REQUESTS_RUNNING cutoff=1788750000
+RUNNING clocks-before
+clocks-before exit=0
+RUNNING probe-build
+probe-build exit=0
+RUNNING probe-tests
+probe-tests exit=0
+RUNNING sass
+sass exit=0
+RUNNING prepare-capture
+prepare-capture exit=0
+RUNNING build-capture
+build-capture exit=0
+RUNNING binding-inputs
+binding-inputs exit=0
+RUNNING stock
+stock exit=0
+RUNNING capture
+capture exit=0
+RUNNING parity
+parity exit=0
+RUNNING validator-build
+validator-build exit=0
+RUNNING convert
+convert exit=2
+FAILED convert failed: 2

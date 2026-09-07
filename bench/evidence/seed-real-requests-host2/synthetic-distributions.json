@@ -1,0 +1,59 @@
+{
+  "L_in": {
+    "log2_histogram": {
+      "0": 1000000
+    },
+    "max": 0,
+    "mean": 0.0,
+    "median": 0,
+    "p90": 0,
+    "p99": 0
+  },
+  "N": {
+    "log2_histogram": {
+      "[2^3,2^4)": 250000,
+      "[2^5,2^6)": 500000,
+      "[2^6,2^7)": 250000
+    },
+    "max": 75,
+    "mean": 45.0,
+    "median": 35,
+    "p90": 75,
+    "p99": 75
+  },
+  "count": 1000000,
+  "gather_definition": "logical comparator/SA-gather counter; not physical DRAM traffic",
+  "interval_width": {
+    "log2_histogram": {
+      "[2^32,2^33)": 1000000
+    },
+    "max": 6146003510,
+    "mean": 6146003510.0,
+    "median": 6146003510,
+    "p90": 6146003510,
+    "p99": 6146003510
+  },
+  "logical_dependent_gathers": {
+    "log2_histogram": {
+      "[2^5,2^6)": 1000000
+    },
+    "max": 60,
+    "mean": 37.251259,
+    "median": 37,
+    "p90": 40,
+    "p99": 45
+  },
+  "logical_loop_trips": {
+    "log2_histogram": {
+      "[2^5,2^6)": 1000000
+    },
+    "max": 58,
+    "mean": 35.251259,
+    "median": 35,
+    "p90": 38,
+    "p99": 43
+  },
+  "loop_definition": "scalar search main binary loop plus expand loops",
+  "source_kind": "SYNTHETIC_SA_SEARCH_FULL",
+  "timed": false
+}

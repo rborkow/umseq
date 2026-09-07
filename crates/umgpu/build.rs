@@ -37,6 +37,7 @@ fn main() {
     assert!(status.success(), "nvcc failed compiling umgpu shim");
     println!("cargo:rerun-if-changed=shim/seed_probe.cu");
     println!("cargo:rerun-if-changed=shim/seed_probe.h");
+    println!("cargo:rerun-if-changed=shim/seed_probe_abi.h");
     let probe_object = out.join("seed_probe.o");
     let probe_status = Command::new(&nvcc)
         .args([

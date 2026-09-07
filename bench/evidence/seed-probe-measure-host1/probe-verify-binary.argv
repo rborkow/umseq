@@ -1,0 +1,1 @@
+sha256sum --check /home/rborkows/uni-rnaseq-probe-lab/probe-build-host1/probe-binary-sha256.txt 
