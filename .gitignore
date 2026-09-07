@@ -6,12 +6,34 @@ bench/cuda/chase_thp*
 bench/metal/probe_metal
 *.o
 *.metallib
+__pycache__/
 
 # data (lives on the Spark under ~/uni-rnaseq/data; Mac keeps Tier 0/1 only)
 data/
+runs/
 
-# worker logs
+# measurement evidence: raw traces, request binaries, SSIR captures, perf data.
+# Summaries live in bench/*.md; raw archives stay on the Spark and in local
+# bench/evidence/ (hundreds of MB). Small JSON/TSV summaries are whitelisted below.
+bench/evidence/**
+!bench/evidence/**/
+!bench/evidence/**/*.md
+!bench/evidence/**/*.json
+!bench/evidence/**/*.tsv
+!bench/evidence/**/*.txt
+!bench/evidence/**/*.argv
+!bench/evidence/**/*.status
+bench/evidence/**/*.bin
+bench/evidence/**/*.ssir
+bench/evidence/**/*.data
+bench/evidence/**/*.sam
+bench/evidence/**/*.bam
+
+# worker logs and orchestration scratch
 .hermes/cards/*.log
+.hermes/cards/*.py
+.nextflow.log
+.nextflow/
 
 # editor / os
 .DS_Store

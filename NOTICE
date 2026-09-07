@@ -1,0 +1,36 @@
+# NOTICE — third-party material in this repository
+
+This project is MIT-licensed (see LICENSE). It contains or derives from the following
+third-party material, retained under the original licenses noted here.
+
+## STAR (Alexander Dobin), MIT
+- `crates/umgpu/shim/LICENSE.star` — STAR's license, retained verbatim.
+- `crates/umgpu/shim/seed_probe.cu`, `crates/umseed-probe/src/cpu.rs` — independent
+  re-implementations of the `maxMappableLength` / `compareSeqToGenome` / `findMultRange`
+  algorithm from STAR 2.7.11b `SuffixArrayFuns.cpp`, written from the source as
+  specification (see `docs/STAR-INTEGRATE-DESIGN.md` for the cited line ranges).
+- The seed-search lane's trace capture patches a private copy of STAR; that copy is not
+  redistributed here. Pinned source hashes are recorded in the lane's evidence.
+
+## Tool-source excerpts used as specifications (`docs/tool-src/`)
+These are verbatim excerpts, extracted via `inspect.getsource` / `deparse` from the versions
+shipped in the nf-core/rnaseq 3.26 containers, kept so that byte-identity claims can be
+audited against the exact code that produced the goldens. They are not compiled into anything.
+- `rseqc-5.x-relevant.py`, `rseqc-inner_distance.py` — RSeQC (Liguo Wang et al.), GPL-3.0.
+- `dupradar-1.38-relevant.R` — dupRadar (Sergi Sayols et al.), GPL-3.0.
+
+If redistributing the GPL excerpts is a concern for your use, delete `docs/tool-src/`;
+nothing depends on it at build or test time. The behaviours they document are also
+described in prose in `crates/umbam/COMPAT.md`.
+
+## Rust dependencies
+See `Cargo.lock`; all crates are MIT/Apache-2.0 dual-licensed or MIT (noodles, rayon,
+zlib-rs/flate2, clap, anyhow, crc32fast).
+
+## CUDA
+`crates/umgpu` links against CUDA 13, CCCL/CUB, and optionally nvCOMP 5 (feature `nvcomp`).
+These are not redistributed; see NVIDIA's license terms.
+
+## Data
+No sequencing data is in this repository. `data-manifest.json` lists the public Geuvadis
+samples (ENA) and GENCODE annotation used, with checksums.

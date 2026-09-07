@@ -1,0 +1,28 @@
+name: ci
+
+# CPU / stub-backend build. The CUDA paths (`--features cuda`, `nvcomp`) need a GB10 and are
+# exercised on the Spark by the validation scripts, not here. The ignored Tier 0 gates need the
+# chr22 fixture and samtools; see scripts/make_tier0.sh.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - name: cost model renders
+        run: |
+          python3 -m pip install --quiet matplotlib numpy
+          python3 scripts/cost_curve.py --out /tmp/fig
+          test -s /tmp/fig/cost-curve.png
