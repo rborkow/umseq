@@ -72,6 +72,12 @@ def main(a):
     shutil.copy2(HERE/'star_integrate_window.cpp',root/'integrated'/'star_integrate_window.cpp')
     shutil.copy2(HERE/'star_integrate_work.hpp',root/'integrated'/'star_integrate_work.hpp')
     shutil.copy2(HERE/'star_integrate_work.cpp',root/'integrated'/'star_integrate_work.cpp')
+    # The ABI headers must live in the private tree too: STAR's Makefile runs its `-MM`
+    # dependency scan without CXXFLAGSextra, so an include path is not enough.
+    shutil.copy2(HERE/'usi.h',root/'integrated'/'usi.h')
+    shutil.copy2(HERE.parent.parent/'crates'/'umgpu'/'shim'/'seed_probe_abi.h',root/'integrated'/'seed_probe_abi.h')
+    usi=(root/'integrated'/'usi.h').read_text()
+    (root/'integrated'/'usi.h').write_text(usi.replace('#include "../../crates/umgpu/shim/seed_probe_abi.h"','#include "seed_probe_abi.h"'))
     # Reuse the accepted replay SHA-256 implementation for resident STAR hashes.
     for n in ('sha256.hpp','sha256.cpp'):
         shutil.copy2(a.tooling/n,root/'integrated'/n)
