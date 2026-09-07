@@ -1,0 +1,2 @@
+a47fc05c880cf278f1ec058fff4f89a04bf97ca0465fae3993cc96eb5e95dcb4  /home/rborkows/uni-rnaseq-probe-lab/integrate-gate-host5/private/integrated/STAR
+f84493ef8c9a6d39e60264c0c9e0c6da388e8a455e6c21c1a1b9a61f52662a29  /home/rborkows/uni-rnaseq-seed-lab/seed-split-private-v2/baseline/STAR

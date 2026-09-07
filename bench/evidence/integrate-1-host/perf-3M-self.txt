@@ -1,0 +1,58 @@
+    10.72%  [.] star_integrate::prepare_window(ReadAlignChunk&)
+     7.37%  [.] __memset_zva64
+     7.14%  [.] star_integrate::submit_window(std::vector<star_integrate::WindowRead, std::allocator<star_integrate::WindowRead> >&&)
+     5.76%  [.] complementSeqNumbers(char*, char*, unsigned long long)
+     5.38%  [.] convertNucleotidesToNumbers(char const*, char*, unsigned long long)
+     4.77%  [.] __aarch64_cas4_acq
+     3.57%  [.] compareSeqToGenome(Genome&, char**, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, bo
+     3.39%  [.] ReadAlign::stitchPieces(char**, unsigned long long)
+     2.83%  [.] extendAlign(char*, char*, unsigned long long, unsigned long long, int, int, unsigned long long, unsigned long long, unsigned
+     2.69%  [.] star_integrate::lookup(Parameters const&, Genome const&, char**, unsigned long, star_integrate::InnerCall const&, unsigned l
+     2.64%  [.] __memcpy_sve
+     2.37%  [k] __arch_copy_from_user
+     2.17%  [.] malloc
+     2.10%  [.] stitchWindowAligns(unsigned long long, unsigned long long, int, bool*, unsigned long long, unsigned long long, Transcript, u
+     1.88%  [.] ReadAlign::assignAlignToWindow(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long
+     1.50%  [.] ReadAlign::maxMappableLength2strands(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigne
+     1.43%  [.] star_integrate::(anonymous namespace)::coordinator_main()
+     1.20%  [.] stitchAlignToTranscript(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, 
+     1.14%  [.] std::_Sp_counted_ptr<star_integrate::(anonymous namespace)::Window*, (__gnu_cxx::_Lock_policy)2>::_M_dispose()
+     1.02%  [.] Transcript::Transcript(Transcript const&)
+     0.85%  [.] std::istream::sentry::sentry(std::istream&, bool)
+     0.74%  [.] _int_malloc
+     0.71%  [.] _int_free
+     0.66%  [.] 0x0000000000007b6c
+     0.65%  [.] __memchr_generic
+     0.62%  [.] qualitySplit(char*, unsigned long long, unsigned long long, unsigned long long, unsigned long long**)
+     0.61%  [.] malloc_consolidate
+     0.59%  [.] Transcript::operator=(Transcript const&) [clone .isra.0]
+     0.59%  [.] std::istream::getline(char*, long, char)
+     0.58%  [k] rwsem_spin_on_owner
+    44.18%  [.] ssir::Sha256::block(unsigned char const*)
+    11.35%  [.] 0x000000000026abd0
+                       0xac6d4d0558d0
+                       0xac6d4d051f38
+                       0xac6d4d052d30
+     3.12%  [.] compareSeqToGenome(Genome&, char**, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, bo
+     2.71%  [k] __arch_copy_to_user
+     2.42%  [.] ReadAlign::stitchPieces(char**, unsigned long long)
+     2.12%  [.] extendAlign(char*, char*, unsigned long long, unsigned long long, int, int, unsigned long long, unsigned long long, unsigned
+     2.06%  [.] star_integrate::lookup(Parameters const&, Genome const&, char**, unsigned long, star_integrate::InnerCall const&, unsigned l
+     1.76%  [.] ReadAlign::maxMappableLength2strands(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigne
+     1.54%  [k] _raw_spin_unlock_irqrestore
+     1.52%  [.] __memset_zva64
+     1.34%  [.] umseed_probe::index::probe_load
+     1.34%  [.] stitchWindowAligns(unsigned long long, unsigned long long, int, bool*, unsigned long long, unsigned long long, Transcript, u
+     1.27%  [k] page_counter_cancel
+     1.24%  [.] ReadAlign::assignAlignToWindow(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long
+     1.01%  [k] _raw_spin_lock
+     1.01%  [k] __arch_copy_from_user
+     0.99%  [.] 0x000000000026abe4
+     0.97%  [.] Transcript::Transcript(Transcript const&)
+     0.89%  [.] stitchAlignToTranscript(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, 
+     0.88%  [.] __memcpy_sve
+     0.74%  [k] smaps_account
+                                  0xfa9b86c51ae0
+     0.63%  [.] 0x000000000026abf0
+     0.54%  [k] __pi_clear_page
+     0.53%  [.] convertNucleotidesToNumbers(char const*, char*, unsigned long long)
