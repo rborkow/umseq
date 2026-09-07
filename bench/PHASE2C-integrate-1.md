@@ -101,3 +101,64 @@ batches so workers never block on the drain; borrow STAR's already-prepared `Rea
 instead of re-preparing; per-worker queues with a lock-free hand-off. Whether that recovers
 the ~130 CPU-s is the open question; the ceiling on STAR is the design's 1.15×, and the
 measured floor for the lookahead alone is −6%. Expected value of a v2 is positive but small.
+
+## Round 3 (INTEGRATE-2, `d1b3c1d`): async coordinator — wall recovered, CPU-s not
+
+Evidence: `integrate-gate-host7/` (gate i), `integrate-timing-host3/`,
+`bench/evidence/integrate-1-host/timing-round3-raw.tsv`.
+
+Gate (i) again `PARITY_MATCH` (53,710,530 records, strict oracle). Consumed 134.7–136.5M of
+141.6M submitted (**95–96%**, up from 91.5%); **cpu_tails 0** (was 14.5M); 710–721 batches
+of mostly 230k–262k (was 1,657 at 64k).
+
+| arm (20M, 20 thr, 3 rotated repeats) | startup | mapping wall | user+sys CPU-s |
+|---|---|---|---|
+| stock | 7–9 s | 48–49 s | **755** |
+| integrated, hooks bypassed | 8–9 s | 50–51 s | 803 (+6.4%) |
+| integrated, GPU on | 79–105 s | **52–53 s** | **912** (+20.8%) |
+
+Read against round 2 (GPU arm: mapping 62 s, 894 CPU-s):
+
+- **Blocking is gone.** GPU-arm mapping wall 62 → 52 s, now within 3–4 s of stock (48 s).
+  The async double buffer, per-worker queues, and drain-gated 256k batches did exactly what
+  was asked. Workers no longer wait on the GPU.
+- **CPU-s went the other way: 894 → 912.** With the coordinator no longer parking workers,
+  the producer-side duplicated work (read re-preparation, prefix recomputation, per-read
+  window build) runs at full concurrency — it was there in round 2 too, partly hidden as
+  idle time. `sys` rose 28 → 64–75 s: the coordinator thread now spins/polls between fills
+  (`cv.wait_for(100 µs)` loop) rather than sleeping on a full batch.
+- **Startup 79–105 s** is still the sampled identity re-reading 30 GB of index files
+  (WINDOW item 1, not landed — needs coordinator-side access). Zero user-CPU; it is I/O
+  wait and would vanish resident-to-resident. Excluded from the mapping number, included
+  in the honesty column.
+
+### Where the ~157 CPU-s over stock now sits (round-2 profile, still applicable)
+
+| source | est. CPU-s | fix | status |
+|---|---|---|---|
+| read re-preparation (`convertNucleotides`, `complementSeq` ×2) | ~75 | hand `Read1` from the frame (WINDOW item 3) | not landed — needs `oneRead` hook + frame access |
+| `prepare_window` self (qualitySplit + prefix + candidate build) | ~70 | prefix-skip on hit (WINDOW item 5) | not landed — riskiest |
+| coordinator poll/`sys` | ~40 | sleep on a fill-or-drain event instead of 100 µs `wait_for` | small, next |
+| hook floor (bypass arm) | ~48 | counters now compile out; residual is `set_chain`/`inner_call` on the disabled path | partially landed |
+| GPU-served seed search | **−130** | — | landed, working |
+
+Sum of the not-landed rows ≈ 185 CPU-s against a GPU credit of 130. **The integration
+pays for the GPU's work roughly 1.4× over in duplicated CPU work**, all of it enumerated,
+none of it in the kernel or the memory path.
+
+### Verdict after three rounds
+
+- Correctness: settled. Three parity passes at 91–96% GPU coverage, strict oracle, byte-
+  identical output, zero faults.
+- Scheduling: settled. Async coordinator holds mapping wall to within ~8% of stock.
+- Throughput: **not achieved.** Gate (iii) target was ≥12% STAR CPU-s reduction (≥8%
+  memo-grade); measured **+20.8%**, i.e. −29 points from the bar. The remaining gap is
+  the lookahead computing what STAR computes again. Closing it means the hooked STAR must
+  *consume* the window's prep (reads, prefix) rather than merely check its answers — a
+  deeper source patch than INTEGRATE-1's "insert a lookup at the call site" contract, and
+  the item the design flagged as riskiest for parity.
+
+The P2C thesis stands where round 2 left it, sharper: unified memory makes the GPU a
+correct in-place seed-search engine (6.6× at the boundary, in production STAR); the
+realizable throughput depends on how much of STAR's own per-read work the lookahead can
+*replace* rather than duplicate. That is a STAR-refactoring question, not a memory one.
