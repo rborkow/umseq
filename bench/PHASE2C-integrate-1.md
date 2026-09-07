@@ -270,3 +270,57 @@ measured on THP-backed `umem`; the probe's 4K-page control ran at 0.07× (P2C-SE
 `new char[30 GB]` under glibc is `mmap`'d and gets THP only if `transparent_hugepage=always`
 or STAR calls `madvise` (it doesn't). Measured next, not assumed: the same probe over STAR's
 arrays (a) as-is, (b) after `madvise(MADV_HUGEPAGE)` + a touch pass, vs the `umem` copy.
+
+## Round 5b (INTEGRATE v2 T3 + T3B, `ce2b514` + `5cb4e5b`): the GPU arm is below stock
+
+Evidence: `integrate-gate-host11/` (gate i, V2 contract, strict outer oracle),
+`integrate-gate-host11.replay.log` (999,914-request from-scratch replay),
+`integrate-gate-host11.prefix-config.bin` (the config the integrated STAR loaded),
+`integrate-timing-host6/`, `bench/evidence/integrate-1-host/timing-round5b-*`.
+
+**Gate (i)**: `PARITY_MATCH` (sixth), now with the SAindex prefix walk and branch selection on
+the device and strict mode running stock's *full outer body* (`ind1` → walk → branch →
+search) on the CPU and comparing `(maxL, Nrep, indStartEnd[0], indStartEnd[1])` + `Read1`
+bytes for every consumed request. Zero mismatches, zero rejections.
+
+**From-scratch replay** (`prefix_replay`, CUDA): device given only `(read bytes, S, N, dir)` and
+the loaded config → **999,914 / 999,914 STAR tuples matched**, all via the `searched` branch
+(the corpus is captured *inner* calls, so no prefix-only/unique cases by construction; those
+are covered by the synthetic grid oracle and by the 20M strict gate: 830–858k prefix-only
+and 1.2M unique consumed per run, all strict-verified).
+
+| arm (20M, 20 thr, 3 rotated repeats) | startup | mapping wall | user | sys | user+sys |
+|---|---|---|---|---|---|
+| stock | 7 s | 48 s | 726 | 27 | **753** |
+| integrated, hooks bypassed | 7–10 s | 48–50 s | 740 | 27 | 767 (+1.8%) |
+| integrated, GPU on | 68–71 s | **45–47 s** | **700** | 63 | 763 (+1.3%) |
+
+- **Mapping-phase CPU-s: 727, −3.6% vs stock** (user 700 + stock's sys 27; the 36 s of sys
+  excess is the second index copy at setup, unchanged, addressed below). First round on the
+  right side of zero. Mapping wall 45–47 s vs stock 48.
+- Round 5a → 5b: GPU-arm user 743 → 700 (−43 CPU-s) — the outer work leaving the CPU, close
+  to Task 0's ~40 estimate for `maxMappableLength2strands` self at 20M.
+- Bypass floor rose −0.2% → +1.8%: the V2 hook sits above STAR's prefix block and
+  its disabled-path branch is inside the per-call path now. ~14 CPU-s; a Terra item.
+- Coverage 88% of a larger submitted set (152.5M vs 141.6M: the window no longer filters
+  prefix-only/unique candidates, ~2.1M served); `cpu_fallback` 63–67M are continuations and
+  key misses — T4's target.
+
+### Accounting, round 5b
+
+| | CPU-s vs stock (20M) |
+|---|---|
+| GPU-served outer+inner seed search (96% initial starts) | ≈ −(56×0.35×4.7…) — measured net below |
+| bypass floor | +14 |
+| consumption + coordinator | small; not separable without a new paired profile |
+| **net, mapping phase** | **−26 (−3.6%)** |
+| identity/second-index setup (separable) | +36 sys, ~62 s wall |
+
+### Against the gates
+
+- Gate (i): passed six times, oracle strengthened twice.
+- Gate (iii): target ≥ −12% (memo-grade ≥ −8%). **−3.6% measured**; bar not met. What's
+  left is enumerated and each item has a mechanism: continuations (T4, the 24% of gathers
+  and the 63–67M `cpu_fallback`), the +1.8% hook floor, and the second index copy (setup
+  wall, not mapping CPU — but it is 60+ s per sample of a 55 s run, so it gates any
+  wall-time claim).
