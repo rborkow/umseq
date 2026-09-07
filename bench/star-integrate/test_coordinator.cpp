@@ -6,11 +6,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <thread>
-struct UsiContext {
+struct UsiPrefixContext {
   int marker;
 };
 namespace {
-UsiContext fake_context = {1};
+UsiPrefixContext fake_context = {1};
 bool invalid_success = false;
 uint64_t backend_calls = 0;
 Parameters fixture_p;
@@ -263,11 +263,12 @@ void positional_shuffled_completion() {
   for (size_t n = 0; n != w->jobs.size(); ++n) {
     const size_t i = (n * 37) % w->jobs.size();
     star_integrate::Job &j = w->jobs[i];
-    j.out.length = j.call->length;
-    j.out.low = j.call->low;
-    j.out.high = j.call->high;
-    j.out.count = j.out.high - j.out.low + 1;
-    j.out.status = 0;
+    j.out.inner.length = j.call->length;
+    j.out.inner.low = j.call->low;
+    j.out.inner.high = j.call->high;
+    j.out.inner.count = j.out.inner.high - j.out.inner.low + 1;
+    j.out.inner.status = 0;
+    j.out.branch = 3;
     j.state.store(star_integrate::COMPLETE | star_integrate::VALID);
   }
   star_integrate::current_window = w;
@@ -306,29 +307,33 @@ void strict_invalid_success() {
 } // namespace
 // TEST-ONLY fake USI C transport.  It returns deterministic valid probe
 // records; it is not a CUDA backend and supplies no GPU evidence.
-extern "C" int32_t usi_init_v1(const char *, const UsiIdentityV1 *, uint64_t,
-                               UsiContext **out, UsiErrorV1 *e) {
+extern "C" int32_t usi_init_v2(const char *, const UsiIdentityV1 *,
+                               const ProbeConfigV2 *, uint64_t,
+                               UsiPrefixContext **out, UsiErrorV1 *e) {
   *out = &fake_context;
   std::memset(e, 0, sizeof(*e));
   return 0;
 }
-extern "C" int32_t usi_destroy_v1(UsiContext **ctx, UsiErrorV1 *e) {
+extern "C" int32_t usi_destroy_v2(UsiPrefixContext **ctx, UsiErrorV1 *e) {
   *ctx = 0;
   std::memset(e, 0, sizeof(*e));
   return 0;
 }
-extern "C" int32_t usi_search_batch_v1(UsiContext *, uint64_t, const uint8_t *,
-                                       uint64_t, const ProbeRequest *req,
-                                       uint64_t n, ProbeOutput *out,
-                                       ProbeStats *stats, UsiErrorV1 *e) {
+extern "C" int32_t usi_search_batch_v2(UsiPrefixContext *, uint64_t,
+                                       const uint8_t *, uint64_t,
+                                       const ProbeRequestV2 *req, uint64_t n,
+                                       ProbeOutputV2 *out, ProbeStats *stats,
+                                       UsiErrorV1 *e) {
   ++backend_calls;
   std::memset(e, 0, sizeof(*e));
   for (uint64_t i = 0; i < n; ++i) {
-    out[i].length = req[i].length;
-    out[i].low = req[i].low;
-    out[i].high = invalid_success ? req[i].high + 1 : req[i].high;
-    out[i].count = out[i].high - out[i].low + 1;
-    out[i].status = 0;
+    out[i].inner.length =
+        invalid_success ? req[i].inner.length + 1 : req[i].inner.length;
+    out[i].inner.low = 10;
+    out[i].inner.high = 20;
+    out[i].inner.count = 11;
+    out[i].inner.status = 0;
+    out[i].branch = 3;
     stats[i].bytes = 4;
     stats[i].gathers = 1;
   }

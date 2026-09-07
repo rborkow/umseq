@@ -67,6 +67,9 @@ bool lookup(const Parameters &, const Genome &, char **read1, uint64_t read_len,
             const InnerCall &, uint64_t out_range[2], uint64_t &nrep,
             uint64_t &maxL);
 bool strict();
+[[noreturn]] void fail_strict(const char *message);
+// Strict-mode assertion for the same frame hand-off that feeds the device.
+bool strict_read1(char **read1, uint64_t read_len);
 uint64_t current_generation();
 uint64_t current_epoch();
 void note_cpu_fallback();

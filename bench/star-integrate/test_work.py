@@ -67,12 +67,11 @@ class WorkObserver(unittest.TestCase):
                             '-o', str(Path(d) / 'SuffixArrayFuns.o')], check=True)
         control = patch(ReplaceOnce(), 'ReadAlign_maxMappableLength2strands.cpp',
                         (SOURCE / 'ReadAlign_maxMappableLength2strands.cpp').read_text())
-        self.assertEqual(control.count('star_integrate_work::inner_call(starIntegrateHit);'), 1)
-        self.assertEqual(control.count('star_integrate_work::fallback_scope()'), 1)
-        self.assertEqual(control.count('star_integrate_work::oracle_scope()'), 1)
-        self.assertIn('if (star_integrate::enabled_fast())', control)
-        self.assertIn('maxL>=starIntegrateLIn', control)
-        self.assertIn('bool starIntegrateHit=star_integrate::lookup', control)
+        self.assertNotIn('star_integrate_work::inner_call', control)
+        self.assertNotIn('star_integrate_work::fallback_scope()', control)
+        self.assertIn('const bool starIntegrateHit=star_integrate::enabled_fast()', control)
+        self.assertIn('starIntegrateStockOuter(); // full stock', control)
+        self.assertIn('strict_read1(Read1', control)
         self.assertIn('Nrep = maxMappableLength(mapGen, Read1, pieceStart', control)
         with tempfile.TemporaryDirectory() as d:
             generated = Path(d) / 'ReadAlign_maxMappableLength2strands.cpp'

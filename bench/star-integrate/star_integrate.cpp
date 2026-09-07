@@ -4,6 +4,7 @@
 #include "Genome.h"
 #include "Parameters.h"
 #include "ReadAlign.h"
+#include "prefix_config.hpp"
 #include "usi.h"
 #include <algorithm>
 #include <array>
@@ -41,7 +42,7 @@ enum JobState : uint8_t { COMPLETE = 1, VALID = 2, CONSUMED = 4, RETIRED = 8 };
 struct Job {
   WindowRead *frame;
   InnerCall *call;
-  ProbeOutput out;
+  ProbeOutputV2 out;
   ProbeStats stats;
   std::atomic<uint8_t> state;
   Job(WindowRead *f = nullptr, InnerCall *c = nullptr)
@@ -76,16 +77,16 @@ struct Window {
   std::vector<size_t> cursors;
   size_t next_frame;
   uint64_t charged_bytes, charged_requests;
-  uint64_t consumed, misses, suppressed_unused, other_unused, rejected,
-      cpu_fallback, read1_fallback, hit_bytes, hit_gathers, unused_bytes,
-      unused_gathers;
+  uint64_t consumed, misses, prefix_only, unique, searched, suppressed_unused,
+      other_unused, rejected, cpu_fallback, read1_fallback, hit_bytes,
+      hit_gathers, unused_bytes, unused_gathers;
   ProbeStats consumed_stats, suppressed_stats, other_stats;
   Window()
       : next_frame(0), charged_bytes(0), charged_requests(0), consumed(0),
-        misses(0), suppressed_unused(0), other_unused(0), rejected(0),
-        cpu_fallback(0), read1_fallback(0), hit_bytes(0), hit_gathers(0),
-        unused_bytes(0), unused_gathers(0), consumed_stats(),
-        suppressed_stats(), other_stats() {}
+        misses(0), prefix_only(0), unique(0), searched(0), suppressed_unused(0),
+        other_unused(0), rejected(0), cpu_fallback(0), read1_fallback(0),
+        hit_bytes(0), hit_gathers(0), unused_bytes(0), unused_gathers(0),
+        consumed_stats(), suppressed_stats(), other_stats() {}
 };
 // One producer (the mapping thread which owns a window) and one consumer
 // (coordinator).  A full ring is a CPU-only admission result, never a wait.
@@ -121,25 +122,25 @@ struct Visits {
         positional_misses(0) {}
 };
 struct Totals {
-  uint64_t batches, submitted, gpu_consumed, cpu_tails, misses,
-      suppressed_unused, other_unused, rejected, faults, cpu_fallback,
-      read1_fallback, coordinator_wakeups, hit_bytes, hit_gathers, unused_bytes,
-      unused_gathers;
+  uint64_t batches, submitted, gpu_consumed, cpu_tails, misses, prefix_only,
+      unique, searched, suppressed_unused, other_unused, rejected, faults,
+      cpu_fallback, read1_fallback, coordinator_wakeups, hit_bytes, hit_gathers,
+      unused_bytes, unused_gathers;
   std::vector<uint64_t> batch_sizes, fill_wait_us;
   ProbeStats submitted_stats, consumed_stats, suppressed_stats, other_stats,
       rejected_stats;
   Totals()
       : batches(0), submitted(0), gpu_consumed(0), cpu_tails(0), misses(0),
-        suppressed_unused(0), other_unused(0), rejected(0), faults(0),
-        cpu_fallback(0), read1_fallback(0), coordinator_wakeups(0),
-        hit_bytes(0), hit_gathers(0), unused_bytes(0), unused_gathers(0),
-        submitted_stats(), consumed_stats(), suppressed_stats(), other_stats(),
-        rejected_stats() {}
+        prefix_only(0), unique(0), searched(0), suppressed_unused(0),
+        other_unused(0), rejected(0), faults(0), cpu_fallback(0),
+        read1_fallback(0), coordinator_wakeups(0), hit_bytes(0), hit_gathers(0),
+        unused_bytes(0), unused_gathers(0), submitted_stats(), consumed_stats(),
+        suppressed_stats(), other_stats(), rejected_stats() {}
 };
 struct State {
   std::mutex mu;
   std::condition_variable cv;
-  UsiContext *ctx;
+  UsiPrefixContext *ctx;
   std::thread coordinator;
   // `mu` guards setup, queue registration, lifecycle accounting and totals;
   // it is deliberately absent from the frame publication fast path.
@@ -266,11 +267,9 @@ void resolve_cpu(Job &j) {
     ;
 }
 bool valid_result(const Job &j) {
-  const InnerCall &c = *j.call;
-  const ProbeOutput &o = j.out;
-  return o.status == 0 && o.low >= c.low && o.low <= o.high &&
-         o.high <= c.high && o.length >= c.prefix && o.length <= c.length &&
-         o.count == o.high - o.low + 1;
+  const ProbeOutput &o = j.out.inner;
+  return o.status == 0 && o.low <= o.high && o.count == o.high - o.low + 1 &&
+         o.length <= j.call->length && j.out.branch >= 1 && j.out.branch <= 3;
 }
 void retire(Job &j, bool suppressed) {
   const uint8_t before = j.state.fetch_or(RETIRED, std::memory_order_acq_rel);
@@ -296,8 +295,8 @@ void dispatch(std::vector<Job *> jobs) {
   State &s = S();
   std::vector<uint8_t> reads;
   std::unordered_map<WindowRead *, std::pair<uint64_t, uint64_t>> offsets;
-  std::vector<ProbeRequest> req(jobs.size());
-  std::vector<ProbeOutput> out(jobs.size());
+  std::vector<ProbeRequestV2> req(jobs.size());
+  std::vector<ProbeOutputV2> out(jobs.size());
   std::vector<ProbeStats> stats(jobs.size());
   for (size_t i = 0; i < jobs.size(); ++i) {
     Job &j = *jobs[i];
@@ -313,19 +312,12 @@ void dispatch(std::vector<Job *> jobs) {
     }
     const InnerCall &c = *j.call;
     ++s.visits.dispatched_jobs;
-    req[i] = {0,
-              at->second.first,
-              at->second.second,
-              (uint64_t)j.frame->a.size(),
-              c.start,
-              c.length,
-              c.prefix,
-              c.low,
-              c.high,
-              c.dir};
+    req[i] = {{1, at->second.first, at->second.second,
+               (uint64_t)j.frame->a.size(), c.start, c.length, 0, 0, 0, c.dir},
+              0};
   }
   UsiErrorV1 e = {};
-  int32_t rc = usi_search_batch_v1(s.ctx, s.epoch, reads.data(), reads.size(),
+  int32_t rc = usi_search_batch_v2(s.ctx, s.epoch, reads.data(), reads.size(),
                                    req.data(), jobs.size(), out.data(),
                                    stats.data(), &e);
   std::lock_guard<std::mutex> lock(s.mu);
@@ -449,6 +441,9 @@ void merge_window(const Window &w) {
   std::lock_guard<std::mutex> lock(s.mu);
   s.totals.gpu_consumed += w.consumed;
   s.totals.misses += w.misses;
+  s.totals.prefix_only += w.prefix_only;
+  s.totals.unique += w.unique;
+  s.totals.searched += w.searched;
   s.totals.suppressed_unused += w.suppressed_unused;
   s.totals.other_unused += w.other_unused;
   s.totals.rejected += w.rejected;
@@ -486,6 +481,8 @@ void sidecar(const State &s) {
     << "\",\"batches\":" << t.batches << ",\"submitted\":" << t.submitted
     << ",\"gpu_consumed\":" << t.gpu_consumed
     << ",\"cpu_tails\":" << t.cpu_tails << ",\"key_misses\":" << t.misses
+    << ",\"prefix_only\":" << t.prefix_only << ",\"unique\":" << t.unique
+    << ",\"searched\":" << t.searched
     << ",\"suppressed_unused\":" << t.suppressed_unused
     << ",\"other_unused\":" << t.other_unused
     << ",\"cpu_fallback\":" << t.cpu_fallback
@@ -538,6 +535,14 @@ void sidecar(const State &s) {
 } // namespace
 bool fast_enabled = false;
 bool strict() { return env1("STAR_INTEGRATE_STRICT"); }
+[[noreturn]] void fail_strict(const char *message) { strict_fail(message); }
+bool strict_read1(char **read1, uint64_t read_len) {
+  return current_frame && read1 && read1[0] && read1[1] &&
+         current_frame->a.size() == read_len &&
+         current_frame->b.size() == read_len &&
+         !memcmp(current_frame->a.data(), read1[0], read_len) &&
+         !memcmp(current_frame->b.data(), read1[1], read_len);
+}
 uint64_t current_generation() {
   return current_frame ? current_frame->generation : 0;
 }
@@ -627,7 +632,12 @@ bool setup(const Parameters &p, const Genome &g) {
   id.strand_bit = g.GstrandBit;
   id.sparse = p.pGe.gSAsparseD;
   UsiErrorV1 e = {};
-  if (usi_init_v1(p.pGe.gDir.c_str(), &id, s.epoch, &s.ctx, &e) || !s.ctx) {
+  ProbeConfigV2 config =
+      probe_config_v2(g, p.seedSearchLmax, id.sai_file_bytes);
+  if (const char *dump = getenv("STAR_INTEGRATE_CONFIG_DUMP"))
+    write_probe_config_v2(dump, config);
+  if (usi_init_v2(p.pGe.gDir.c_str(), &id, &config, s.epoch, &s.ctx, &e) ||
+      !s.ctx) {
     s.ctx = nullptr;
     return false;
   }
@@ -837,8 +847,7 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
       c.istart != chain.istart || c.nstart != chain.nstart ||
       c.lstart != chain.lstart || c.piece_start != chain.piece_start ||
       c.piece_length != chain.piece_length || c.kind != INITIAL_KIND ||
-      in.kind != c.kind || c.low != in.low || c.high != in.high ||
-      c.prefix != in.prefix || c.distance != in.distance ||
+      in.kind != c.kind || c.distance != in.distance ||
       in.fragment != c.fragment || c.worker != current_frame->worker ||
       c.chunk != current_frame->chunk || c.worker != in.worker ||
       c.chunk != in.chunk || c.mate_context != in.mate_context ||
@@ -853,10 +862,10 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
     ++current_window->misses;
     return false;
   }
-  out[0] = j.out.low;
-  out[1] = j.out.high;
-  nrep = j.out.count;
-  maxL = j.out.length;
+  out[0] = j.out.inner.low;
+  out[1] = j.out.inner.high;
+  nrep = j.out.inner.count;
+  maxL = j.out.inner.length;
   while (!(state & (CONSUMED | RETIRED)) &&
          !j.state.compare_exchange_weak(state, state | CONSUMED,
                                         std::memory_order_acq_rel,
@@ -867,6 +876,12 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
     return false;
   }
   ++current_window->consumed;
+  if (j.out.branch == 1)
+    ++current_window->prefix_only;
+  else if (j.out.branch == 2)
+    ++current_window->unique;
+  else if (j.out.branch == 3)
+    ++current_window->searched;
   current_window->hit_bytes += j.stats.bytes;
   current_window->hit_gathers += j.stats.gathers;
   add_stats(current_window->consumed_stats, j.stats);
@@ -890,7 +905,7 @@ void finish() {
   sidecar(s);
   if (s.ctx) {
     UsiErrorV1 e = {};
-    usi_destroy_v1(&s.ctx, &e);
+    usi_destroy_v2(&s.ctx, &e);
   }
   s.enabled = false;
   fast_enabled = false;

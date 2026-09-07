@@ -76,3 +76,10 @@ per-frame 40,000-job consumption scan.
    call-site accounting leave the disabled inner-search path as the stock call.
 
 - **P2C-INTEGRATE-V2-T3 (2026-09-07):** Mac exhaustive prefix-grid oracle and workspace fmt/clippy/tests pass; V1 ABI retained, V2 prefix-only/unique/search and distinct rejections added. Exact 999,914 replay driver ready; CUDA, strict 20M and Tier 0 GPU gates pending Spark. Contract, Terra handoff and evidence: `bench/PHASE2C-integrate-v2-t3.md`.
+
+- **P2C-INTEGRATE-V2-T3B (2026-09-07):** GREEN: V2 window requests contain
+  only initial-start geometry (`tag=1`, zero prefix/interval/distance); the
+  generator consumes successful V2 output above STAR's prefix block and keeps
+  the full stock outer block as both fallback and strict oracle. Strict checks
+  all four outer outputs plus handed-off `Read1` bytes; sidecar reports
+  `prefix_only`, `unique`, and `searched` branch counters.

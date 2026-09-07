@@ -5,6 +5,7 @@
 #include "../../crates/umgpu/shim/seed_probe_abi.h"
 
 typedef struct UsiContext UsiContext;
+typedef struct UsiPrefixContext UsiPrefixContext;
 typedef struct UsiIdentityV1 {
   uint64_t genome_file_bytes, sa_file_bytes, sai_file_bytes;
   uint64_t n_sa, strand_bit, sparse;
@@ -62,6 +63,15 @@ int32_t usi_search_batch_v1(UsiContext *ctx, uint64_t index_epoch,
 // ctx required; *ctx=NULL is a successful no-op. Always nulls a valid handle;
 // drain or quarantine backend allocations before releasing safe ownership.
 int32_t usi_destroy_v1(UsiContext **ctx, UsiErrorV1 *error);
+int32_t usi_init_v2(const char *index_dir, const UsiIdentityV1 *identity,
+                    const ProbeConfigV2 *config, uint64_t index_epoch,
+                    UsiPrefixContext **out, UsiErrorV1 *error);
+int32_t usi_search_batch_v2(UsiPrefixContext *ctx, uint64_t index_epoch,
+                            const uint8_t *reads, uint64_t read_bytes,
+                            const ProbeRequestV2 *requests, uint64_t n,
+                            ProbeOutputV2 *results, ProbeStats *stats,
+                            UsiErrorV1 *error);
+int32_t usi_destroy_v2(UsiPrefixContext **ctx, UsiErrorV1 *error);
 #ifdef __cplusplus
 }
 #endif

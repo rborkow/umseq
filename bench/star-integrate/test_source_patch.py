@@ -15,7 +15,7 @@ class PatchGuard(unittest.TestCase):
   self.assertIn('uint64_t &maxL',h)
   self.assertNotIn('inline bool lookup',h)
   cpp=(ROOT/'star_integrate.cpp').read_text()
-  self.assertIn('usi_search_batch_v1',cpp)
+  self.assertIn('usi_search_batch_v2',cpp)
   self.assertIn('target = 65536',cpp)
   self.assertIn('current_window->ranges[current_index]',cpp)
   self.assertNotIn('find_if(current_window->frames',cpp)
@@ -31,11 +31,16 @@ class PatchGuard(unittest.TestCase):
    def replace_once(self,t,o,n):
     if o not in t: raise ValueError('missing exact hook')
     return t.replace(o,n,1)
-  src='            Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);'
-  got=m.patch(R(),'ReadAlign_maxMappableLength2strands.cpp',src)
+  root=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
+  if not root.exists(): self.skipTest('pinned private source unavailable')
+  got=m.patch(R(),'ReadAlign_maxMappableLength2strands.cpp',(root/'ReadAlign_maxMappableLength2strands.cpp').read_text())
   self.assertIn('star_integrate::strict()',got)
   self.assertIn('star_integrate::note_cpu_fallback()',got)
-  self.assertIn('abort()',got)
+  self.assertIn('star_integrate::fail_strict',got)
+  # The only executable prefix body is the lambda fallback; lookup precedes
+  # its invocation and the original bookkeeping remains after both paths.
+  self.assertLess(got.index('const bool starIntegrateHit'),got.index('if (maxL+iDist'))
+  self.assertIn('starIntegrateStockOuter(); // full stock',got)
  def test_window_hooks_are_staged(self):
   class R:
    def replace_once(self,t,o,n):

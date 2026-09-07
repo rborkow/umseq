@@ -20,43 +20,112 @@ def patch(rio,name,text):
         text=once(rio,text,'    genomeMain.genomeLoad();\n','    genomeMain.genomeLoad();\n    star_integrate::setup(P, genomeMain);\n')
         return once(rio,text,'    delete P.inOut; // to close files\n\n    return 0;','    delete P.inOut; // to close files\n\n    star_integrate::finish();\n    star_integrate_work::finish();\n    return 0;')
     if name=='ReadAlign_maxMappableLength2strands.cpp':
-        # The hook is deliberately at the original inner call, after STAR's prefix
-        # preparation.  The default macro is a no-op and preserves stock control flow.
+        # V2 consumes above STAR's prefix block: the device owns ind1, SAi and
+        # branch selection, while the stock outer body remains the fallback and
+        # strict oracle.
         text='#include "star_integrate.hpp"\n#include "star_integrate_work.hpp"\n#include <cstdio>\n'+text
-        old='            Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);'
-        new='''            if (star_integrate::enabled_fast()) {
-                uint starIntegrateLIn=maxL;
-                star_integrate::InnerCall starIntegrateCall={};
-                starIntegrateCall.start=pieceStart; starIntegrateCall.length=pieceLength;
-                starIntegrateCall.low=iSA1 & mapGen.SAiMarkNmask; starIntegrateCall.high=iSA2;
-                starIntegrateCall.dir=dirR; starIntegrateCall.prefix=maxL; starIntegrateCall.distance=iDist;
-                starIntegrateCall=star_integrate::build_current_inner_call(starIntegrateCall);
-                uint64_t starIntegrateRange[2]={0,0}, starIntegrateNrep=0, starIntegrateMaxL=maxL;
-                bool starIntegrateHit=star_integrate::lookup(P, mapGen, Read1, (uint64_t) Lread, starIntegrateCall, starIntegrateRange, starIntegrateNrep, starIntegrateMaxL);
-                if (starIntegrateHit) { indStartEnd[0]=starIntegrateRange[0]; indStartEnd[1]=starIntegrateRange[1]; Nrep=starIntegrateNrep; maxL=starIntegrateMaxL; }
-                star_integrate_work::inner_call(starIntegrateHit);
-                if (starIntegrateHit) {
-                    if (star_integrate::strict()) {
-                        uint cpuRange[2], cpuL=starIntegrateLIn;
-                        star_integrate_work::Scope starIntegrateOracle=star_integrate_work::oracle_scope();
-                        star_integrate_work::compare_begin();
-                        uint cpuN=maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, cpuL, cpuRange);
-                        star_integrate_work::compared(cpuL>=starIntegrateLIn ? cpuL-starIntegrateLIn : 0);
-                        if (cpuN!=Nrep || cpuL!=maxL || cpuRange[0]!=indStartEnd[0] || cpuRange[1]!=indStartEnd[1]) {
-                            fprintf(stderr, "STAR_INTEGRATE strict mismatch piece=%llu fragment=%llu distance=%llu start=%llu length=%llu low=%llu high=%llu dir=%llu gpu=(%llu,%llu,%llu,%llu) cpu=(%llu,%llu,%llu,%llu)\\n", (unsigned long long) pieceStart, (unsigned long long) iFrag, (unsigned long long) iDist, (unsigned long long) pieceStart, (unsigned long long) pieceLength, (unsigned long long) (iSA1 & mapGen.SAiMarkNmask), (unsigned long long) iSA2, (unsigned long long) dirR, (unsigned long long) Nrep, (unsigned long long) maxL, (unsigned long long) indStartEnd[0], (unsigned long long) indStartEnd[1], (unsigned long long) cpuN, (unsigned long long) cpuL, (unsigned long long) cpuRange[0], (unsigned long long) cpuRange[1]);
-                            abort();
-                        }
-                    }
-                } else {
-                    star_integrate_work::Scope starIntegrateFallback=star_integrate_work::fallback_scope();
-                    star_integrate_work::compare_begin();
-                    star_integrate::note_cpu_fallback();
-                    Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);
-                    star_integrate_work::compared(maxL>=starIntegrateLIn ? maxL-starIntegrateLIn : 0);
-                }
+        old='''        //calculate full index
+        uint Lmax=min(P.pGe.gSAindexNbases,pieceLength);
+        uint ind1=0;
+        if (dirR) {//forward search
+            pieceStart=pieceStartIn+iDist;
+            for (uint ii=0;ii<Lmax;ii++) {//calculate index TODO: make the index calculation once for the whole read and store it
+                ind1 <<=2LLU;
+                ind1 += ((uint) Read1[0][pieceStart+ii]);
+            };
+        } else {//reverse search
+            pieceStart=pieceStartIn-iDist;
+            for (uint ii=0;ii<Lmax;ii++) {//calculate index TODO: make the index calculation once for the whole read and store it
+                ind1 <<=2LLU;
+                ind1 += ( 3-((uint) Read1[0][pieceStart-ii]) );
+            };
+        };
+
+        //find SA boundaries
+        uint Lind=Lmax;
+        while (Lind>0) {//check the presence of the prefix for Lind
+            iSA1=mapGen.SAi[mapGen.genomeSAindexStart[Lind-1]+ind1]; // starting point for suffix array search.
+            if ((iSA1 & mapGen.SAiMarkAbsentMaskC) == 0) {//prefix exists
+                break;
+            } else {//this prefix does not exist, reduce Lind
+                --Lind;
+                ind1 = ind1 >> 2;
+            };
+        };
+
+        // define upper bound for suffix array range search.
+        bool iSA2good = true;
+        if (mapGen.genomeSAindexStart[Lind-1]+ind1+1 < mapGen.genomeSAindexStart[Lind]) {//we are not at the end of the SA
+            iSA2 = mapGen.SAi[mapGen.genomeSAindexStart[Lind-1]+ind1+1];
+            if ( (iSA2 & mapGen.SAiMarkAbsentMaskC) == 0) {
+                iSA2 = (iSA2 & mapGen.SAiMarkNmask) - 1;
             } else {
-                Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);
-            }'''
+                iSA2 = mapGen.nSA-1; //safe, but can probably do better
+                iSA2good = false;
+            };
+        } else {
+            iSA2=mapGen.nSA-1;
+            iSA2good = false;
+        };
+
+    //#define SA_SEARCH_FULL
+
+    #ifdef SA_SEARCH_FULL
+        //full search of the array even if the index search gave maxL
+        maxL=0;
+        Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);
+    #else
+        bool iSA1noN = (iSA1 & mapGen.SAiMarkNmaskC)==0;
+        if (Lind < P.pGe.gSAindexNbases && iSA1noN && iSA2good) {//no need for SA search
+            // very short seq, already found hits in suffix array w/o having to search the genome for extensions.
+            indStartEnd[0]=iSA1;
+            indStartEnd[1]=iSA2;
+            Nrep=indStartEnd[1]-indStartEnd[0]+1;
+            maxL=Lind;
+        } else if (iSA1==iSA2 && iSA1noN && iSA2good) {//unique align already, just find maxL
+            if ((iSA1 & mapGen.SAiMarkNmaskC)!=0) {
+                ostringstream errOut;
+                errOut  << "BUG: in ReadAlign::maxMappableLength2strands";
+                exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
+            };
+            indStartEnd[0]=indStartEnd[1]=iSA1;
+            Nrep=1;
+            bool comparRes;
+            maxL=compareSeqToGenome(mapGen, Read1, pieceStart, pieceLength, Lind, iSA1, dirR, comparRes);
+        } else {//need SA search, pieceLength>maxL
+            if (iSA2good && iSA1noN) {
+                maxL = Lind; //Lind bases were already matched
+            } else {
+                maxL=0;
+            };
+            Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);
+        };
+    #endif
+'''.replace("            };\n            Nrep =", "            };        \n            Nrep =")
+        new='''        auto starIntegrateStockOuter = [&]() {
+'''+old+'''        };
+        pieceStart = dirR ? pieceStartIn+iDist : pieceStartIn-iDist;
+        star_integrate::InnerCall starIntegrateCall={};
+        starIntegrateCall.start=pieceStart; starIntegrateCall.length=pieceLength;
+        starIntegrateCall.dir=dirR; starIntegrateCall.distance=iDist;
+        starIntegrateCall=star_integrate::build_current_inner_call(starIntegrateCall);
+        uint64_t starIntegrateRange[2]={0,0}, starIntegrateNrep=0, starIntegrateMaxL=0;
+        const bool starIntegrateHit=star_integrate::enabled_fast() && star_integrate::lookup(P,mapGen,Read1,(uint64_t)Lread,starIntegrateCall,starIntegrateRange,starIntegrateNrep,starIntegrateMaxL);
+        if (starIntegrateHit) {
+            Nrep=starIntegrateNrep; maxL=starIntegrateMaxL;
+            indStartEnd[0]=starIntegrateRange[0]; indStartEnd[1]=starIntegrateRange[1];
+            if (star_integrate::strict()) {
+                const uint gpuN=Nrep, gpuL=maxL, gpu0=indStartEnd[0], gpu1=indStartEnd[1];
+                if (!star_integrate::strict_read1(Read1,(uint64_t)Lread)) star_integrate::fail_strict("Read1 frame hand-off mismatch");
+                starIntegrateStockOuter(); // full stock ind1 -> walk -> branch -> search oracle
+                if (gpuN!=Nrep || gpuL!=maxL || gpu0!=indStartEnd[0] || gpu1!=indStartEnd[1]) star_integrate::fail_strict("V2 outer result mismatch");
+                Nrep=gpuN; maxL=gpuL; indStartEnd[0]=gpu0; indStartEnd[1]=gpu1;
+            }
+        } else {
+            star_integrate::note_cpu_fallback();
+            starIntegrateStockOuter();
+        }
+'''
         return once(rio,text,old,new)
     if name=='SuffixArrayFuns.cpp':
         prefix,tail=text.split('\nuint findMultRange(',1)
@@ -184,6 +253,7 @@ def main(a):
     # The ABI headers must live in the private tree too: STAR's Makefile runs its `-MM`
     # dependency scan without CXXFLAGSextra, so an include path is not enough.
     shutil.copy2(HERE/'usi.h',root/'integrated'/'usi.h')
+    shutil.copy2(HERE/'prefix_config.hpp',root/'integrated'/'prefix_config.hpp')
     shutil.copy2(HERE.parent.parent/'crates'/'umgpu'/'shim'/'seed_probe_abi.h',root/'integrated'/'seed_probe_abi.h')
     usi=(root/'integrated'/'usi.h').read_text()
     (root/'integrated'/'usi.h').write_text(usi.replace('#include "../../crates/umgpu/shim/seed_probe_abi.h"','#include "seed_probe_abi.h"'))

@@ -80,72 +80,22 @@ bool restore_streams(ReadAlign &ra, uint32_t ends,
   std::abort();
 }
 
-// Exact prefix portion of ReadAlign::maxMappableLength2strands for admitted
-// gSAsparseD==1. False leaves short/direct and unsafe paths to stock CPU.
-bool append_prefix_call(const Parameters &p, Genome &map_gen, const char *read,
-                        uint piece_start_in, uint piece_length_in, uint i_dir,
-                        uint piece, uint fragment, uint nstart, uint lstart,
-                        uint istart, std::vector<InnerCall> &out) {
-  if (!read || !piece_length_in || p.pGe.gSAsparseD != 1 ||
-      !p.pGe.gSAindexNbases)
+// V2 owns STAR's prefix walk.  The producer only admits initial starts; it
+// must not inspect SAindex or pre-select the prefix-only/unique branches.
+bool append_prefix_call(const Parameters &p, uint piece_start,
+                        uint piece_length, uint i_dir, uint piece,
+                        uint fragment, uint nstart, uint lstart, uint istart,
+                        std::vector<InnerCall> &out) {
+  if (!piece_length || p.pGe.gSAsparseD != 1)
     return false;
   const bool dir_r = i_dir == 0;
-  const uint i_dist = 0, piece_length = piece_length_in;
-  const uint lmax = std::min(p.pGe.gSAindexNbases, piece_length);
-  if (!lmax)
-    return false;
-  uint piece_start = piece_start_in, ind1 = 0;
-  if (dir_r)
-    for (uint ii = 0; ii < lmax; ++ii) {
-      ind1 <<= 2LLU;
-      ind1 += static_cast<uint>(read[piece_start + ii]);
-    }
-  else
-    for (uint ii = 0; ii < lmax; ++ii) {
-      ind1 <<= 2LLU;
-      ind1 += 3 - static_cast<uint>(read[piece_start - ii]);
-    }
-  uint lind = lmax, isa1 = 0;
-  while (lind > 0) {
-    isa1 = map_gen.SAi[map_gen.genomeSAindexStart[lind - 1] + ind1];
-    if ((isa1 & map_gen.SAiMarkAbsentMaskC) == 0)
-      break;
-    --lind;
-    ind1 >>= 2;
-  }
-  // Stock assumes this cannot happen at a mapping call and would index Lind-1.
-  if (!lind)
-    return false;
-  uint isa2 = 0;
-  bool isa2_good = true;
-  if (map_gen.genomeSAindexStart[lind - 1] + ind1 + 1 <
-      map_gen.genomeSAindexStart[lind]) {
-    isa2 = map_gen.SAi[map_gen.genomeSAindexStart[lind - 1] + ind1 + 1];
-    if ((isa2 & map_gen.SAiMarkAbsentMaskC) == 0)
-      isa2 = (isa2 & map_gen.SAiMarkNmask) - 1;
-    else {
-      isa2 = map_gen.nSA - 1;
-      isa2_good = false;
-    }
-  } else {
-    isa2 = map_gen.nSA - 1;
-    isa2_good = false;
-  }
-  const bool isa1_no_n = (isa1 & map_gen.SAiMarkNmaskC) == 0;
-  if ((lind < p.pGe.gSAindexNbases && isa1_no_n && isa2_good) ||
-      (isa1 == isa2 && isa1_no_n && isa2_good))
-    return false;
-  const uint prefix = isa2_good && isa1_no_n ? lind : 0;
   InnerCall call = {};
   call.start = piece_start;
   call.length = piece_length;
-  call.low = isa1 & map_gen.SAiMarkNmask;
-  call.high = isa2;
   call.dir = dir_r;
-  call.prefix = prefix;
   call.piece = piece;
   call.fragment = fragment;
-  call.distance = i_dist;
+  call.distance = 0;
   call.nstart = nstart;
   call.lstart = lstart;
   call.istart = istart;
@@ -283,10 +233,9 @@ void prepare_window(ReadAlignChunk &chunk) {
             const uint shift = idir == 0 ? split_r[0][ip] + istart * lstart
                                          : split_r[0][ip] + split_r[1][ip] -
                                                istart * lstart - 1;
-            if (append_prefix_call(chunk.P, chunk.mapGen, num[0].data(), shift,
-                                   split_r[1][ip] - istart * lstart, idir, ip,
-                                   split_r[2][ip], nstart, lstart, istart,
-                                   frame.candidates)) {
+            if (append_prefix_call(
+                    chunk.P, shift, split_r[1][ip] - istart * lstart, idir, ip,
+                    split_r[2][ip], nstart, lstart, istart, frame.candidates)) {
               ChainContext context;
               context.piece = ip;
               context.fragment = split_r[2][ip];
