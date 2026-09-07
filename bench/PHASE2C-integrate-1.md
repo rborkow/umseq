@@ -69,3 +69,35 @@ synchronous drain are the structural part.
    `convertNucleotidesToNumbers` at stock share.
 3. Re-time (same script, `run_timing_host.sh`). If bypass-arm overhead (+7%) is not also
    reduced, the ceiling is ~1.08× on STAR, not the 1.15× projected; report whichever it is.
+
+## Round 2 (after INTEGRATE-1-SETUP, `efef1a1`): the honest number
+
+Gate (i) again `PARITY_MATCH`, 129,971,534 consumed. Timing (`integrate-timing-host2`, 3 rotated repeats):
+
+| arm | wall | startup | mapping | user+sys CPU-s | vs stock |
+|---|---|---|---|---|---|
+| stock | 56.8 s | 9 s | 47 s | **753** | — |
+| integrated, hooks bypassed | 59.6 s | 9 s | 50 s | 800 | +6.3% |
+| integrated, GPU on | 145 s | **75–91 s** | **62 s** | 894 | +18.8% |
+
+Setup is now *before* mapping and separable: 65–91 s (`setup_wall_s`), because the sampled
+identity scheme still *reads the index files from disk* to compare against resident bytes —
+the cost is 30 GB of file I/O, not hashing. Fixable (compare resident-to-resident; the file
+identity is already established by STAR's own load), and not part of the mapping number.
+
+**Subtracting setup, the GPU arm is 800 CPU-s — identical to the hooks-bypassed arm.**
+The GPU served 1.3 G dependent gathers (~130 CPU-s at stock's measured per-gather rate) and
+the coordinator spent exactly that much: mapping wall 62 s vs stock 47 s, with workers waiting
+on synchronous 64k batches; read re-preparation, `submit_window`, the coordinator lock, and
+copies (round-1 profile) account for it.
+
+**INTEGRATE-1 verdict: net zero CPU, −30% wall. The kernel's 6.6× is real and the alignments
+are byte-identical; mechanism (a) with a synchronous coordinator gives the whole gain back.**
+This is design risk #3 ("replay can overstate realizable batching"), measured. It is not a bug
+to fix in this card: the +6.3% lookahead floor and the synchronous drain are the mechanism.
+
+What a v2 would have to do differently (not authorized here): asynchronous double-buffered
+batches so workers never block on the drain; borrow STAR's already-prepared `Read1` bytes
+instead of re-preparing; per-worker queues with a lock-free hand-off. Whether that recovers
+the ~130 CPU-s is the open question; the ceiling on STAR is the design's 1.15×, and the
+measured floor for the lookahead alone is −6%. Expected value of a v2 is positive but small.

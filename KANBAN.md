@@ -4,7 +4,7 @@ Plan: `.hermes/plans/2026-09-04_uni-rnaseq-pressure-test-and-plan.md`. Card brie
 Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / inkling (routine) / me.
 
 ## In Progress
-- **P2C-STAR-INTEGRATE-1** — Terra fixing the seven blocking findings from `docs/review-star-integrate-1.md` (card `P2C-STAR-INTEGRATE-1-FIX`); then gate (i) 20M parity on the Spark, then three paired CPU-s runs. Target ≥12% STAR CPU-s; ≥8% funds PIPELINE-RUN.
+- (none — awaiting user decision on INTEGRATE v2)
 
 ## Backlog
 - **P2C-PIPELINE-RUN** — six Tier 2A samples through nf-core with integrated STAR + umbam; CPU-min/sample → `scripts/cost_curve.py`. Only if INTEGRATE-1 ≥ 8%.
@@ -42,6 +42,7 @@ Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / 
 - P0-SPARK — luna done. Verified: rustup 1.98.1, micromamba env `rnaseq`, nextflow 26.04.6 w/ user-local JDK 17, nvCOMP CUDA13 sbsa at `~/.local/opt/nvcomp`, docker GPU smoke test OK. Corrections by me: bioconda STAR was 2.7.3a (linux-aarch64 lag) → built 2.7.11b from source with `-march=native`, symlinked at `~/.local/bin/STAR`; worker missed `cub.cuh` which exists at `/usr/local/cuda/targets/sbsa-linux/include/cccl/cub/` (CUDA 13 moved it under `cccl/`) — not a blocker.
 
 ## Done
+- **P2C-STAR-INTEGRATE-1** — gate (i) **PASSED**: STAR with inner seed search on the GPU (91.5% of requests consumed, 1.3 G gathers in place) produces byte-identical alignments under a strict CPU oracle. Gate (iii) **failed**: after fixing a 30 GB hash in the mapping phase, GPU arm = 800 CPU-s = hooks-bypassed arm; net zero CPU, −30% wall. The synchronous coordinator spends exactly what the kernel saves. `bench/PHASE2C-integrate-1.md`. v2 (async batches, borrowed read bytes) not authorized.
 - **P2C-CHAIN-POSITION** — **76.4015868% of inner gathers at Lmapped==0** (1,431,388,309/1,873,505,995);88.7551% inner bytes. One locked full20M counters run, unchanged stock parity across53,710,530 SAM records/SJ/non-timing logs;7 tests, one independent review. **Select mechanism(a) only; no grid20. STOP/report checkpoint reached**, no implementation launched. `bench/PHASE2C-chain-position.md`.
 - **P2C-COST-SEED-PROJECTION** — dashed orange explicitly PROJECTED1.07–1.15× capacity scenario atop umbam CPU; model/memo/charts updated,4 tests and visual check pass. Not a measured integration result.
 - **P2C-REAL-REQUESTS** — **6.60× CPU20** on 999,914 real requests; CPU and thread GPU each match **999,914/999,914 captured STAR tuples**, zero skipped. Reused full20M parity/capture, unchanged SSIRv1/caps. Three repeats/overlap/forced4K verified; fresh synthetic10.38×. Accepted by main review `e3b6cee`; glue committed `5d3ba38`. `bench/PHASE2C-real-requests.md`. Inner-kernel question closed; no pipeline gain measured.
