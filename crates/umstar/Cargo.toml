@@ -1,0 +1,16 @@
+[package]
+name = "umstar"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[features]
+default = []
+cuda = ["umgpu/cuda", "umseed-probe/cuda"]
+
+[dependencies]
+umem = { path = "../umem" }
+umgpu = { path = "../umgpu" }
+umseed-probe = { path = "../umseed-probe" }
