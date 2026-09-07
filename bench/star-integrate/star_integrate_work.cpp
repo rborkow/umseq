@@ -1,6 +1,6 @@
 #include "star_integrate_work.hpp"
 
-#if STAR_INTEGRATE
+#if STAR_INTEGRATE && STAR_INTEGRATE_COUNTERS
 
 #include <cstdlib>
 #include <fstream>

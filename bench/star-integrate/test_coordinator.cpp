@@ -137,29 +137,43 @@ void normal() {
     std::vector<star_integrate::WindowRead> v;
     v.push_back(frame(11));
     star_integrate::submit_window(std::move(v));
+    star_integrate::settle_for_test();
     map_and_check(11);
   });
   std::thread two([] {
     std::vector<star_integrate::WindowRead> v;
     v.push_back(frame(29));
     star_integrate::submit_window(std::move(v));
+    star_integrate::settle_for_test();
     map_and_check(29);
   });
   one.join();
   two.join();
   {
     std::lock_guard<std::mutex> lock(s.mu);
-    assert(s.totals.batches == 1 && s.totals.batch_sizes.size() == 1 &&
-           s.totals.batch_sizes[0] == 65536);
-    assert(s.totals.cpu_tails == 14464 && s.totals.gpu_consumed > 0);
+    // v2 batching is asynchronous: two 40k windows may land in one or two
+    // batches depending on arrival order. Assert the invariants, not the
+    // v1 schedule: every batch within [submit_floor, cap], every submitted
+    // job accounted for exactly once, and both frames' lookups hit.
+    uint64_t dispatched = 0;
+    assert(s.totals.batches >= 1 && s.totals.batches <= 2 &&
+           s.totals.batch_sizes.size() == s.totals.batches);
+    for (size_t i = 0; i < s.totals.batch_sizes.size(); ++i) {
+      assert(s.totals.batch_sizes[i] >= 16384 &&
+             s.totals.batch_sizes[i] <= 262144);
+      dispatched += s.totals.batch_sizes[i];
+    }
+    assert(dispatched + s.totals.cpu_tails == 80000);
+    assert(s.totals.gpu_consumed > 0);
     assert(s.totals.suppressed_unused > 0 && s.pending.empty() &&
            s.pending_bytes == 0);
     // Two mapped frames and one exact candidate lookup per frame: no scan of
     // 40K frame jobs is permitted at consumption.
     assert(s.visits.frame_cursor == 2 && s.visits.lookup_jobs == 4);
-    assert(s.visits.dispatched_jobs == 65536 && s.visits.frame_offsets <= 2);
+    assert(s.visits.dispatched_jobs == dispatched &&
+           s.visits.frame_offsets <= 2);
   }
-  assert(backend_calls == 1);
+  assert(backend_calls >= 1 && backend_calls <= 2);
   star_integrate::finish();
 }
 void generated_key_hook() {
@@ -197,6 +211,9 @@ void generated_key_hook() {
   std::vector<star_integrate::WindowRead> frames;
   frames.push_back(std::move(f));
   star_integrate::submit_window(std::move(frames));
+  // v2 is asynchronous: the batch completes on the coordinator thread. Wait
+  // for it here so the assertion below tests the hit path, not the race.
+  star_integrate::settle_for_test();
   ReadAlign ra(3);
   char a[4] = {3, 3, 3, 3}, b[4] = {4, 4, 4, 4};
   char *reads[] = {a, b};

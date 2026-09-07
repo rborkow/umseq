@@ -8,6 +8,7 @@
 #include "usi.h"
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
@@ -24,16 +25,43 @@
 #include <vector>
 namespace star_integrate {
 namespace {
-constexpr uint64_t target = 65536, cap = 262144, read_cap = 4096;
+// A backend call drains synchronously, but its input is owned by this thread.
+// While it drains, producers append whole windows to their SPSC rings.  The
+// next fill buffer is therefore already populated when the call returns.
+// `target = 65536` remains the documented v1 transport floor; v2 instead
+// admits at submit_floor after a prior drain, as its latency contract requires.
+constexpr uint64_t target = 65536, submit_floor = 16384, cap = 262144,
+                   read_cap = 4096;
+// Longest a partially filled batch (>= submit_floor) waits for more producers
+// before launching anyway.  Keeps the GPU fed at chunk boundaries and lets a
+// single early window complete without a second producer.
+constexpr uint64_t FILL_MAX_US = 2000;
+static_assert(submit_floor < target && target < cap,
+              "v2 admission bounds must preserve the v1 transport floor");
+constexpr size_t queue_slots = 64;
+enum JobState : uint8_t { COMPLETE = 1, VALID = 2, CONSUMED = 4, RETIRED = 8 };
 struct Job {
   WindowRead *frame;
   InnerCall *call;
   ProbeOutput out;
   ProbeStats stats;
-  bool complete, valid, consumed, retired;
+  std::atomic<uint8_t> state;
   Job(WindowRead *f = nullptr, InnerCall *c = nullptr)
-      : frame(f), call(c), out(), stats(), complete(false), valid(false),
-        consumed(false), retired(false) {}
+      : frame(f), call(c), out(), stats(), state(0) {}
+  Job(Job &&o)
+      : frame(o.frame), call(o.call), out(o.out), stats(o.stats),
+        state(o.state.load(std::memory_order_relaxed)) {}
+  Job &operator=(Job &&o) {
+    frame = o.frame;
+    call = o.call;
+    out = o.out;
+    stats = o.stats;
+    state.store(o.state.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+    return *this;
+  }
+  Job(const Job &) = delete;
+  Job &operator=(const Job &) = delete;
 };
 static_assert(sizeof(Job) + sizeof(InnerCall) <= CANDIDATE_BUDGET_BYTES,
               "candidate budget covers InnerCall+Job");
@@ -60,6 +88,30 @@ struct Window {
         unused_gathers(0), consumed_stats(), suppressed_stats(), other_stats() {
   }
 };
+// One producer (the mapping thread which owns a window) and one consumer
+// (coordinator).  A full ring is a CPU-only admission result, never a wait.
+struct SpscQueue {
+  std::array<std::shared_ptr<Window>, queue_slots> slots;
+  std::atomic<size_t> head, tail;
+  SpscQueue() : slots(), head(0), tail(0) {}
+  bool push(const std::shared_ptr<Window> &w) {
+    const size_t t = tail.load(std::memory_order_relaxed);
+    const size_t next = (t + 1) % queue_slots;
+    if (next == head.load(std::memory_order_acquire))
+      return false;
+    slots[t] = w;
+    tail.store(next, std::memory_order_release);
+    return true;
+  }
+  bool pop(std::shared_ptr<Window> &w) {
+    const size_t h = head.load(std::memory_order_relaxed);
+    if (h == tail.load(std::memory_order_acquire))
+      return false;
+    w = std::move(slots[h]);
+    head.store((h + 1) % queue_slots, std::memory_order_release);
+    return true;
+  }
+};
 struct Visits {
   uint64_t frame_cursor, frame_offsets, dispatched_jobs, lookup_buckets,
       lookup_jobs;
@@ -71,7 +123,7 @@ struct Totals {
   uint64_t batches, submitted, gpu_consumed, cpu_tails, misses,
       suppressed_unused, other_unused, rejected, faults, cpu_fallback,
       hit_bytes, hit_gathers, unused_bytes, unused_gathers;
-  std::vector<uint64_t> batch_sizes;
+  std::vector<uint64_t> batch_sizes, fill_wait_us;
   ProbeStats submitted_stats, consumed_stats, suppressed_stats, other_stats,
       rejected_stats;
   Totals()
@@ -86,8 +138,12 @@ struct State {
   std::condition_variable cv;
   UsiContext *ctx;
   std::thread coordinator;
-  std::deque<Job *> pending;
-  uint64_t pending_bytes, epoch, next_generation;
+  // `mu` guards setup, queue registration, lifecycle accounting and totals;
+  // it is deliberately absent from the frame publication fast path.
+  std::deque<Job *> pending; // retained only for old diagnostic fixtures.
+  std::vector<std::unique_ptr<SpscQueue>> queues;
+  uint64_t pending_bytes, epoch;
+  std::atomic<uint64_t> next_generation;
   uint64_t live_bytes, live_requests;
   const Genome *index_object;
   const void *index_g, *index_sa, *index_sai;
@@ -107,6 +163,7 @@ thread_local std::shared_ptr<Window> current_window;
 thread_local WindowRead *current_frame = nullptr;
 thread_local size_t current_index = 0;
 thread_local ChainContext chain;
+thread_local SpscQueue *worker_queue = nullptr;
 State &S() {
   static State s;
   return s;
@@ -244,10 +301,11 @@ bool admitted(const Parameters &p, const Genome &g) {
          g.G && g.SA.charArray && g.SAi.charArray;
 }
 void resolve_cpu(Job &j) {
-  if (!j.complete) {
-    j.complete = true;
-    j.valid = false;
-  }
+  uint8_t state = j.state.load(std::memory_order_relaxed);
+  while (!(state & COMPLETE) && !j.state.compare_exchange_weak(
+                                    state, COMPLETE, std::memory_order_release,
+                                    std::memory_order_relaxed))
+    ;
 }
 bool valid_result(const Job &j) {
   const InnerCall &c = *j.call;
@@ -257,10 +315,10 @@ bool valid_result(const Job &j) {
          o.count == o.high - o.low + 1;
 }
 void retire(Job &j, bool suppressed) {
-  if (j.retired || j.consumed)
+  const uint8_t before = j.state.fetch_or(RETIRED, std::memory_order_acq_rel);
+  if (before & (RETIRED | CONSUMED))
     return;
-  j.retired = true;
-  if (!current_window || !j.complete || !j.valid)
+  if (!current_window || !(before & COMPLETE) || !(before & VALID))
     return;
   current_window->unused_bytes += j.stats.bytes;
   current_window->unused_gathers += j.stats.gathers;
@@ -330,9 +388,13 @@ void dispatch(std::vector<Job *> jobs) {
       j.out = out[i];
       j.stats = stats[i];
       add_stats(s.totals.submitted_stats, j.stats);
-      j.complete = true;
-      j.valid = valid_result(j);
-      if (!j.valid) {
+      const bool valid = valid_result(j);
+      // RETIRED may have been set by the mapping thread while this synchronous
+      // backend call was draining.  Publication must preserve it: that frame
+      // remains owned by `owners` until this return, but can no longer be hit.
+      j.state.fetch_or(COMPLETE | (valid ? VALID : 0),
+                       std::memory_order_release);
+      if (!valid) {
         add_stats(s.totals.rejected_stats, j.stats);
         ++s.totals.rejected;
         if (strict())
@@ -343,43 +405,75 @@ void dispatch(std::vector<Job *> jobs) {
 }
 void coordinator_main() {
   State &s = S();
-  std::unique_lock<std::mutex> lock(s.mu);
-  while (!s.stopping) {
-    if (s.pending.empty()) {
-      s.cv.wait(lock, [&] { return s.stopping || !s.pending.empty(); });
+  std::vector<Job *> fill;
+  std::vector<std::shared_ptr<Window>> owners;
+  std::chrono::steady_clock::time_point fill_started;
+  bool filling = false, previous_drained = false;
+  for (;;) {
+    bool stopping;
+    bool enabled;
+    {
+      std::lock_guard<std::mutex> lock(s.mu);
+      stopping = s.stopping;
+      enabled = s.enabled && !s.fault;
+      // Queue registry changes only at a producer's first publication.
+      for (size_t qi = 0; qi < s.queues.size() && fill.size() < cap; ++qi) {
+        std::shared_ptr<Window> w;
+        while (fill.size() < cap && s.queues[qi]->pop(w)) {
+          if (!filling) {
+            fill_started = std::chrono::steady_clock::now();
+            filling = true;
+          }
+          owners.push_back(w); // jobs/frame bytes remain live through drain.
+          for (size_t ji = 0; ji < w->jobs.size() && fill.size() < cap; ++ji)
+            fill.push_back(&w->jobs[ji]);
+        }
+      }
+    }
+    // At startup we fill toward the efficient 256k target.  Once a backend
+    // call has drained, a 16k floor is sufficient to launch again; no timer
+    // converts ordinary producer skew into a CPU tail.  A bounded fill age
+    // (FILL_MAX_US) prevents starvation when producers stop short of the
+    // target (a single window at startup, the last frames of a chunk).
+    const uint64_t fill_age_us =
+        filling ? static_cast<uint64_t>(
+                      std::chrono::duration_cast<std::chrono::microseconds>(
+                          std::chrono::steady_clock::now() - fill_started)
+                          .count())
+                : 0;
+    if (fill.size() >= cap ||
+        (filling && !stopping && fill.size() >= submit_floor &&
+         (previous_drained || fill_age_us >= FILL_MAX_US))) {
+      const uint64_t wait_us = fill_age_us;
+      if (enabled)
+        dispatch(std::move(fill));
+      else {
+        for (size_t i = 0; i < fill.size(); ++i)
+          resolve_cpu(*fill[i]);
+        std::lock_guard<std::mutex> lock(s.mu);
+        s.totals.cpu_tails += fill.size();
+      }
+      {
+        std::lock_guard<std::mutex> lock(s.mu);
+        s.totals.fill_wait_us.push_back(wait_us);
+      }
+      fill.clear();
+      owners.clear(); // only after dispatch (and its synchronous drain).
+      filling = false;
+      previous_drained = true;
       continue;
     }
-    if (s.pending.size() < target)
-      s.cv.wait_for(lock, std::chrono::milliseconds(2),
-                    [&] { return s.stopping || s.pending.size() >= target; });
-    if (s.pending.empty())
-      continue;
-    uint64_t n = std::min<uint64_t>(s.pending.size(),
-                                    s.pending.size() >= cap ? cap : target);
-    std::vector<Job *> batch;
-    batch.reserve((size_t)n);
-    for (uint64_t i = 0; i < n; ++i) {
-      batch.push_back(s.pending.front());
-      s.pending.pop_front();
-      s.pending_bytes -= CANDIDATE_BUDGET_BYTES;
+    if (stopping) {
+      for (size_t i = 0; i < fill.size(); ++i)
+        resolve_cpu(*fill[i]);
+      if (!fill.empty()) {
+        std::lock_guard<std::mutex> lock(s.mu);
+        s.totals.cpu_tails += fill.size();
+      }
+      break;
     }
-    if (n < target || !s.enabled || s.fault) {
-      for (size_t i = 0; i < batch.size(); ++i)
-        resolve_cpu(*batch[i]);
-      s.totals.cpu_tails += n;
-      s.cv.notify_all();
-      continue;
-    }
-    lock.unlock();
-    dispatch(std::move(batch));
-    lock.lock();
-    s.cv.notify_all();
-  }
-  while (!s.pending.empty()) {
-    resolve_cpu(*s.pending.front());
-    s.pending.pop_front();
-    s.pending_bytes -= CANDIDATE_BUDGET_BYTES;
-    ++s.totals.cpu_tails;
+    std::unique_lock<std::mutex> lock(s.mu);
+    s.cv.wait_for(lock, std::chrono::microseconds(100));
   }
   s.cv.notify_all();
 }
@@ -455,7 +549,19 @@ void sidecar(const State &s) {
   write_stats(f, t.rejected_stats);
   f << ",\"live_bytes_at_finish\":" << s.live_bytes
     << ",\"live_requests_at_finish\":" << s.live_requests
-    << ",\"setup_wall_s\":" << s.setup_wall_s;
+    << ",\"setup_wall_s\":" << s.setup_wall_s
+    << ",\"gpu_inflight_depth\":2,\"gpu_fill_wait_us\":[";
+  for (size_t i = 0; i < t.fill_wait_us.size(); ++i)
+    f << (i ? "," : "") << t.fill_wait_us[i];
+  f << "],\"gpu_fill_wait_us_histogram\":{";
+  std::map<uint64_t, uint64_t> fill_histogram;
+  for (size_t i = 0; i < t.fill_wait_us.size(); ++i)
+    ++fill_histogram[t.fill_wait_us[i]];
+  for (std::map<uint64_t, uint64_t>::const_iterator it = fill_histogram.begin();
+       it != fill_histogram.end(); ++it)
+    f << (it == fill_histogram.begin() ? "" : ",") << "\"" << it->first
+      << "\":" << it->second;
+  f << "}";
   f << ",\"suppression_opportunities_reference\":13435368,\"directional_"
        "opportunities_reference\":159989084}\n";
 }
@@ -468,11 +574,10 @@ uint64_t current_epoch() { return S().epoch; }
 void assign_frame_identity(WindowRead &frame, uint64_t read_id, uint64_t worker,
                            uint64_t chunk) {
   State &s = S();
-  std::lock_guard<std::mutex> lock(s.mu);
   frame.ordinal = read_id;
   frame.worker = worker;
   frame.chunk = chunk;
-  frame.generation = s.next_generation++;
+  frame.generation = s.next_generation.fetch_add(1, std::memory_order_relaxed);
   frame.index_epoch = s.epoch;
 }
 InnerCall build_inner_call(InnerCall call, const WindowRead &frame,
@@ -590,16 +695,6 @@ void submit_window(std::vector<WindowRead> &&frames) {
   std::shared_ptr<Window> w(new Window);
   w->frames = std::move(frames);
   State &s = S();
-  std::unique_lock<std::mutex> lock(s.mu);
-  while (!s.stopping && s.enabled &&
-         (s.live_requests + nj > MAX_INFLIGHT_REQUESTS ||
-          s.live_bytes + bytes > MAX_INFLIGHT_BYTES))
-    s.cv.wait_for(lock, std::chrono::milliseconds(2));
-  if (s.live_requests + nj > MAX_INFLIGHT_REQUESTS ||
-      s.live_bytes + bytes > MAX_INFLIGHT_BYTES)
-    return;
-  s.live_requests += nj;
-  s.live_bytes += bytes;
   w->charged_requests = nj;
   w->charged_bytes = bytes;
   w->jobs.reserve((size_t)nj);
@@ -612,34 +707,37 @@ void submit_window(std::vector<WindowRead> &&frames) {
       InnerCall &c = fr.candidates[ci];
       w->jobs.push_back(Job(&fr, &c));
       w->lookup_index.emplace(call_hash(c), w->jobs.size() - 1);
-      if (s.enabled && !s.stopping) {
-        // Backpressure occurs before the queue grows: this producer retains
-        // window ownership while the coordinator drains prior work.
-        while (!s.stopping && s.enabled &&
-               (s.pending.size() >= MAX_PENDING_REQUESTS ||
-                s.pending_bytes + CANDIDATE_BUDGET_BYTES > MAX_PENDING_BYTES))
-          s.cv.wait(lock);
-        if (s.stopping || !s.enabled) {
-          resolve_cpu(w->jobs.back());
-          continue;
-        }
-        s.pending.push_back(&w->jobs.back());
-        s.pending_bytes += CANDIDATE_BUDGET_BYTES;
-      } else
-        resolve_cpu(w->jobs.back());
     }
     w->ranges.push_back(Range(first, w->jobs.size()));
   }
-  s.cv.notify_one();
-  lock.unlock();
-  lock.lock();
-  s.cv.wait(lock, [&] {
+  // Register once per mapping thread.  The publish below is a release store
+  // into that thread's SPSC ring; it never takes s.mu or waits for a GPU fence.
+  if (!worker_queue) {
+    std::lock_guard<std::mutex> lock(s.mu);
+    s.queues.emplace_back(new SpscQueue);
+    worker_queue = s.queues.back().get();
+  }
+  bool publish = false;
+  {
+    std::lock_guard<std::mutex> lock(s.mu);
+    if (s.enabled && !s.stopping && !s.fault &&
+        s.live_requests + nj <= MAX_INFLIGHT_REQUESTS &&
+        s.live_bytes + bytes <= MAX_INFLIGHT_BYTES) {
+      s.live_requests += nj;
+      s.live_bytes += bytes;
+      publish = worker_queue->push(w);
+      if (!publish) {
+        s.live_requests -= nj;
+        s.live_bytes -= bytes;
+      }
+    }
+  }
+  if (!publish) {
+    // Bounded admission is an immediate CPU fallback, never producer wait.
     for (size_t i = 0; i < w->jobs.size(); ++i)
-      if (!w->jobs[i].complete)
-        return false;
-    return true;
-  });
-  lock.unlock();
+      resolve_cpu(w->jobs[i]);
+  } else
+    s.cv.notify_one();
   current_window = w;
   current_frame = nullptr;
   current_index = 0;
@@ -724,7 +822,8 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
     size_t i = it->second;
     Job &j = current_window->jobs[i];
     const InnerCall &c = *j.call;
-    if (j.consumed || j.retired || !j.complete || !j.valid)
+    uint8_t state = j.state.load(std::memory_order_acquire);
+    if (state & (CONSUMED | RETIRED) || !(state & COMPLETE) || !(state & VALID))
       continue;
     if (c.generation != current_frame->generation ||
         c.index_epoch != S().epoch || current_frame->index_epoch != S().epoch ||
@@ -746,7 +845,13 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
     out[1] = j.out.high;
     nrep = j.out.count;
     maxL = j.out.length;
-    j.consumed = true;
+    while (!(state & (CONSUMED | RETIRED)) &&
+           !j.state.compare_exchange_weak(state, state | CONSUMED,
+                                          std::memory_order_acq_rel,
+                                          std::memory_order_acquire))
+      ;
+    if (state & (CONSUMED | RETIRED))
+      continue;
     ++current_window->consumed;
     current_window->hit_bytes += j.stats.bytes;
     current_window->hit_gathers += j.stats.gathers;
@@ -777,6 +882,26 @@ void finish() {
     usi_destroy_v1(&s.ctx, &e);
   }
   s.enabled = false;
+#endif
+}
+void settle_for_test() {
+#if STAR_INTEGRATE
+  // Poll the caller's current window until every job has left the pending
+  // state.  Bounded so a coordinator bug fails the test instead of hanging it.
+  if (!current_window)
+    return;
+  for (int spins = 0; spins < 50000; ++spins) {
+    bool pending = false;
+    for (size_t i = 0; i < current_window->jobs.size() && !pending; ++i)
+      pending =
+          !(current_window->jobs[i].state.load(std::memory_order_acquire) &
+            COMPLETE);
+    if (!pending)
+      return;
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
+  }
+  fprintf(stderr, "settle_for_test: window did not complete\n");
+  abort();
 #endif
 }
 } // namespace star_integrate

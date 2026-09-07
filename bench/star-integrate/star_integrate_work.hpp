@@ -3,6 +3,13 @@
 
 #include <stdint.h>
 
+// Accounting is a diagnostic build option.  Production timing builds pass
+// -DSTAR_INTEGRATE_COUNTERS=0, so every observer call below is an inline no-op.
+// Keep it on by default for the existing gate and observer fixtures.
+#ifndef STAR_INTEGRATE_COUNTERS
+#define STAR_INTEGRATE_COUNTERS 1
+#endif
+
 /*
  * This observer accounts only for stock CPU work reached from STAR's original
  * inner maxMappableLength call.  It deliberately has no callback in the
@@ -13,7 +20,7 @@ namespace star_integrate_work {
 
 enum Arm { ARM_NONE, ARM_FALLBACK, ARM_ORACLE };
 
-#if STAR_INTEGRATE
+#if STAR_INTEGRATE && STAR_INTEGRATE_COUNTERS
 class Scope {
 public:
   explicit Scope(Arm arm);

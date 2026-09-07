@@ -42,3 +42,13 @@ overlap regression verifies `usi_destroy_v1` rejects overlap without mutation.
 The fixture's `lookup_jobs == 4` (one hit and one deliberately repeated lookup
 per frame) is the regression guard against the prior
 per-frame 40,000-job consumption scan.
+
+## P2C-INTEGRATE-2-WINDOW local record
+
+1. GREEN: `STAR_INTEGRATE_COUNTERS=0` makes the comparator observer, inner-call
+   observer, and observer scopes inline no-ops. The observer fixture remains a
+   counters-on build by default; timing builds must pass
+   `-DSTAR_INTEGRATE_COUNTERS=0`.
+2. GREEN: lookahead scratch arrays are no longer value-initialized per record;
+   the split and clipping scratch containers are retained for the whole window.
+   `test_window_prefix.py` proves the published prefix record remains identical.

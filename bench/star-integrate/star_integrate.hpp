@@ -71,5 +71,9 @@ void note_cpu_fallback();
 void prepare_window(ReadAlignChunk &);
 void begin_map(ReadAlign &);
 void finish();
+// Test-only: block until no submitted window has an unresolved job (every job
+// consumed-ready or CPU-resolved). Production STAR never calls this; lookup
+// stays non-waiting.
+void settle_for_test();
 } // namespace star_integrate
 #endif

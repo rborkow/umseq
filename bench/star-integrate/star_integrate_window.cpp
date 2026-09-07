@@ -181,13 +181,16 @@ void prepare_window(ReadAlignChunk &chunk) {
         return;
     for (uint32_t mate = 0; mate < ends; ++mate)
       ra.readInStream[mate]->clear();
+    std::vector<uint> split(3 * chunk.P.maxNsplit);
+    std::array<std::vector<ClipMate>, MAX_N_MATES> clips;
+    std::array<std::string, MAX_N_MATES> extra;
     for (uint32_t rec = 0; rec < window_limit(); ++rec) {
-      std::array<std::array<char, DEF_readSeqLengthMax + 1>, MAX_N_MATES> raw{},
-          num{}, qual{};
-      std::array<std::array<char, DEF_readNameLengthMax>, MAX_N_MATES> name{};
-      std::array<uint, MAX_N_MATES> len{}, original{};
-      std::array<std::vector<ClipMate>, MAX_N_MATES> clips;
-      std::array<std::string, MAX_N_MATES> extra;
+      // readLoad writes the complete live extents (including its terminators).
+      // These scratch buffers need no per-record zero fill.
+      std::array<std::array<char, DEF_readSeqLengthMax + 1>, MAX_N_MATES> raw,
+          num, qual;
+      std::array<std::array<char, DEF_readNameLengthMax>, MAX_N_MATES> name;
+      std::array<uint, MAX_N_MATES> len, original;
       uint ordinal = 0;
       uint32_t file_index = 0;
       char filter = 0;
@@ -217,7 +220,6 @@ void prepare_window(ReadAlignChunk &chunk) {
         for (uint ii = 0; ii < len[1] / 2; ++ii)
           std::swap(num[0][length - ii - 1], num[0][ii + len[0] + 1]);
       }
-      std::vector<uint> split(3 * chunk.P.maxNsplit);
       std::array<uint *, 3> split_r = {split.data(),
                                        split.data() + chunk.P.maxNsplit,
                                        split.data() + 2 * chunk.P.maxNsplit};
@@ -252,7 +254,7 @@ void prepare_window(ReadAlignChunk &chunk) {
       if (!fits)
         break;
 
-      WindowRead frame = {};
+      WindowRead frame;
       frame.mate0_len = len[0];
       frame.mate1_len = ends > 1 ? len[1] : 0;
       frame.split_count = nsplit;
@@ -260,7 +262,7 @@ void prepare_window(ReadAlignChunk &chunk) {
       assign_frame_identity(frame, ordinal, chunk.iThread, chunk.iChunkIn);
       frame.a.assign(reinterpret_cast<const uint8_t *>(num[0].data()),
                      reinterpret_cast<const uint8_t *>(num[0].data()) + length);
-      std::array<char, DEF_readSeqLengthMax + 1> complement{};
+      std::array<char, DEF_readSeqLengthMax + 1> complement;
       complementSeqNumbers(num[0].data(), complement.data(), length);
       frame.b.assign(reinterpret_cast<const uint8_t *>(complement.data()),
                      reinterpret_cast<const uint8_t *>(complement.data()) +
