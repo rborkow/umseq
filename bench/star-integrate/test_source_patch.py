@@ -33,6 +33,7 @@ class PatchGuard(unittest.TestCase):
   src='            Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);'
   got=m.patch(R(),'ReadAlign_maxMappableLength2strands.cpp',src)
   self.assertIn('star_integrate::strict()',got)
+  self.assertIn('star_integrate::note_cpu_fallback()',got)
   self.assertIn('abort()',got)
  def test_window_hooks_are_staged(self):
   class R:
@@ -54,9 +55,9 @@ class PatchGuard(unittest.TestCase):
   read=m.patch(R(),'ReadAlign_mapOneRead.cpp',(root/'ReadAlign_mapOneRead.cpp').read_text())
   inner=m.patch(R(),'ReadAlign_maxMappableLength2strands.cpp',(root/'ReadAlign_maxMappableLength2strands.cpp').read_text())
   self.assertIn('star_integrate::end_chunk()',chunk)
-  self.assertIn('star_integrate::set_chain(ip, splitR[2][ip], istart, Nstart, Lstart, Lmapped, splitR[0][ip], splitR[1][ip])',read)
+  self.assertIn('star_integrate::set_chain(ip, splitR[2][ip], istart, Nstart, Lstart, Lmapped, splitR[0][ip], splitR[1][ip], Nsplit)',read)
   self.assertIn('star_integrate::reverse_suppressed(ip)',read)
-  self.assertIn('starIntegrateCall={pieceStart,pieceLength',inner)
-  self.assertIn('star_integrate::current_generation()',inner)
-  self.assertIn('star_integrate::current_epoch()',inner)
+  self.assertIn('star_integrate::build_current_inner_call(starIntegrateCall)',inner)
+  self.assertNotIn('InnerCall starIntegrateCall={pieceStart',inner)
+  self.assertIn('splitR[1][ip], Nsplit)',read)
 if __name__=='__main__': unittest.main()

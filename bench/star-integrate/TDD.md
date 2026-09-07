@@ -23,6 +23,11 @@ Local-only RED/GREEN record; no Spark, CUDA, or STAR host gate was run.
    a full 65,536 batch and an underfilled CPU tail under a 30-second bound.
 7. RED: gate expected `gpu_consumed`. GREEN: fixture parses the actual final
    JSON row and applies `gpu_consumed > 0`, zero fault/rejection checks.
+8. RED: the generated inner hook constructed a partial positional key, so a
+   real producer candidate missed. GREEN: `test_coordinator.py` compiles the
+   real coordinator fixture; its generated-hook-shaped construction calls the
+   shared builder and prints `generated key hook: consumed=1 key_misses=0`.
+   `test_work.py` separately compiles the generated upstream hook itself.
 
 Should-fix checks: stream state is captured before `tellg`, lookahead is bypassed
 unless every stream is seekable, restoration is checked before publication; ABI

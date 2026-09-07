@@ -149,13 +149,6 @@ bool append_prefix_call(const Parameters &p, Genome &map_gen, const char *read,
   call.nstart = nstart;
   call.lstart = lstart;
   call.istart = istart;
-  // The producer fills the frame identity immediately after this append.
-  call.generation = 0;
-  call.piece_start = 0;
-  call.piece_length = 0;
-  call.kind = 0;
-  call.read_id = 0;
-  call.index_epoch = 0;
   out.push_back(call);
   return true;
 }
@@ -260,11 +253,11 @@ void prepare_window(ReadAlignChunk &chunk) {
         break;
 
       WindowRead frame = {};
-      frame.ordinal = ordinal;
       frame.mate0_len = len[0];
       frame.mate1_len = ends > 1 ? len[1] : 0;
-      frame.generation = 0;
-      frame.index_epoch = 0;
+      frame.split_count = nsplit;
+      // Establish complete identity before this frame appends any candidate.
+      assign_frame_identity(frame, ordinal, chunk.iThread, chunk.iChunkIn);
       frame.a.assign(reinterpret_cast<const uint8_t *>(num[0].data()),
                      reinterpret_cast<const uint8_t *>(num[0].data()) + length);
       std::array<char, DEF_readSeqLengthMax + 1> complement{};
@@ -292,13 +285,17 @@ void prepare_window(ReadAlignChunk &chunk) {
                                    split_r[1][ip] - istart * lstart, idir, ip,
                                    split_r[2][ip], nstart, lstart, istart,
                                    frame.candidates)) {
-              InnerCall &call = frame.candidates.back();
-              call.piece_start = split_r[0][ip];
-              call.piece_length = split_r[1][ip];
-              call.kind = INITIAL_KIND;
-              call.read_id = ordinal;
-              call.generation = 0;
-              call.index_epoch = 0;
+              ChainContext context;
+              context.piece = ip;
+              context.fragment = split_r[2][ip];
+              context.istart = istart;
+              context.nstart = nstart;
+              context.lstart = lstart;
+              context.piece_start = split_r[0][ip];
+              context.piece_length = split_r[1][ip];
+              context.split_count = nsplit;
+              frame.candidates.back() = build_inner_call(
+                  frame.candidates.back(), frame, context, frame.index_epoch);
             }
           }
       }

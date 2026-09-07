@@ -53,29 +53,32 @@ struct Window {
       cpu_fallback, hit_bytes, hit_gathers, unused_bytes, unused_gathers;
   ProbeStats consumed_stats, suppressed_stats, other_stats;
   Window()
-      : next_frame(0), charged_bytes(0), charged_requests(0), consumed(0), misses(0), suppressed_unused(0),
-        other_unused(0), rejected(0), cpu_fallback(0), hit_bytes(0),
-        hit_gathers(0), unused_bytes(0), unused_gathers(0), consumed_stats(),
-        suppressed_stats(), other_stats() {}
+      : next_frame(0), charged_bytes(0), charged_requests(0), consumed(0),
+        misses(0), suppressed_unused(0), other_unused(0), rejected(0),
+        cpu_fallback(0), hit_bytes(0), hit_gathers(0), unused_bytes(0),
+        unused_gathers(0), consumed_stats(), suppressed_stats(), other_stats() {
+  }
 };
 struct Visits {
   uint64_t frame_cursor, frame_offsets, dispatched_jobs, lookup_buckets,
       lookup_jobs;
-  Visits() : frame_cursor(0), frame_offsets(0), dispatched_jobs(0),
-             lookup_buckets(0), lookup_jobs(0) {}
+  Visits()
+      : frame_cursor(0), frame_offsets(0), dispatched_jobs(0),
+        lookup_buckets(0), lookup_jobs(0) {}
 };
 struct Totals {
   uint64_t batches, submitted, gpu_consumed, cpu_tails, misses,
       suppressed_unused, other_unused, rejected, faults, cpu_fallback,
       hit_bytes, hit_gathers, unused_bytes, unused_gathers;
   std::vector<uint64_t> batch_sizes;
-  ProbeStats submitted_stats, consumed_stats, suppressed_stats, other_stats, rejected_stats;
+  ProbeStats submitted_stats, consumed_stats, suppressed_stats, other_stats,
+      rejected_stats;
   Totals()
       : batches(0), submitted(0), gpu_consumed(0), cpu_tails(0), misses(0),
         suppressed_unused(0), other_unused(0), rejected(0), faults(0),
         cpu_fallback(0), hit_bytes(0), hit_gathers(0), unused_bytes(0),
-        unused_gathers(0), submitted_stats(), consumed_stats(), suppressed_stats(),
-        other_stats(), rejected_stats() {}
+        unused_gathers(0), submitted_stats(), consumed_stats(),
+        suppressed_stats(), other_stats(), rejected_stats() {}
 };
 struct State {
   std::mutex mu;
@@ -93,52 +96,54 @@ struct State {
   Visits visits;
   State()
       : ctx(nullptr), pending_bytes(0), epoch(1), next_generation(1),
-        live_bytes(0), live_requests(0), index_object(nullptr), index_g(nullptr),
-        index_sa(nullptr), index_sai(nullptr), index_nsa(0), index_ngenome(0),
-        tried(false), enabled(false), stopping(false), fault(false) {}
-};
-struct Chain {
-  uint64_t piece, fragment, istart, nstart, lstart, lmapped, piece_start,
-      piece_length;
-  Chain()
-      : piece(~uint64_t(0)), fragment(0), istart(0), nstart(0), lstart(0),
-        lmapped(0), piece_start(0), piece_length(0) {}
+        live_bytes(0), live_requests(0), index_object(nullptr),
+        index_g(nullptr), index_sa(nullptr), index_sai(nullptr), index_nsa(0),
+        index_ngenome(0), tried(false), enabled(false), stopping(false),
+        fault(false) {}
 };
 thread_local std::shared_ptr<Window> current_window;
 thread_local WindowRead *current_frame = nullptr;
 thread_local size_t current_index = 0;
-thread_local Chain chain;
+thread_local ChainContext chain;
 State &S() {
   static State s;
   return s;
 }
 void bind_index(const Genome &g) {
   State &s = S();
-  s.index_object = &g; s.index_g = g.G;
-  s.index_sa = g.SA.charArray; s.index_sai = g.SAi.charArray;
-  s.index_nsa = g.nSA; s.index_ngenome = g.nGenome;
+  s.index_object = &g;
+  s.index_g = g.G;
+  s.index_sa = g.SA.charArray;
+  s.index_sai = g.SAi.charArray;
+  s.index_nsa = g.nSA;
+  s.index_ngenome = g.nGenome;
 }
 bool same_index(const Genome &g) {
   const State &s = S();
   return s.index_object == &g && s.index_g == g.G &&
-      s.index_sa == g.SA.charArray && s.index_sai == g.SAi.charArray &&
-      s.index_nsa == g.nSA && s.index_ngenome == g.nGenome;
+         s.index_sa == g.SA.charArray && s.index_sai == g.SAi.charArray &&
+         s.index_nsa == g.nSA && s.index_ngenome == g.nGenome;
 }
 void add_stats(ProbeStats &a, const ProbeStats &b) {
-  a.gathers += b.gathers; a.bytes += b.bytes; a.loops += b.loops;
+  a.gathers += b.gathers;
+  a.bytes += b.bytes;
+  a.loops += b.loops;
   a.comparisons += b.comparisons;
   a.max_compare = std::max(a.max_compare, b.max_compare);
   a.directions |= b.directions;
 }
 uint64_t mix(uint64_t h, uint64_t x) { return (h ^ x) * 1099511628211ULL; }
 uint64_t call_hash(const InnerCall &c) {
-  const uint64_t v[] = {c.start, c.length, c.low, c.high, c.dir, c.prefix,
-                        c.piece, c.fragment, c.distance, c.nstart, c.lstart,
-                        c.istart, c.generation, c.piece_start, c.piece_length,
-                        c.kind, c.read_id, c.index_epoch, c.worker, c.chunk,
-                        c.mate_context, c.split_context};
+  const uint64_t v[] = {
+      c.start,        c.length,       c.low,          c.high,
+      c.dir,          c.prefix,       c.piece,        c.fragment,
+      c.distance,     c.nstart,       c.lstart,       c.istart,
+      c.generation,   c.piece_start,  c.piece_length, c.kind,
+      c.read_id,      c.index_epoch,  c.worker,       c.chunk,
+      c.mate_context, c.split_context};
   uint64_t h = 1469598103934665603ULL;
-  for (size_t i = 0; i < sizeof(v) / sizeof(*v); ++i) h = mix(h, v[i]);
+  for (size_t i = 0; i < sizeof(v) / sizeof(*v); ++i)
+    h = mix(h, v[i]);
   return h;
 }
 bool same_call(const InnerCall &a, const InnerCall &b) {
@@ -156,7 +161,8 @@ bool same_call(const InnerCall &a, const InnerCall &b) {
 void write_stats(std::ostream &f, const ProbeStats &s) {
   f << "{\"gathers\":" << s.gathers << ",\"bytes\":" << s.bytes
     << ",\"loops\":" << s.loops << ",\"comparisons\":" << s.comparisons
-    << ",\"max_compare\":" << s.max_compare << ",\"directions\":" << s.directions << "}";
+    << ",\"max_compare\":" << s.max_compare
+    << ",\"directions\":" << s.directions << "}";
 }
 bool env1(const char *n) {
   const char *v = getenv(n);
@@ -375,7 +381,7 @@ void close_window() {
   current_window.reset();
   current_frame = nullptr;
   current_index = 0;
-  chain = Chain();
+  chain = ChainContext();
 }
 void sidecar(const State &s) {
   const char *p = getenv("STAR_INTEGRATE_SIDECAR");
@@ -398,11 +404,16 @@ void sidecar(const State &s) {
     << ",\"gpu_batch_sizes\":[";
   for (size_t i = 0; i < t.batch_sizes.size(); ++i)
     f << (i ? "," : "") << t.batch_sizes[i];
-  f << "],\"submitted_stats\":"; write_stats(f, t.submitted_stats);
-  f << ",\"consumed_stats\":"; write_stats(f, t.consumed_stats);
-  f << ",\"suppressed_unused_stats\":"; write_stats(f, t.suppressed_stats);
-  f << ",\"other_unused_stats\":"; write_stats(f, t.other_stats);
-  f << ",\"rejected_stats\":"; write_stats(f, t.rejected_stats);
+  f << "],\"submitted_stats\":";
+  write_stats(f, t.submitted_stats);
+  f << ",\"consumed_stats\":";
+  write_stats(f, t.consumed_stats);
+  f << ",\"suppressed_unused_stats\":";
+  write_stats(f, t.suppressed_stats);
+  f << ",\"other_unused_stats\":";
+  write_stats(f, t.other_stats);
+  f << ",\"rejected_stats\":";
+  write_stats(f, t.rejected_stats);
   f << ",\"live_bytes_at_finish\":" << s.live_bytes
     << ",\"live_requests_at_finish\":" << s.live_requests;
   f << ",\"suppression_opportunities_reference\":13435368,\"directional_"
@@ -414,6 +425,45 @@ uint64_t current_generation() {
   return current_frame ? current_frame->generation : 0;
 }
 uint64_t current_epoch() { return S().epoch; }
+void assign_frame_identity(WindowRead &frame, uint64_t read_id, uint64_t worker,
+                           uint64_t chunk) {
+  State &s = S();
+  std::lock_guard<std::mutex> lock(s.mu);
+  frame.ordinal = read_id;
+  frame.worker = worker;
+  frame.chunk = chunk;
+  frame.generation = s.next_generation++;
+  frame.index_epoch = s.epoch;
+}
+InnerCall build_inner_call(InnerCall call, const WindowRead &frame,
+                           const ChainContext &context, uint64_t epoch) {
+  call.piece = context.piece;
+  call.fragment = context.fragment;
+  call.nstart = context.nstart;
+  call.lstart = context.lstart;
+  call.istart = context.istart;
+  call.generation = frame.generation;
+  call.piece_start = context.piece_start;
+  call.piece_length = context.piece_length;
+  call.kind = INITIAL_KIND;
+  call.read_id = frame.ordinal;
+  call.index_epoch = epoch;
+  call.worker = frame.worker;
+  call.chunk = frame.chunk;
+  // Both mate lengths, then Nsplit plus its split-loop index, are explicit.
+  call.mate_context = (frame.mate0_len << 32) | frame.mate1_len;
+  call.split_context = (frame.split_count << 32) | context.piece;
+  return call;
+}
+InnerCall build_current_inner_call(InnerCall call) {
+  return current_frame
+             ? build_inner_call(call, *current_frame, chain, S().epoch)
+             : call;
+}
+void note_cpu_fallback() {
+  if (current_window && current_frame)
+    ++current_window->cpu_fallback;
+}
 bool setup(const Parameters &p, const Genome &g) {
 #if !STAR_INTEGRATE
   (void)p;
@@ -490,22 +540,17 @@ void submit_window(std::vector<WindowRead> &&frames) {
   if (s.live_requests + nj > MAX_INFLIGHT_REQUESTS ||
       s.live_bytes + bytes > MAX_INFLIGHT_BYTES)
     return;
-  s.live_requests += nj; s.live_bytes += bytes;
-  w->charged_requests = nj; w->charged_bytes = bytes;
+  s.live_requests += nj;
+  s.live_bytes += bytes;
+  w->charged_requests = nj;
+  w->charged_bytes = bytes;
   w->jobs.reserve((size_t)nj);
   w->ranges.reserve(w->frames.size());
   for (size_t fi = 0; fi < w->frames.size(); ++fi) {
     WindowRead &fr = w->frames[fi];
-    fr.generation = s.next_generation++;
-    fr.index_epoch = s.epoch;
-
     size_t first = w->jobs.size();
     for (size_t ci = 0; ci < fr.candidates.size(); ++ci) {
       InnerCall &c = fr.candidates[ci];
-      c.generation = fr.generation;
-      c.index_epoch = s.epoch;
-      c.worker = fr.worker;
-      c.chunk = fr.chunk;
       w->jobs.push_back(Job(&fr, &c));
       w->lookup_index.emplace(call_hash(c), w->jobs.size() - 1);
       if (s.enabled && !s.stopping) {
@@ -545,7 +590,7 @@ void submit_window(std::vector<WindowRead> &&frames) {
 }
 void begin_map(ReadAlign &ra) {
   current_frame = nullptr;
-  chain = Chain();
+  chain = ChainContext();
   if (!current_window ||
       current_window->next_frame >= current_window->frames.size())
     return;
@@ -558,7 +603,8 @@ void begin_map(ReadAlign &ra) {
 }
 void set_chain(uint64_t piece, uint64_t fragment, uint64_t istart,
                uint64_t nstart, uint64_t lstart, uint64_t lmapped,
-               uint64_t piece_start, uint64_t piece_length) {
+               uint64_t piece_start, uint64_t piece_length,
+               uint64_t split_count) {
   chain.piece = piece;
   chain.fragment = fragment;
   chain.istart = istart;
@@ -567,6 +613,7 @@ void set_chain(uint64_t piece, uint64_t fragment, uint64_t istart,
   chain.lmapped = lmapped;
   chain.piece_start = piece_start;
   chain.piece_length = piece_length;
+  chain.split_count = split_count;
 }
 void reverse_suppressed(uint64_t piece) {
   if (!current_window || !current_frame)
@@ -609,8 +656,8 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
     return false;
   }
   std::pair<std::unordered_multimap<uint64_t, size_t>::iterator,
-            std::unordered_multimap<uint64_t, size_t>::iterator> bucket =
-      current_window->lookup_index.equal_range(call_hash(in));
+            std::unordered_multimap<uint64_t, size_t>::iterator>
+      bucket = current_window->lookup_index.equal_range(call_hash(in));
   ++S().visits.lookup_buckets;
   for (std::unordered_multimap<uint64_t, size_t>::iterator it = bucket.first;
        it != bucket.second; ++it) {
