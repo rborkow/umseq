@@ -1,5 +1,31 @@
 # P2C seed lane coordination
 
+## Current — 2026-09-07 09:50 PDT: main session driving; INTEGRATE-1 fix in progress
+
+Repo published: **github.com/rborkow/umseq** (public, `main`, CI green at `d68493e`). `main` must
+build; the workspace excludes `crates/umstar` until it does.
+
+INTEGRATE-1 status: Astra's single review (`docs/review-star-integrate-1.md`) returned **seven
+blocking findings** (admission beyond mechanism (a); quadratic coordinator; strict mode hiding
+invalid GPU successes; identity key not implemented; work attribution missing; no queue caps;
+emitter/gate schema mismatch). The previous orchestrator stopped mid-refactor with
+`crates/umstar/src/` emptied and the implementation moved to `crates/umgpu/ffi/star_integrate.rs`.
+That state is untracked (`bench/star-integrate/`, `crates/umgpu/ffi/`, `crates/umstar/`).
+
+Dispatched **P2C-STAR-INTEGRATE-1-FIX** (Terra, `proc_d55527c5593f`): restore the build, close
+the seven findings in order with the review's named tests, RED/GREEN in `bench/star-integrate/TDD.md`.
+Then the main session stages to the Spark and runs gate (i) — SAM/order/tags/SJ/non-timing-Log
+parity on 20M — before any paired timing. Gate (ii)/(iii) as in the previous direction:
+≥12% STAR CPU-s target, ≥8% memo-grade, <5% with parity intact is an honest negative.
+
+Accepted and committed (ff61225): SPLIT (99.8% inner), PROBE (10.2× synthetic), REAL-REQUESTS
+(6.60× on 999,914 real requests, all tuples match STAR), CHAIN-POSITION (76.4% initial-start
+coverage → mechanism (a) only), design doc, cost-curve projected line (1.07–1.15×). Held cards
+remain held. REPLAY-SCALE superseded.
+
+---
+
+
 ## Current checkpoint — REAL-REQUESTS complete; STOP for decision
 
 Verified `bench/PHASE2C-real-requests.md`: real **6.59556× CPU20**, fresh synthetic10.37769×; CPU and thread GPU each match **999,914/999,914 captured STAR tuples**, zero skipped. Original20-worker capture and full20M stock parity reused, not rerun. Raw audit: zero `N>S+1`;1,317 fully-known reverse-prefix cases corrected without changing SSIRv1/caps. Three repeats, disjoint overlap and4K control pass; parent independently checked every projection and61 measured source hashes. Immutable host1/source-v1 preserved; corrected host2 evidence archived locally and source-v2 preserved remotely.

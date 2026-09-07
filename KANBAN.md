@@ -3,7 +3,11 @@
 Plan: `.hermes/plans/2026-09-04_uni-rnaseq-pressure-test-and-plan.md`. Card briefs: `.hermes/cards/`.
 Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / inkling (routine) / me.
 
+## In Progress
+- **P2C-STAR-INTEGRATE-1** — Terra fixing the seven blocking findings from `docs/review-star-integrate-1.md` (card `P2C-STAR-INTEGRATE-1-FIX`); then gate (i) 20M parity on the Spark, then three paired CPU-s runs. Target ≥12% STAR CPU-s; ≥8% funds PIPELINE-RUN.
+
 ## Backlog
+- **P2C-PIPELINE-RUN** — six Tier 2A samples through nf-core with integrated STAR + umbam; CPU-min/sample → `scripts/cost_curve.py`. Only if INTEGRATE-1 ≥ 8%.
 - P1-MARKDUP-SWAP — nf-core `--skip_markduplicates` + samtools markdup path or umbam later; 4× on Spark today, zero engineering (me)
 - P1-MAC-IO — Mac sys-time overhead on sort/featureCounts (42 s / 64 s vs 8 / 3 on Spark); check APFS/page-cache before blaming hardware (luna)
 - P1-MAC-MARKDUP — samtools markdup pipeline errored on Mac 1.22.1; upgrade + rerun (luna)
