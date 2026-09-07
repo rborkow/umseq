@@ -1,6 +1,6 @@
-# uni-rnaseq
+# umseq
 
-**Does a unified-memory workstation bend the RNA-seq cost curve?**
+**umseq** — *unified-memory sequencing.* Does a unified-memory workstation bend the RNA-seq cost curve?
 
 A pressure test, in Rust and CUDA, of whether desk-side unified-memory machines (NVIDIA
 DGX Spark GB10 now; Apple M-series next) can turn per-sample cloud cost into a fixed asset —
