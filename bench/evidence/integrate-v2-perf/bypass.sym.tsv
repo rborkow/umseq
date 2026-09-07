@@ -1,0 +1,201 @@
+26.68	compareSeqToGenome(Genome&, char**, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, bool&)
+5.83	extendAlign(char*, char*, unsigned long long, unsigned long long, int, int, unsigned long long, unsigned long long, unsigned long long, unsigned long long, double, bool, Transcript*)
+5.82	ReadAlign::stitchPieces(char**, unsigned long long)
+4.77	stitchWindowAligns(unsigned long long, unsigned long long, int, bool*, unsigned long long, unsigned long long, Transcript, unsigned long long, unsigned long long (*) [7], char*, Genome&, Parameters&, Transcript**, unsigned long long*, ReadAlign*)
+4.60	ReadAlign::maxMappableLength2strands(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long&, unsigned long long)
+4.33	ReadAlign::assignAlignToWindow(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, unsigned long long)
+4.24	__memset_zva64
+3.65	__memcpy_sve
+3.39	0x0000000000007b6c
+3.34	Transcript::Transcript(Transcript const&)
+3.14	stitchAlignToTranscript(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, Parameters&, char*, Genome&, Transcript*, unsigned long long)
+1.59	complementSeqNumbers(char*, char*, unsigned long long)
+1.48	convertNucleotidesToNumbers(char const*, char*, unsigned long long)
+1.23	Transcript::operator=(Transcript const&) [clone .isra.0]
+1.02	revComplementNucleotides(char*, char*, unsigned long long)
+0.87	__memcpy_generic
+0.83	std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*, long)
+0.82	binarySearch2(unsigned long long, unsigned long long, unsigned long long*, unsigned long long*, int)
+0.75	star_integrate_work::compared(unsigned long)
+0.75	ReadAlign::createExtendWindowsWithAlign(unsigned long long, unsigned long long)
+0.73	sjAlignSplit(unsigned long long, unsigned long long, Genome const&, unsigned long long&, unsigned long long&, unsigned long long&, unsigned long long&, unsigned long long&)
+0.71	ReadAlign::oneRead()
+0.69	0x0000000000007b68
+0.66	0x0000000000008d5c
+0.65	maxMappableLength(Genome&, char**, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, unsigned long long&, unsigned long long*)
+0.61	ReadAlign::outputTranscriptSAM(Transcript const&, unsigned long long, unsigned long long, unsigned long long, unsigned long long, char, int, bool*, std::ostream*)
+0.59	0x0000000000008bc4
+0.53	star_integrate_work::compare_begin()
+0.47	std::ostream& std::ostream::_M_insert<unsigned long long>(unsigned long long)
+0.40	std::vector<int, std::allocator<int> >::operator=(std::vector<int, std::allocator<int> > const&) [clone .isra.0]
+0.36	0x0000000000008eb0
+0.36	__memchr_generic
+0.36	log2@@GLIBC_2.29
+0.35	std::istream::sentry::sentry(std::istream&, bool)
+0.34	std::ostream::sentry::sentry(std::ostream&)
+0.31	ReadAlign::mapOneRead()
+0.30	ReadAlign::storeAligns(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long*, unsigned long long)
+0.30	0x0000000000008c34
+0.27	std::basic_streambuf<char, std::char_traits<char> >::xsputn(char const*, long)
+0.26	std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_int<unsigned long long>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, unsigned long long) const
+0.26	std::istream::getline(char*, long, char)
+0.23	0x0000000000008c20
+0.23	__arch_copy_to_user
+0.21	qualitySplit(char*, unsigned long long, unsigned long long, unsigned long long, unsigned long long**)
+0.21	std::basic_istream<char, std::char_traits<char> >& std::operator>><char, std::char_traits<char>, std::allocator<char> >(std::basic_istream<char, std::char_traits<char> >&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)
+0.20	std::vector<int, std::allocator<int> >::operator=(std::vector<int, std::allocator<int> > const&) [clone .isra.0]
+0.20	0x0000000000008f6c
+0.19	malloc
+0.19	0x0000000000008c2c
+0.19	readLoad(std::istream&, Parameters&, unsigned long long&, unsigned long long&, char*, char*, char*, char*, std::vector<ClipMate, std::allocator<ClipMate> >&, unsigned long long&, unsigned int&, char&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)
+0.19	0x0000000000007b64
+0.17	0x0000000000008bcc
+0.16	0x0000000000008e68
+0.16	0x0000000000144dc0
+0.16	Transcript::reset()
+0.15	std::locale::id::_M_id() const
+0.14	std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_replace(unsigned long, unsigned long, char const*, unsigned long)
+0.14	ReadAlign::multMapSelect()
+0.14	Transcript::add(Transcript*)
+0.14	ReadAlignChunk::processChunks()
+0.14	0x0000000000008e34
+0.13	Transcript::Transcript()
+0.13	0x0000000000008e20
+0.13	std::__istream_extract(std::istream&, char*, long)
+0.13	0x0000000000008fb0
+0.12	_int_free
+0.12	0x0000000000008c50
+0.11	0x0000000000008ed8
+0.11	std::ostream& std::ostream::_M_insert<long>(long)
+0.11	0x0000000000007b58
+0.10	0x0000000000008bec
+0.10	star_integrate::build_current_inner_call(star_integrate::InnerCall)
+0.10	0x0000000000008f24
+0.09	0x0000000000008edc
+0.09	std::istreambuf_iterator<char, std::char_traits<char> > std::num_get<char, std::istreambuf_iterator<char, std::char_traits<char> > >::_M_extract_int<unsigned int>(std::istreambuf_iterator<char, std::char_traits<char> >, std::istreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, std::_Ios_Iostate&, unsigned int&) const
+0.09	std::istream::peek()
+0.09	_raw_spin_unlock_irqrestore
+0.08	std::istreambuf_iterator<char, std::char_traits<char> > std::num_get<char, std::istreambuf_iterator<char, std::char_traits<char> > >::_M_extract_int<unsigned long long>(std::istreambuf_iterator<char, std::char_traits<char> >, std::istreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, std::_Ios_Iostate&, unsigned long long&) const
+0.08	blocksOverlap(Transcript&, Transcript&)
+0.08	std::istream::ignore(long, int)
+0.08	memcpy@plt
+0.08	0x0000000000008f08
+0.08	sched_update_worker
+0.07	el0_da
+0.07	star_integrate::lookup(Parameters const&, Genome const&, char**, unsigned long, star_integrate::InnerCall const&, unsigned long*, unsigned long&, unsigned long&)
+0.07	_raw_spin_lock
+0.07	0x0000000000008cb4
+0.07	filemap_get_pages
+0.07	ReadAlign::writeSAM(unsigned long long, Transcript**, Transcript*)
+0.07	ReadAlign::outputAlignments()
+0.07	cfree@GLIBC_2.17
+0.07	0x0000000000008cd0
+0.07	Transcript::variationAdjust(Genome const&, char*)
+0.07	vfs_write
+0.06	__arch_copy_from_user
+0.06	ksys_read
+0.06	__strlen_asimd
+0.06	std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_mutate(unsigned long, unsigned long, char const*, unsigned long)
+0.06	0x0000000000008e64
+0.06	0x0000000000008ba4
+0.06	std::ostream::tellp()
+0.05	0x0000000000007b5c
+0.05	star_integrate_work::inner_call(bool)
+0.05	0x0000000000008f84
+29.14	compareSeqToGenome(Genome&, char**, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, bool&)
+5.38	ReadAlign::maxMappableLength2strands(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long&, unsigned long long)
+5.18	extendAlign(char*, char*, unsigned long long, unsigned long long, int, int, unsigned long long, unsigned long long, unsigned long long, unsigned long long, double, bool, Transcript*)
+5.12	ReadAlign::stitchPieces(char**, unsigned long long)
+4.24	__memset_zva64
+4.11	ReadAlign::assignAlignToWindow(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, unsigned long long)
+3.90	stitchWindowAligns(unsigned long long, unsigned long long, int, bool*, unsigned long long, unsigned long long, Transcript, unsigned long long, unsigned long long (*) [7], char*, Genome&, Parameters&, Transcript**, unsigned long long*, ReadAlign*)
+3.02	__memcpy_sve
+2.98	Transcript::Transcript(Transcript const&)
+2.75	stitchAlignToTranscript(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, Parameters&, char*, Genome&, Transcript*, unsigned long long)
+2.63	_raw_spin_unlock_irqrestore
+2.23	_raw_spin_lock
+1.55	__arch_copy_to_user
+1.46	convertNucleotidesToNumbers(char const*, char*, unsigned long long)
+1.19	complementSeqNumbers(char*, char*, unsigned long long)
+1.13	__pi_clear_page
+1.07	Transcript::operator=(Transcript const&) [clone .isra.0]
+1.06	sjAlignSplit(unsigned long long, unsigned long long, Genome const&, unsigned long long&, unsigned long long&, unsigned long long&, unsigned long long&, unsigned long long&)
+1.04	page_counter_cancel
+1.02	revComplementNucleotides(char*, char*, unsigned long long)
+0.91	folio_remove_rmap_ptes
+0.88	binarySearch2(unsigned long long, unsigned long long, unsigned long long*, unsigned long long*, int)
+0.78	__arch_copy_from_user
+0.75	star_integrate_work::compared(unsigned long)
+0.70	ReadAlign::oneRead()
+0.64	0x0000000000007b6c
+0.62	maxMappableLength(Genome&, char**, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, unsigned long long&, unsigned long long*)
+0.61	std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*, long)
+0.54	ReadAlign::createExtendWindowsWithAlign(unsigned long long, unsigned long long)
+0.42	star_integrate_work::compare_begin()
+0.40	up_read
+0.39	std::vector<int, std::allocator<int> >::operator=(std::vector<int, std::allocator<int> > const&) [clone .isra.0]
+0.38	ReadAlign::outputTranscriptSAM(Transcript const&, unsigned long long, unsigned long long, unsigned long long, unsigned long long, char, int, bool*, std::ostream*)
+0.32	log2@@GLIBC_2.29
+0.31	local_daif_inherit
+0.28	std::basic_streambuf<char, std::char_traits<char> >::xsputn(char const*, long)
+0.27	std::ostream& std::ostream::_M_insert<unsigned long long>(unsigned long long)
+0.25	std::ostream::sentry::sentry(std::ostream&)
+0.24	std::vector<int, std::allocator<int> >::operator=(std::vector<int, std::allocator<int> > const&) [clone .isra.0]
+0.23	ReadAlign::storeAligns(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long*, unsigned long long)
+0.20	Transcript::add(Transcript*)
+0.19	std::istream::sentry::sentry(std::istream&, bool)
+0.19	Transcript::reset()
+0.18	ReadAlign::mapOneRead()
+0.18	__memcpy_generic
+0.17	zap_present_ptes
+0.16	get_page_from_freelist
+0.16	0x0000000000007b68
+0.15	qualitySplit(char*, unsigned long long, unsigned long long, unsigned long long, unsigned long long**)
+0.15	filemap_get_read_batch
+0.14	mt_find
+0.13	std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_int<unsigned long long>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, unsigned long long) const
+0.13	__lruvec_stat_mod_folio
+0.13	__memchr_generic
+0.13	0x0000000000144dc0
+0.13	get_mem_cgroup_from_mm
+0.13	ReadAlign::multMapSelect()
+0.11	0x0000000000008d5c
+0.11	Transcript::Transcript()
+0.10	uncharge_folio
+0.10	mod_memcg_lruvec_state
+0.10	readLoad(std::istream&, Parameters&, unsigned long long&, unsigned long long&, char*, char*, char*, char*, std::vector<ClipMate, std::allocator<ClipMate> >&, unsigned long long&, unsigned int&, char&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)
+0.10	block_commit_write
+0.09	star_integrate::lookup(Parameters const&, Genome const&, char**, unsigned long, star_integrate::InnerCall const&, unsigned long*, unsigned long&, unsigned long&)
+0.09	do_page_fault
+0.09	0x0000000000008bc4
+0.09	malloc
+0.08	std::istreambuf_iterator<char, std::char_traits<char> > std::num_get<char, std::istreambuf_iterator<char, std::char_traits<char> > >::_M_extract_int<unsigned long long>(std::istreambuf_iterator<char, std::char_traits<char> >, std::istreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, std::_Ios_Iostate&, unsigned long long&) const
+0.08	std::istream::peek()
+0.08	std::istream::getline(char*, long, char)
+0.08	__mem_cgroup_charge
+0.08	0x0000000000008eb0
+0.08	blocksOverlap(Transcript&, Transcript&)
+0.07	percpu_counter_add_batch
+0.07	std::locale::id::_M_id() const
+0.07	std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_replace(unsigned long, unsigned long, char const*, unsigned long)
+0.07	_raw_spin_trylock
+0.07	0x0000000000008bc0
+0.07	0x00000000001443e0
+0.07	el0_da
+0.07	std::__istream_extract(std::istream&, char*, long)
+0.07	0x0000000000008f6c
+0.06	folios_put_refs
+0.06	kmem_cache_alloc_noprof
+0.06	ReadAlign::writeSAM(unsigned long long, Transcript**, Transcript*)
+0.06	star_integrate_work::inner_call(bool)
+0.06	css_rstat_updated
+0.06	0x0000000000008c34
+0.06	memcg_rstat_updated.part.0
+0.06	0x0000000000007b64
+0.06	ReadAlign::outputAlignments()
+0.06	__folio_batch_add_and_move
+0.06	__update_cpu_freelist_fast
+0.05	try_charge_memcg
+0.05	down_read_trylock
+0.05	free_unref_folios
+0.05	free_frozen_page_commit
