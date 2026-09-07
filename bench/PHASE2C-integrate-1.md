@@ -162,3 +162,72 @@ The P2C thesis stands where round 2 left it, sharper: unified memory makes the G
 correct in-place seed-search engine (6.6× at the boundary, in production STAR); the
 realizable throughput depends on how much of STAR's own per-read work the lookahead can
 *replace* rather than duplicate. That is a STAR-refactoring question, not a memory one.
+
+## Round 4 (INTEGRATE-3, `3f80471`): Read1 hand-off — small gain; a correction to round 3's attribution
+
+Evidence: `integrate-gate-host8/`, `integrate-timing-host4/`,
+`bench/evidence/integrate-1-host/timing-round4-raw.tsv`, `timing-round4-r*-gpu-stats.jsonl`.
+
+Gate (i): `PARITY_MATCH`, fourth time, with STAR now consuming the window's `Read1[0..2]`
+bytes for every read (`read1_fallback = 0`); 134–136M consumed (96%), 0 CPU tails.
+
+| arm (20M, 20 thr, 3 rotated repeats) | mapping wall | user | sys | user+sys |
+|---|---|---|---|---|
+| stock | 47–48 s | 726 | 27 | **753** |
+| integrated, hooks bypassed | 50–51 s | 775 | 27 | 802 (+6.5%) |
+| integrated, GPU on | 52–53 s | 829 | 69 | **898 (+19.3%)** |
+
+Item 1 (`Read1` hand-off) removed **14 user-s**, not the ~75 estimated from the round-2
+profile. The estimate double-counted: the profile's `convertNucleotides`/`complementSeq`
+share included the window's *own* conversion, which still has to happen once; only STAR's
+second copy was removable, and it is cheaper than its symbol share suggested.
+
+**Correction to round 3:** the excess `sys` (~40 s) is not coordinator polling. Across the
+three repeats `sys` tracks `setup_wall_s` (76.6/80.2, 66.8/69.1, 64.0/70.3): it is the
+sampled identity check reading 30 GB of index files through the page cache
+(`copy_to_user`). Item 2 (event-driven coordinator) therefore had nothing to recover there
+and measured nothing; the poll was cheap. Round 3's "~40 CPU-s coordinator poll" row was
+a wrong hypothesis and is withdrawn. Binding the identity resident-to-resident would
+remove that 42 s of `sys` and ~70 s of startup wall; it is separable from mapping and
+was never landed (needs the coordinator's view of the loaded index).
+
+Mapping-phase CPU-s with the setup `sys` excess excluded: **856, +13.7%** over stock. That
+is the number to carry: what the hooked STAR costs per sample once the identity bug is
+fixed, with 96% of seed search on the GPU.
+
+### Final accounting after four rounds
+
+| | CPU-s vs stock |
+|---|---|
+| hook floor (lookahead: `readLoad`+combine, `qualitySplit`, prefix, candidate build; bypass arm) | +49 |
+| coordinator + consumption on top of the floor | +54 |
+| GPU-served seed search | −(what the +103 net leaves unrecovered) |
+| **net, mapping phase** | **+103 (+13.7%)** |
+| identity setup (separable, fixable) | +42 sys |
+
+The GPU takes ~39% of stock's seed-search CPU off the host (probe: 6.6× on real requests)
+and the lookahead puts ~1.8× that back. The biggest remaining single item, STAR's prefix
+recomputation on hit (item 3, ~70 CPU-s by the same profile that overestimated item 1
+by 5×), was not attempted; even at face value it would land at ~+4%, not −8%.
+
+### Verdict
+
+Gate (iii) **failed** after four rounds: best mapping-phase result +13.7% CPU-s vs the
+≥−8% memo bar; mapping wall within 10% of stock. Gate (i) passed four times.
+
+What is established, each with raw evidence:
+1. The seed-search kernel over the resident 30 GB index is correct and fast: 6.6× on 1M
+   real requests, byte-identical tuples, and now byte-identical alignments from
+   production STAR at 96% coverage.
+2. A lookahead that re-derives STAR's per-read state to build GPU requests costs more
+   than the GPU saves, because STAR's seed search is ~39% of a read's CPU and the
+   lookahead's re-derivation plus consumption is ~a third of a read's CPU on its own.
+3. The only remaining path to a net gain is inverting the integration: STAR's own
+   `ReadAlign` loop produces requests as a side effect of the work it already does,
+   and a *deferred* second pass consumes results — i.e. restructuring STAR's read loop,
+   not hooking it. That is a different, larger project, and this evidence is what
+   would justify or kill it.
+
+PIPELINE-RUN is not funded under the ≥8% rule. Deployment recommendation unchanged from
+`bench/COST-CURVE.md`: the umbam chain is the product; the STAR seed lane is a proven
+kernel awaiting an integration architecture.

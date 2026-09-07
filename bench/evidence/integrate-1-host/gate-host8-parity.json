@@ -1,0 +1,9 @@
+{
+  "status": "PARITY_MATCH_COUNTERS_ONLY",
+  "input_reads": {
+    "stock": 20000000,
+    "counters": 20000000
+  },
+  "alignment_records": 53710530,
+  "normalization": "header argv executable and --outFileNamePrefix only"
+}
