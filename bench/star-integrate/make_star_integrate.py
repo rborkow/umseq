@@ -17,6 +17,7 @@ def once(rio,text,old,new): return rio.replace_once(text,old,new)
 def patch(rio,name,text):
     if name=='STAR.cpp':
         text=once(rio,text,'#include "parametersDefault.xxd"\n','#include "parametersDefault.xxd"\n#include "star_integrate.hpp"\n#include "star_integrate_work.hpp"\n')
+        text=once(rio,text,'    genomeMain.genomeLoad();\n','    genomeMain.genomeLoad();\n    star_integrate::setup(P, genomeMain);\n')
         return once(rio,text,'    delete P.inOut; // to close files\n\n    return 0;','    delete P.inOut; // to close files\n\n    star_integrate::finish();\n    star_integrate_work::finish();\n    return 0;')
     if name=='ReadAlign_maxMappableLength2strands.cpp':
         # The hook is deliberately at the original inner call, after STAR's prefix

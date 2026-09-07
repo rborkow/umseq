@@ -58,6 +58,7 @@ void set_chain(uint64_t piece, uint64_t fragment, uint64_t istart,
 void reverse_suppressed(uint64_t piece);
 void end_chunk();
 bool setup(const Parameters &, const Genome &);
+bool enabled();
 bool lookup(const Parameters &, const Genome &, char **read1, uint64_t read_len,
             const InnerCall &, uint64_t out_range[2], uint64_t &nrep,
             uint64_t &maxL);

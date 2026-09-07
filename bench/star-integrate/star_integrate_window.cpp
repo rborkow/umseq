@@ -159,7 +159,7 @@ void prepare_window(ReadAlignChunk &chunk) {
   (void)chunk;
   return;
 #else
-  if (window_remaining() || !setup(chunk.P, chunk.mapGen))
+  if (window_remaining() || !enabled())
     return;
   ReadAlign &ra = *chunk.RA;
   const uint32_t ends = chunk.P.readNends;

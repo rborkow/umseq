@@ -44,6 +44,16 @@ class PatchGuard(unittest.TestCase):
   self.assertIn('prepare_window(*this)',got)
   got=m.patch(R(),'ReadAlign_mapOneRead.cpp','int ReadAlign::mapOneRead() {')
   self.assertIn('begin_map(*this)',got)
+ def test_identity_setup_precedes_frame_publication(self):
+  class R:
+   def replace_once(self,t,o,n):
+    if o not in t: raise ValueError('missing exact hook')
+    return t.replace(o,n,1)
+  upstream=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source/STAR.cpp')
+  if not upstream.exists(): self.skipTest('pinned private source unavailable')
+  got=m.patch(R(),'STAR.cpp',upstream.read_text())
+  self.assertLess(got.index('genomeMain.genomeLoad();'),got.index('star_integrate::setup(P, genomeMain);'))
+  self.assertNotIn('setup(chunk.P, chunk.mapGen)',(ROOT/'star_integrate_window.cpp').read_text())
  def test_real_source_has_chain_suppression_and_retirement_hooks(self):
   root=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
   if not root.exists(): self.skipTest('pinned private source unavailable')

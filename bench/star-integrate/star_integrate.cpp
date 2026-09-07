@@ -15,6 +15,7 @@
 #include <cstring>
 #include <deque>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -91,6 +92,7 @@ struct State {
   const Genome *index_object;
   const void *index_g, *index_sa, *index_sai;
   uint64_t index_nsa, index_ngenome;
+  double setup_wall_s;
   bool tried, enabled, stopping, fault;
   Totals totals;
   Visits visits;
@@ -98,8 +100,8 @@ struct State {
       : ctx(nullptr), pending_bytes(0), epoch(1), next_generation(1),
         live_bytes(0), live_requests(0), index_object(nullptr),
         index_g(nullptr), index_sa(nullptr), index_sai(nullptr), index_nsa(0),
-        index_ngenome(0), tried(false), enabled(false), stopping(false),
-        fault(false) {}
+        index_ngenome(0), setup_wall_s(0), tried(false), enabled(false),
+        stopping(false), fault(false) {}
 };
 thread_local std::shared_ptr<Window> current_window;
 thread_local WindowRead *current_frame = nullptr;
@@ -172,34 +174,63 @@ bool env1(const char *n) {
   fprintf(stderr, "STAR_INTEGRATE strict failure: %s\n", s);
   abort();
 }
-bool file_matches(const std::string &p, const uint8_t *r, uint64_t bytes,
-                  uint8_t *out, uint64_t &file_bytes, uint64_t skip = 0) {
+// Identity v1-sampled: hash the ordered first/last 1 MiB and 64 evenly
+// spaced 64 KiB file samples.  Compare every resident-backed sample while
+// reading it; SAindex's on-disk header is intentionally not resident in STAR.
+bool sampled_file_matches(const std::string &p, const uint8_t *r,
+                          uint64_t bytes, uint8_t *out, uint64_t &file_bytes,
+                          const std::vector<uint8_t> &header = {}) {
   std::ifstream f(p.c_str(), std::ios::binary);
   if (!f)
     return false;
+  f.seekg(0, std::ios::end);
+  std::streamoff end = f.tellg();
+  if (end < 0)
+    return false;
+  file_bytes = static_cast<uint64_t>(end);
+  const uint64_t header_bytes = header.size();
+  if (file_bytes < header_bytes || file_bytes - header_bytes != bytes)
+    return false;
   ssir::Sha256 h;
   std::array<uint8_t, 65536> b;
-  file_bytes = 0;
-  uint64_t compared = 0;
-  while (f) {
-    f.read((char *)b.data(), b.size());
-    std::streamsize z = f.gcount();
-    if (z <= 0)
-      continue;
-    h.update(b.data(), (size_t)z);
-    uint64_t old = file_bytes;
-    file_bytes += (uint64_t)z;
-    uint64_t begin = old < skip ? skip - old : 0;
-    if (begin < (uint64_t)z) {
-      uint64_t take = (uint64_t)z - begin;
-      if (compared + take > bytes ||
-          memcmp(b.data() + begin, r + compared, (size_t)take))
+  const uint64_t one_mib = 1024 * 1024, sample = 65536;
+  const auto feed = [&](uint64_t offset, uint64_t length) {
+    uint64_t done = 0;
+    while (done < length) {
+      uint64_t take = std::min<uint64_t>(b.size(), length - done);
+      f.clear();
+      f.seekg(static_cast<std::streamoff>(offset + done));
+      f.read(reinterpret_cast<char *>(b.data()),
+             static_cast<std::streamsize>(take));
+      if (f.gcount() != static_cast<std::streamsize>(take))
         return false;
-      compared += take;
+      h.update(b.data(), static_cast<size_t>(take));
+      const uint64_t position = offset + done;
+      const uint64_t header_take =
+          position < header_bytes
+              ? std::min<uint64_t>(take, header_bytes - position)
+              : 0;
+      if (header_take && memcmp(b.data(), header.data() + position,
+                                static_cast<size_t>(header_take)))
+        return false;
+      if (header_take < take &&
+          memcmp(b.data() + header_take,
+                 r + position + header_take - header_bytes,
+                 static_cast<size_t>(take - header_take)))
+        return false;
+      done += take;
     }
-  }
-  if (!f.eof() || compared != bytes)
+    return true;
+  };
+  const uint64_t edge = std::min<uint64_t>(one_mib, file_bytes);
+  if (!feed(0, edge) || !feed(file_bytes - edge, edge))
     return false;
+  const uint64_t max_offset = file_bytes > sample ? file_bytes - sample : 0;
+  for (uint64_t i = 0; i < 64; ++i) {
+    const uint64_t offset = max_offset * i / 63;
+    if (!feed(offset, std::min<uint64_t>(sample, file_bytes - offset)))
+      return false;
+  }
   std::array<uint8_t, 32> d = h.final();
   memcpy(out, d.data(), 32);
   return true;
@@ -404,7 +435,15 @@ void sidecar(const State &s) {
     << ",\"gpu_batch_sizes\":[";
   for (size_t i = 0; i < t.batch_sizes.size(); ++i)
     f << (i ? "," : "") << t.batch_sizes[i];
-  f << "],\"submitted_stats\":";
+  f << "],\"gpu_batch_size_histogram\":{";
+  std::map<uint64_t, uint64_t> histogram;
+  for (size_t i = 0; i < t.batch_sizes.size(); ++i)
+    ++histogram[t.batch_sizes[i]];
+  for (std::map<uint64_t, uint64_t>::const_iterator it = histogram.begin();
+       it != histogram.end(); ++it)
+    f << (it == histogram.begin() ? "" : ",") << "\"" << it->first
+      << "\":" << it->second;
+  f << "},\"submitted_stats\":";
   write_stats(f, t.submitted_stats);
   f << ",\"consumed_stats\":";
   write_stats(f, t.consumed_stats);
@@ -415,7 +454,8 @@ void sidecar(const State &s) {
   f << ",\"rejected_stats\":";
   write_stats(f, t.rejected_stats);
   f << ",\"live_bytes_at_finish\":" << s.live_bytes
-    << ",\"live_requests_at_finish\":" << s.live_requests;
+    << ",\"live_requests_at_finish\":" << s.live_requests
+    << ",\"setup_wall_s\":" << s.setup_wall_s;
   f << ",\"suppression_opportunities_reference\":13435368,\"directional_"
        "opportunities_reference\":159989084}\n";
 }
@@ -471,6 +511,17 @@ bool setup(const Parameters &p, const Genome &g) {
   return false;
 #else
   State &s = S();
+  const std::chrono::steady_clock::time_point start =
+      std::chrono::steady_clock::now();
+  struct SetupWall {
+    State &state;
+    std::chrono::steady_clock::time_point start;
+    ~SetupWall() {
+      state.setup_wall_s = std::chrono::duration<double>(
+                               std::chrono::steady_clock::now() - start)
+                               .count();
+    }
+  } wall = {s, start};
   std::lock_guard<std::mutex> lock(s.mu);
   if (!admitted(p, g))
     return false;
@@ -481,13 +532,19 @@ bool setup(const Parameters &p, const Genome &g) {
     return false;
   UsiIdentityV1 id = {};
   uint64_t gb = 0, sab = 0, sib = 0;
-  if (!file_matches(p.pGe.gDir + "/Genome", (const uint8_t *)g.G, g.nGenome,
-                    id.sha256, gb) ||
-      !file_matches(p.pGe.gDir + "/SA", (const uint8_t *)g.SA.charArray,
-                    g.nSAbyte, id.sha256 + 32, sab) ||
-      !file_matches(p.pGe.gDir + "/SAindex", (const uint8_t *)g.SAi.charArray,
-                    g.SAi.lengthByte, id.sha256 + 64, sib,
-                    sizeof(uint) * (uint64_t)(p.pGe.gSAindexNbases + 2)))
+  const uint64_t sai_header_bytes =
+      sizeof(uint) * static_cast<uint64_t>(p.pGe.gSAindexNbases + 2);
+  std::vector<uint8_t> sai_header(static_cast<size_t>(sai_header_bytes));
+  memcpy(sai_header.data(), &p.pGe.gSAindexNbases, sizeof(uint));
+  memcpy(sai_header.data() + sizeof(uint), g.genomeSAindexStart,
+         sai_header_bytes - sizeof(uint));
+  if (!sampled_file_matches(p.pGe.gDir + "/Genome", (const uint8_t *)g.G,
+                            g.nGenome, id.sha256, gb) ||
+      !sampled_file_matches(p.pGe.gDir + "/SA", (const uint8_t *)g.SA.charArray,
+                            g.nSAbyte, id.sha256 + 32, sab) ||
+      !sampled_file_matches(p.pGe.gDir + "/SAindex",
+                            (const uint8_t *)g.SAi.charArray, g.SAi.lengthByte,
+                            id.sha256 + 64, sib, sai_header))
     return false;
   id.genome_file_bytes = gb;
   id.sa_file_bytes = sab;
@@ -506,6 +563,7 @@ bool setup(const Parameters &p, const Genome &g) {
   return true;
 #endif
 }
+bool enabled() { return S().enabled; }
 bool window_remaining() {
   if (!current_window)
     return false;
@@ -546,6 +604,7 @@ void submit_window(std::vector<WindowRead> &&frames) {
   w->charged_bytes = bytes;
   w->jobs.reserve((size_t)nj);
   w->ranges.reserve(w->frames.size());
+  w->lookup_index.reserve((size_t)nj);
   for (size_t fi = 0; fi < w->frames.size(); ++fi) {
     WindowRead &fr = w->frames[fi];
     size_t first = w->jobs.size();
