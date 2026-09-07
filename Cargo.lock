@@ -1106,6 +1106,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "umseed-probe"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "flate2",
+ "rayon",
+ "serde_json",
+ "umem",
+ "umgpu",
+]
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"

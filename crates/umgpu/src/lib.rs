@@ -55,3 +55,14 @@ mod packing_tests {
         assert_eq!(pack_fragment_end(65536, 0, false), None);
     }
 }
+
+mod seed_probe;
+pub use seed_probe::*;
+
+/// PROBE launch mapping only; request/output/stats wire records stay ABI v1.
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProbeVariant {
+    Thread = 0,
+    Warp = 1,
+}

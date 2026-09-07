@@ -67,6 +67,75 @@ pub fn markdup(
     Err(Error::Unsupported)
 }
 
+impl Context {
+    pub fn umem_context(&self) -> umem::Context {
+        umem::Context::new(umem::ContextId(0))
+    }
+    pub fn device_props(&self) -> DeviceProps {
+        DeviceProps::default()
+    }
+}
+#[allow(clippy::too_many_arguments)]
+pub fn seed_probe<T: Send>(
+    _ctx: &Context,
+    _genome: &umem::GpuLease<umem::Ro>,
+    _sa: &umem::GpuLease<umem::Ro>,
+    _reads: &umem::GpuLease<umem::Ro>,
+    _requests: &umem::GpuLease<umem::Ro>,
+    _output: &umem::GpuLease<umem::Rw>,
+    _stats: &umem::GpuLease<umem::Rw>,
+    _config: crate::ProbeConfig,
+    _start: usize,
+    _n: usize,
+    _cpu: impl FnOnce(crate::ProbeSlices<'_>) -> T + Send,
+) -> Result<(f32, f64, T), Error> {
+    seed_probe_variant(
+        _ctx,
+        _genome,
+        _sa,
+        _reads,
+        _requests,
+        _output,
+        _stats,
+        _config,
+        _start,
+        _n,
+        crate::ProbeVariant::Thread,
+        _cpu,
+    )
+}
+
+/// PROBE selected variant, with the same checked leases and synchronous drain.
+#[allow(clippy::too_many_arguments)]
+pub fn seed_probe_variant<T: Send>(
+    _ctx: &Context,
+    _genome: &umem::GpuLease<umem::Ro>,
+    _sa: &umem::GpuLease<umem::Ro>,
+    _reads: &umem::GpuLease<umem::Ro>,
+    _requests: &umem::GpuLease<umem::Ro>,
+    _output: &umem::GpuLease<umem::Rw>,
+    _stats: &umem::GpuLease<umem::Rw>,
+    _config: crate::ProbeConfig,
+    _start: usize,
+    _n: usize,
+    _variant: crate::ProbeVariant,
+    _cpu: impl FnOnce(crate::ProbeSlices<'_>) -> T + Send,
+) -> Result<(f32, f64, T), Error> {
+    Err(Error::Unsupported)
+}
+
+pub fn seed_probe_lease_address<M: umem::Mode>(lease: &umem::GpuLease<M>) -> usize {
+    // SAFETY: address observation only; no device or host dereference.
+    unsafe { lease.as_ptr() as usize }
+}
+
+pub fn seed_probe_reclaim(
+    _ctx: &Context,
+    _leases: Vec<umem::AnyLease>,
+) -> Result<Vec<umem::AnyBuf>, String> {
+    Err("PROBE CUDA unavailable".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

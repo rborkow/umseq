@@ -910,3 +910,196 @@ pub fn markdup(
         )
     })
 }
+
+unsafe extern "C" {
+    fn umgpu_seed_probe(
+        genome: *const u8,
+        sa: *const u8,
+        reads: *const u8,
+        read_bytes: usize,
+        requests: *const crate::ProbeRequest,
+        start: usize,
+        n: usize,
+        config: crate::ProbeConfig,
+        output: *mut crate::ProbeOutput,
+        stats: *mut crate::ProbeStats,
+        variant: u32,
+        event_ms: *mut f32,
+        stream: *mut c_void,
+    ) -> c_int;
+}
+
+/// PROBE only: synchronous, stream-draining launch with optional scoped CPU work.
+/// The callback sees only immutable Ro lease contents, never GPU outputs. The shim
+/// drains on every return and the scoped CPU thread joins before leases may drop.
+/// No registration is permitted. Returns CUDA event ms, device-call wall seconds, and the CPU callback result.
+#[allow(clippy::too_many_arguments)]
+pub fn seed_probe<T: Send>(
+    ctx: &Context,
+    genome: &GpuLease<umem::Ro>,
+    sa: &GpuLease<umem::Ro>,
+    reads: &GpuLease<umem::Ro>,
+    requests: &GpuLease<umem::Ro>,
+    output: &GpuLease<Rw>,
+    stats: &GpuLease<Rw>,
+    config: crate::ProbeConfig,
+    start: usize,
+    n: usize,
+    cpu: impl FnOnce(crate::ProbeSlices<'_>) -> T + Send,
+) -> Result<(f32, f64, T), Error> {
+    seed_probe_variant(
+        ctx,
+        genome,
+        sa,
+        reads,
+        requests,
+        output,
+        stats,
+        config,
+        start,
+        n,
+        crate::ProbeVariant::Thread,
+        cpu,
+    )
+}
+
+/// PROBE selected variant, with the same checked leases and synchronous drain.
+#[allow(clippy::too_many_arguments)]
+pub fn seed_probe_variant<T: Send>(
+    ctx: &Context,
+    genome: &GpuLease<umem::Ro>,
+    sa: &GpuLease<umem::Ro>,
+    reads: &GpuLease<umem::Ro>,
+    requests: &GpuLease<umem::Ro>,
+    output: &GpuLease<Rw>,
+    stats: &GpuLease<Rw>,
+    config: crate::ProbeConfig,
+    start: usize,
+    n: usize,
+    variant: crate::ProbeVariant,
+    cpu: impl FnOnce(crate::ProbeSlices<'_>) -> T + Send,
+) -> Result<(f32, f64, T), Error> {
+    ctx.activate()?;
+    if ctx.host_register || ctx.props.pageable_memory_access_uses_host_page_tables != 1 {
+        return Err(Error::InvalidInput(
+            "PROBE requires ATS and host_register=false",
+        ));
+    }
+    if n == 0
+        || n > 4_000_000
+        || !(32..=53).contains(&config.strand_bit)
+        || config.n_genome == 0
+        || config.n_genome > (8 << 30)
+        || config.n_sa == 0
+        || config.n_sa > (64u64 << 30) / 4
+    {
+        return Err(Error::InvalidInput(
+            "PROBE config/count outside supported domain",
+        ));
+    }
+    let request_end = start
+        .checked_add(n)
+        .and_then(|x| x.checked_mul(80))
+        .ok_or(Error::InvalidInput("PROBE request extent overflow"))?;
+    ctx.check_lease(genome, "PROBE genome", config.n_genome as usize + 400)?;
+    ctx.check_lease(
+        sa,
+        "PROBE packed SA",
+        ((config.n_sa - 1) * (config.strand_bit + 1) / 8 + 8) as usize,
+    )?;
+    ctx.check_lease(reads, "PROBE reads", 1)?;
+    ctx.check_lease(requests, "PROBE requests", request_end)?;
+    ctx.check_lease(output, "PROBE output", n * 40)?;
+    ctx.check_lease(stats, "PROBE stats", n * 48)?;
+    // SAFETY: all six live leases are context/extent checked above. Ro mappings
+    // remain immutable during both CPU and device access; Rw outputs are disjoint.
+    let (gp, sp, rp, qp, op, tp) = unsafe {
+        (
+            genome.as_ptr(),
+            sa.as_ptr(),
+            reads.as_ptr(),
+            requests.as_ptr(),
+            output.as_ptr(),
+            stats.as_ptr(),
+        )
+    };
+    let ranges = [
+        (gp as usize, genome.len()),
+        (sp as usize, sa.len()),
+        (rp as usize, reads.len()),
+        (qp as usize, requests.len()),
+        (op as usize, output.len()),
+        (tp as usize, stats.len()),
+    ];
+    for i in 4..6 {
+        for j in 0..i {
+            if ranges[i].0 < ranges[j].0.saturating_add(ranges[j].1)
+                && ranges[j].0 < ranges[i].0.saturating_add(ranges[i].1)
+            {
+                return Err(Error::InvalidInput("PROBE writable leases overlap"));
+            }
+        }
+    }
+    if (qp as usize) % align_of::<crate::ProbeRequest>() != 0 {
+        return Err(Error::InvalidInput("PROBE request alignment"));
+    }
+    // SAFETY: immutable views are bounded by the live Ro leases and cannot escape
+    // this scoped callback. Device only reads these ranges. No view of Rw data exists.
+    let slices = unsafe {
+        crate::ProbeSlices {
+            genome: std::slice::from_raw_parts(gp, genome.len()),
+            sa: std::slice::from_raw_parts(sp, sa.len()),
+            reads: std::slice::from_raw_parts(rp, reads.len()),
+            requests: std::slice::from_raw_parts(qp.cast(), requests.len() / 80),
+        }
+    };
+    let mut event_ms = 0.0;
+    let (code, device_wall, value) = std::thread::scope(|scope| {
+        let worker = scope.spawn(move || cpu(slices));
+        // SAFETY: checked leases guarantee all pointers until the shim's stream
+        // synchronization, including failure paths; CPU worker reads Ro inputs only.
+        let started = std::time::Instant::now();
+        let code = unsafe {
+            umgpu_seed_probe(
+                gp,
+                sp,
+                rp,
+                reads.len(),
+                qp.cast(),
+                start,
+                n,
+                config,
+                op.cast(),
+                tp.cast(),
+                variant as u32,
+                &mut event_ms,
+                ctx.default_stream().raw,
+            )
+        };
+        // Join only after device drain, so callback panic cannot release device storage.
+        (
+            code,
+            started.elapsed().as_secs_f64(),
+            worker.join().expect("PROBE CPU overlap callback panicked"),
+        )
+    });
+    check(code)?;
+    Ok((event_ms, device_wall, value))
+}
+
+/// PROBE pointer/lease provenance; dereferencing remains inside this backend.
+pub fn seed_probe_lease_address<M: umem::Mode>(lease: &GpuLease<M>) -> usize {
+    // SAFETY: observe address only, never dereference, from this live lease.
+    unsafe { lease.as_ptr() as usize }
+}
+
+/// PROBE returns drained lease ownership through the existing submission/fence API.
+pub fn seed_probe_reclaim(
+    ctx: &Context,
+    leases: Vec<umem::AnyLease>,
+) -> Result<Vec<umem::AnyBuf>, String> {
+    submit(ctx, ctx.default_stream(), leases)
+        .map_err(|e| e.to_string())?
+        .wait()
+        .map_err(|e| e.to_string())
+}

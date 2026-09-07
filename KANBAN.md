@@ -23,6 +23,10 @@ Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / 
 - P0-BENCH-T5 — ext4 large-folio test for a read-only mmap'd file with GPU chase (me; decides whether file-backed BAM ever gets the random-access path — not needed before Phase 1.5)
 
 ## In Progress
+- **P2C-CHAIN-POSITION** — Terra; one counters-only full20M run, original stock parity checker. Measure initial-start inner gather coverage and conditional initial+grid20 coverage. STOP/report before INTEGRATE-1. No SSIR/probe/kernel work. Lock/deadline: 2026-09-07 20:00 PDT.
+
+
+- **P2C-REPLAY-SCALE — SUPERSEDED**: real capture + STAR/CPU/GPU oracle payload is complete and accepted. Remaining rigor is shipping work. PE-HOST-FAULTS/2, OWNED-SEARCH-SESSION, OWNED-REQUEST-TESTS and FULL-INDEX-CONTRACT cap matrix remain **HELD; do not resume**.
 - P1-PROFILE-SPARK — `perf` unlocked (paranoid=1); next: perf record on picard/samtools/STAR standalone
 
 ## Review
@@ -32,6 +36,10 @@ Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / 
 - P0-SPARK — luna done. Verified: rustup 1.98.1, micromamba env `rnaseq`, nextflow 26.04.6 w/ user-local JDK 17, nvCOMP CUDA13 sbsa at `~/.local/opt/nvcomp`, docker GPU smoke test OK. Corrections by me: bioconda STAR was 2.7.3a (linux-aarch64 lag) → built 2.7.11b from source with `-march=native`, symlinked at `~/.local/bin/STAR`; worker missed `cub.cuh` which exists at `/usr/local/cuda/targets/sbsa-linux/include/cccl/cub/` (CUDA 13 moved it under `cccl/`) — not a blocker.
 
 ## Done
+- **P2C-REAL-REQUESTS** — **6.60× CPU20** on 999,914 real requests; CPU and thread GPU each match **999,914/999,914 captured STAR tuples**, zero skipped. Reused full20M parity/capture, fixed only the fully-known reverse-prefix boundary, unchanged SSIRv1/caps. Three repeats plus disjoint overlap and forced4K control verified. Fresh synthetic10.38×. `bench/PHASE2C-real-requests.md`. **Stopped for user decision; no pipeline gain or integration implementation.**
+- **P2C-STAR-INTEGRATE-DESIGN** — `docs/STAR-INTEGRATE-DESIGN.md`: all three mechanisms, source dependencies, conditional work estimates, index placement/lifetime and C ABI. One independent pass incorporated; parent checked source dependency and arithmetic. Recommends initial-start speculation with exact CPU fallback, conditional on real timing/coverage. Actual fallback/waste rates are not identifiable from marginal SPLIT means. No implementation authorized.
+- **P2C-SEED-GPU-PROBE** — both variants verified on Spark, bounded independent review without blockers. Thread selected: **10.21× CPU20 at1M**, **56.83M requests/s** (original round10.20× at256k). Warp best **5.95× at64k**, slower at every batch;4K warp0.1337×, prior thread0.0885×. Outputs/logical counters match; actual CUDA builds, page reports, load instructions and provenance verified. **Synthetic full-SA performance screen, NOT upstream correctness or STAR/pipeline speedup.** `bench/PHASE2C-seed-probe.md`.
+- **P2C-SEED-SPLIT** — seed worktree: **99.78875% /99.78868% inner compared bytes** on20M/5M full-index paired runs; all biological SAM/SJ/non-timing stats match stock. Counter CPU overhead **+31.80%/+27.36%**, unadjusted. Inner-only selected, not CPU-time attribution. Seed `experiments/star-seed/RESULTS-SEED-SPLIT.md`; raw attempts and continuation preserved.
 - **P2A-UMQC** — `umbam --qc`: all 7 RSeQC outputs + dupRadar dupMatrix byte-identical to nf-core containers on Tier 0 (9/10 gates); Qualimap partial (headline counts match; gene/ambiguous split and 5'/3' bias documented in COMPAT.md). Tool sources in docs/tool-src/.
 - **P2A-UMBAM-PERF** — four passes, 408 s → 55 s on 20M BAM (8.2× over tool chain), outputs byte-identical throughout (bench/PHASE2A-umbam-20M.md)
 - **P2A-UMBAM-CPU** — CPU control arm, 6/6 Tier 0 gates, 416 s on 20M BAM (parity; profile in bench/PHASE2A-umbam-20M.md)
@@ -58,4 +66,5 @@ Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / 
 - P0-METAL-PROBE — `maxBufferLength` 13.3 GiB, NoCopy over 12 GiB + file-backed OK (`bench/metal/probe_metal.swift`)
 
 ## Blocked / Needs human
-- (none yet)
+- **P2C-STAR-INTEGRATE-1 — authorized, gated on CHAIN-POSITION report**: Astra contract freeze + one consumption-order review; Terra implementation. Duplicate arrays, initial speculation, grid20 only if initial coverage<50%, no continuations. Check in at stock parity before timing;3 paired CPU-time repeats,target12%,memo-positive8%.
+- **P2C-PIPELINE-RUN — authorized only if INTEGRATE-1 CPU reduction>=8%**: six Tier2A samples, integrated STAR+umbam, nf-core trace to CPU-min/sample and cost curve. Same lock, cutoff2026-09-07 20:00PDT.
