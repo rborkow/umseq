@@ -5,7 +5,7 @@ static void read(void *p, size_t n) {
   if (fread(p, 1, n, stdin) != n)
     std::abort();
 }
-int main() {
+int main(int argc, char **) {
   ProbeConfigV2 c{};
   read(&c, sizeof(c));
   size_t sizes[5];
@@ -17,12 +17,22 @@ int main() {
   read(sai.data(), sai.size());
   read(reads.data(), reads.size());
   for (size_t i = 0; i < sizes[4]; ++i) {
-    ProbeRequestV2 r{};
-    read(&r, sizeof(r));
-    ProbePrefixSearch search{g.data(),     sa.data(), sai.data(), reads.data(),
-                             reads.size(), c,         r};
-    const auto o = search.run();
-    if (fwrite(&o, sizeof(o), 1, stdout) != 1)
-      return 2;
+    if (argc > 1) {
+      ProbeRequestV3 r{};
+      read(&r, sizeof(r));
+      ProbeChainSearch search{g.data(),     sa.data(), sai.data(), reads.data(),
+                              reads.size(), c,         r};
+      const auto o = search.run();
+      if (fwrite(&o, sizeof(o), 1, stdout) != 1)
+        return 2;
+    } else {
+      ProbeRequestV2 r{};
+      read(&r, sizeof(r));
+      ProbePrefixSearch search{
+          g.data(), sa.data(), sai.data(), reads.data(), reads.size(), c, r};
+      const auto o = search.run();
+      if (fwrite(&o, sizeof(o), 1, stdout) != 1)
+        return 2;
+    }
   }
 }

@@ -97,3 +97,12 @@ per-frame 40,000-job consumption scan.
   frame/key lookup is consequently unreachable in bypass mode. `mapOneRead`
   likewise caches the mode before its seed loops for `set_chain` and
   `reverse_suppressed`. Spark timing remains the required acceptance check.
+
+- **P2C-INTEGRATE-V2-T4R (2026-09-07):** measured chain histogram unblocks
+  capacity 8. V3 thread/warp whole-chain transport and raw-host V2 launch sibling
+  implemented alongside V2. Independent Rust chain transcription matches the
+  shared host/device C++ body over the exhaustive synthetic grid, including
+  seedMapMin termination, max_steps, exact capacity, overflow and flag outcomes;
+  Mac fmt/clippy/workspace tests pass. CUDA grid, strict 20M per-step + Read1,
+  GPU/CPU Tier 0 cmp and measured V2/thread/warp gathers/s remain pending Spark.
+  Exact ABI, raw-pointer lifetime and Terra handoff: `bench/PHASE2C-integrate-v2-t4.md`.

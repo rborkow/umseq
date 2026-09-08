@@ -58,7 +58,7 @@ pub struct ProbeSlices<'a> {
 }
 
 /// Separate V2 transport; V1 layouts and entry points remain unchanged.
-pub const PROBE_ABI_VERSION: u64 = 2;
+pub const PROBE_ABI_VERSION: u64 = 3;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProbeRequestV2 {
@@ -110,6 +110,86 @@ const _: () = {
     assert!(std::mem::offset_of!(ProbeConfigV2, sai_offset) == 80);
     assert!(std::mem::offset_of!(ProbeConfigV2, sai_bytes) == 88);
     assert!(align_of::<ProbeConfigV2>() == 8);
+};
+
+pub const PROBE_CHAIN_CAPACITY: usize = 8;
+pub const PROBE_CHAIN_OVERFLOW: u64 = 9;
+pub const PROBE_CHAIN_MAX_STEPS: u64 = 10;
+pub const PROBE_CHAIN_NO_PROGRESS: u64 = 11;
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProbeRequestV3 {
+    pub s0: u64,
+    pub s1: u64,
+    pub read_len: u64,
+    pub piece_start: u64,
+    pub piece_length: u64,
+    pub istart: u64,
+    pub nstart: u64,
+    pub lstart: u64,
+    pub dir: u64,
+    pub seed_map_min: u64,
+    pub max_steps: u64,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProbeStepV3 {
+    pub shift: u64,
+    pub max_l: u64,
+    pub nrep: u64,
+    pub low: u64,
+    pub high: u64,
+    pub branch: u64,
+    pub status: u64,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ProbeOutputV3 {
+    pub steps: [ProbeStepV3; PROBE_CHAIN_CAPACITY],
+    pub n_steps: u64,
+    pub flag_dir_map_cleared: u64,
+    /// Only status zero is consumable; otherwise discard every step.
+    pub status: u64,
+}
+// SAFETY: FFI record is consecutive u64 storage with no padding or invalid patterns.
+unsafe impl umem::Pod for ProbeRequestV3 {}
+const _: () = {
+    assert!(size_of::<ProbeRequestV3>() == 88);
+    assert!(align_of::<ProbeRequestV3>() == 8);
+    assert!(std::mem::offset_of!(ProbeRequestV3, s0) == 0);
+    assert!(std::mem::offset_of!(ProbeRequestV3, s1) == 8);
+    assert!(std::mem::offset_of!(ProbeRequestV3, read_len) == 16);
+    assert!(std::mem::offset_of!(ProbeRequestV3, piece_start) == 24);
+    assert!(std::mem::offset_of!(ProbeRequestV3, piece_length) == 32);
+    assert!(std::mem::offset_of!(ProbeRequestV3, istart) == 40);
+    assert!(std::mem::offset_of!(ProbeRequestV3, nstart) == 48);
+    assert!(std::mem::offset_of!(ProbeRequestV3, lstart) == 56);
+    assert!(std::mem::offset_of!(ProbeRequestV3, dir) == 64);
+    assert!(std::mem::offset_of!(ProbeRequestV3, seed_map_min) == 72);
+    assert!(std::mem::offset_of!(ProbeRequestV3, max_steps) == 80);
+};
+// SAFETY: FFI record is consecutive u64 storage with no padding or invalid patterns.
+unsafe impl umem::Pod for ProbeStepV3 {}
+const _: () = {
+    assert!(size_of::<ProbeStepV3>() == 56);
+    assert!(align_of::<ProbeStepV3>() == 8);
+    assert!(std::mem::offset_of!(ProbeStepV3, shift) == 0);
+    assert!(std::mem::offset_of!(ProbeStepV3, max_l) == 8);
+    assert!(std::mem::offset_of!(ProbeStepV3, nrep) == 16);
+    assert!(std::mem::offset_of!(ProbeStepV3, low) == 24);
+    assert!(std::mem::offset_of!(ProbeStepV3, high) == 32);
+    assert!(std::mem::offset_of!(ProbeStepV3, branch) == 40);
+    assert!(std::mem::offset_of!(ProbeStepV3, status) == 48);
+};
+// SAFETY: FFI record is consecutive u64 storage with no padding or invalid patterns.
+unsafe impl umem::Pod for ProbeOutputV3 {}
+const _: () = {
+    assert!(size_of::<ProbeOutputV3>() == 472);
+    assert!(align_of::<ProbeOutputV3>() == 8);
+    assert!(std::mem::offset_of!(ProbeOutputV3, steps) == 0);
+    assert!(std::mem::offset_of!(ProbeOutputV3, n_steps) == 448);
+    assert!(std::mem::offset_of!(ProbeOutputV3, flag_dir_map_cleared) == 456);
+    assert!(std::mem::offset_of!(ProbeOutputV3, status) == 464);
 };
 
 #[cfg(test)]

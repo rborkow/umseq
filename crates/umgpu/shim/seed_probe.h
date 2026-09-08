@@ -221,7 +221,7 @@ using ProbeSearch = ProbeSearchImpl<>;
 
 // STAR ReadAlign_maxMappableLength2strands.cpp:17-97, sparse=1 only.
 // This host/device body is also executed by the Mac oracle harness.
-struct ProbePrefixSearch {
+template <class Warp = ProbeScalar> struct ProbePrefixSearchImpl {
   const uint8_t *genome, *sa, *sai, *reads;
   ProbeU64 read_bytes;
   ProbeConfigV2 c;
@@ -233,7 +233,7 @@ struct ProbePrefixSearch {
   PROBE_FN ProbeOutputV2 run() {
     ProbeRequest r = request.inner;
     if (r.tag == 0) {
-      ProbeSearch search{genome, sa, reads, read_bytes, c.inner, r};
+      ProbeSearchImpl<Warp> search{genome, sa, reads, read_bytes, c.inner, r};
       const auto result = search.run();
       stats = search.stats;
       return {result, 0};
@@ -297,7 +297,7 @@ struct ProbePrefixSearch {
       return reject(7);
     if (lind < c.index_bases && no_n && good)
       return {{lind, isa1, isa2, isa2 - isa1 + 1, 0}, 1};
-    ProbeSearch search{genome, sa, reads, read_bytes, c.inner, r};
+    ProbeSearchImpl<Warp> search{genome, sa, reads, read_bytes, c.inner, r};
     if (isa1 == isa2 && no_n && good) {
       bool ordering = false;
       const auto length = search.compare(isa1, r.length, lind, ordering);
@@ -309,3 +309,86 @@ struct ProbePrefixSearch {
     return {result, 3};
   }
 };
+
+using ProbePrefixSearch = ProbePrefixSearchImpl<>;
+PROBE_FN inline void probe_add_stats(ProbeStats &a, const ProbeStats &b) {
+  a.gathers += b.gathers;
+  a.bytes += b.bytes;
+  a.loops += b.loops;
+  a.comparisons += b.comparisons;
+  if (b.max_compare > a.max_compare)
+    a.max_compare = b.max_compare;
+  a.directions |= b.directions;
+}
+// STAR mapOneRead.cpp:62-75. No storeAligns effects run on the device.
+template <class Warp = ProbeScalar> struct ProbeChainSearchImpl {
+  const uint8_t *genome, *sa, *sai, *reads;
+  ProbeU64 read_bytes;
+  ProbeConfigV2 c;
+  ProbeRequestV3 r;
+  ProbeStats stats{};
+  PROBE_FN ProbeOutputV3 run() {
+    ProbeOutputV3 out{};
+    if (r.dir > 1) {
+      out.status = 1;
+      return out;
+    }
+    if (c.sparse != 1 || c.seed_search_lmax != 0) {
+      out.status = 5;
+      return out;
+    }
+    if (!r.read_len || r.read_len > 4096 || r.piece_start > r.read_len ||
+        r.piece_length > r.read_len - r.piece_start || !r.nstart ||
+        r.istart >= r.nstart || r.s0 > read_bytes ||
+        r.read_len > read_bytes - r.s0 || r.s1 > read_bytes ||
+        r.read_len > read_bytes - r.s1 ||
+        (r.istart && r.lstart > (~ProbeU64(0)) / r.istart)) {
+      out.status = 2;
+      return out;
+    }
+    const ProbeU64 initial = r.istart * r.lstart;
+    ProbeU64 mapped = 0;
+    // Subtractions avoid overflow of the source's sum on malformed requests.
+    while (initial < r.piece_length && mapped < r.piece_length - initial &&
+           r.seed_map_min < r.piece_length - initial - mapped) {
+      if (out.n_steps == PROBE_CHAIN_CAPACITY) {
+        out.status = 9;
+        return out;
+      }
+      if (out.n_steps == r.max_steps) {
+        out.status = 10;
+        return out;
+      }
+      const ProbeU64 length = r.piece_length - initial - mapped;
+      const ProbeU64 shift =
+          r.dir ? r.piece_start + initial + mapped : r.piece_start + length - 1;
+      ProbeRequestV2 q{
+          {1, r.s0, r.s1, r.read_len, shift, length, 0, 0, 0, r.dir}, 0};
+      ProbePrefixSearchImpl<Warp> search{genome,     sa, sai, reads,
+                                         read_bytes, c,  q};
+      const auto step = search.run();
+      probe_add_stats(stats, search.stats);
+      out.steps[out.n_steps++] = {
+          shift,           step.inner.length, step.inner.count, step.inner.low,
+          step.inner.high, step.branch,       step.inner.status};
+      if (step.inner.status) {
+        out.status = step.inner.status;
+        return out;
+      }
+      if (step.inner.length > length) {
+        out.status = 4;
+        return out;
+      }
+      if (r.dir == 1 && r.istart == 0 && mapped == 0 &&
+          shift + step.inner.length == r.piece_length)
+        out.flag_dir_map_cleared = 1;
+      if (!step.inner.length) {
+        out.status = 11;
+        return out;
+      }
+      mapped += step.inner.length;
+    }
+    return out;
+  }
+};
+using ProbeChainSearch = ProbeChainSearchImpl<>;

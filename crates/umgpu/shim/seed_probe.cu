@@ -130,3 +130,67 @@ extern "C" int umgpu_seed_probe_v2(const uint8_t *g, const uint8_t *sa,
     cudaEventDestroy(end);
   return int(rc);
 }
+
+template <class Warp>
+__global__ void probe_chain_kernel(const uint8_t *g, const uint8_t *sa,
+                                   const uint8_t *sai, const uint8_t *reads,
+                                   size_t read_bytes,
+                                   const ProbeRequestV3 *requests, size_t n,
+                                   ProbeConfigV2 config, ProbeOutputV3 *out,
+                                   ProbeStats *stats) {
+  const size_t i = Warp::enabled
+                       ? probe_warp_request(blockIdx.x, threadIdx.x)
+                       : size_t(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (i >= n)
+    return;
+  ProbeChainSearchImpl<Warp> search{g,          sa,     sai,        reads,
+                                    read_bytes, config, requests[i]};
+  const auto result = search.run();
+  if constexpr (Warp::enabled) {
+    if (Warp::lane() != 0)
+      return;
+  }
+  out[i] = result;
+  stats[i] = search.stats;
+}
+extern "C" int umgpu_seed_probe_v3(const uint8_t *g, const uint8_t *sa,
+                                   const uint8_t *sai, const uint8_t *reads,
+                                   size_t read_bytes,
+                                   const ProbeRequestV3 *requests, size_t n,
+                                   ProbeConfigV2 config, ProbeOutputV3 *out,
+                                   ProbeStats *stats, unsigned variant,
+                                   float *event_ms, cudaStream_t stream) {
+  if (variant > 1) {
+    const auto drained = cudaStreamSynchronize(stream);
+    return int(drained == cudaSuccess ? cudaErrorInvalidValue : drained);
+  }
+  cudaEvent_t begin = nullptr, end = nullptr;
+  cudaError_t rc = cudaEventCreate(&begin);
+  if (rc == cudaSuccess)
+    rc = cudaEventCreate(&end);
+  if (rc == cudaSuccess)
+    rc = cudaEventRecord(begin, stream);
+  if (rc == cudaSuccess) {
+    if (variant == 0)
+      probe_chain_kernel<ProbeScalar><<<(n + 127) / 128, 128, 0, stream>>>(
+          g, sa, sai, reads, read_bytes, requests, n, config, out, stats);
+    else
+      probe_chain_kernel<ProbeDeviceWarp>
+          <<<probe_warp_blocks(n), 128, 0, stream>>>(
+              g, sa, sai, reads, read_bytes, requests, n, config, out, stats);
+    rc = cudaGetLastError();
+  }
+  if (rc == cudaSuccess)
+    rc = cudaEventRecord(end, stream);
+  // The live genome/SA/SAi/read/request/output leases survive every drain path.
+  const cudaError_t drained = cudaStreamSynchronize(stream);
+  if (rc == cudaSuccess)
+    rc = drained;
+  if (rc == cudaSuccess)
+    rc = cudaEventElapsedTime(event_ms, begin, end);
+  if (begin)
+    cudaEventDestroy(begin);
+  if (end)
+    cudaEventDestroy(end);
+  return int(rc);
+}

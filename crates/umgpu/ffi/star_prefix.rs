@@ -1,6 +1,8 @@
 //! V2 owning prefix path, separate from Terra's V1 initialization and coordinator.
 use super::*;
-use umgpu::{ProbeConfigV2, ProbeOutputV2, ProbeRequestV2};
+use umgpu::{
+    ProbeConfigV2, ProbeOutputV2, ProbeOutputV3, ProbeRequestV2, ProbeRequestV3, ProbeVariant,
+};
 
 pub struct UsiPrefixContext {
     session: Mutex<PrefixSession>,
@@ -73,6 +75,15 @@ impl PrefixSession {
         reads: &[u8],
         requests: &[ProbeRequestV2],
     ) -> Result<(Vec<ProbeOutputV2>, Vec<ProbeStats>), String> {
+        self.search_timed(epoch, reads, requests)
+            .map(|(o, s, _)| (o, s))
+    }
+    pub fn search_timed(
+        &mut self,
+        epoch: u64,
+        reads: &[u8],
+        requests: &[ProbeRequestV2],
+    ) -> Result<(Vec<ProbeOutputV2>, Vec<ProbeStats>, f32), String> {
         if self.disabled || epoch != self.epoch {
             return Err("prefix context disabled or epoch mismatch".into());
         }
@@ -80,7 +91,7 @@ impl PrefixSession {
             return Err("prefix batch exceeds cap".into());
         }
         if requests.is_empty() {
-            return Ok((Vec::new(), Vec::new()));
+            return Ok((Vec::new(), Vec::new(), 0.0));
         }
         if reads.is_empty() {
             return Err("empty prefix read arena".into());
@@ -151,9 +162,99 @@ impl PrefixSession {
         let outputs = b.output.as_pod_slice::<ProbeOutputV2>()[..n].to_vec();
         let stats = b.stats.as_pod_slice::<ProbeStats>()[..n].to_vec();
         self.owned.restore(b);
-        result.map_err(|e| e.to_string())?;
+        let ms = result.map_err(|e| e.to_string())?;
         self.disabled = false;
-        Ok((outputs, stats))
+        Ok((outputs, stats, ms))
+    }
+    pub fn search_chains(
+        &mut self,
+        epoch: u64,
+        reads: &[u8],
+        requests: &[ProbeRequestV3],
+        variant: ProbeVariant,
+    ) -> Result<(Vec<ProbeOutputV3>, Vec<ProbeStats>, f32), String> {
+        if self.disabled || epoch != self.epoch {
+            return Err("prefix context disabled or epoch mismatch".into());
+        }
+        if requests.len() > MAX as usize {
+            return Err("prefix batch exceeds cap".into());
+        }
+        if requests.is_empty() {
+            return Ok((Vec::new(), Vec::new(), 0.0));
+        }
+        if reads.is_empty() {
+            return Err("empty prefix read arena".into());
+        }
+        let n = requests.len();
+        let mut b = self.owned.prepare(reads.len(), n * 88, n * 472, n * 48)?;
+        b.reads.as_mut_slice()[..reads.len()].copy_from_slice(reads);
+        b.requests.as_pod_mut_slice::<ProbeRequestV3>()[..n].copy_from_slice(requests);
+        let index = self.index.take().ok_or("prefix resident unavailable")?;
+        let uc = self.gpu.umem_context();
+        let g = index.genome.lease(&uc);
+        let sa = index.sa.lease(&uc);
+        let sai = index.sai.lease(&uc);
+        let r = b.reads.freeze().lease(&uc);
+        let q = b.requests.freeze().lease(&uc);
+        let o = b.output.lease(&uc);
+        let s = b.stats.lease(&uc);
+        self.disabled = true; // restored only after confirmed drain and recovery
+        let result = umgpu::seed_probe_v3(
+            &self.gpu,
+            &g,
+            &sa,
+            &sai,
+            &r,
+            reads.len(),
+            &q,
+            &o,
+            &s,
+            self.config,
+            n,
+            variant,
+        );
+        let recovered = umgpu::seed_probe_reclaim(
+            &self.gpu,
+            vec![
+                g.erase(),
+                sa.erase(),
+                sai.erase(),
+                r.erase(),
+                q.erase(),
+                o.erase(),
+                s.erase(),
+            ],
+        )?;
+        let mut v = recovered.into_iter();
+        let ro = |v: AnyBuf| match v {
+            AnyBuf::Ro(b) => b,
+            _ => unreachable!(),
+        };
+        let rw = |v: AnyBuf| match v {
+            AnyBuf::Rw(b) => b,
+            _ => unreachable!(),
+        };
+        self.index = Some(ProbeResident {
+            genome: ro(v.next().unwrap()),
+            sa: ro(v.next().unwrap()),
+            sai: ro(v.next().unwrap()),
+            sa_file_bytes: index.sa_file_bytes,
+            config: index.config,
+            hashes: index.hashes,
+            load_seconds: index.load_seconds,
+        });
+        let b = BatchBuffers {
+            reads: reclaim_writable(ro(v.next().unwrap())),
+            requests: reclaim_writable(ro(v.next().unwrap())),
+            output: rw(v.next().unwrap()),
+            stats: rw(v.next().unwrap()),
+        };
+        let outputs = b.output.as_pod_slice::<ProbeOutputV3>()[..n].to_vec();
+        let stats = b.stats.as_pod_slice::<ProbeStats>()[..n].to_vec();
+        self.owned.restore(b);
+        let ms = result.map_err(|e| e.to_string())?;
+        self.disabled = false;
+        Ok((outputs, stats, ms))
     }
 }
 
@@ -332,6 +433,85 @@ pub unsafe extern "C" fn usi_destroy_v2(
         }
     }
     err(error, OK, "")
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// Context must be live; caller input/output slices must be valid and disjoint.
+pub unsafe extern "C" fn usi_search_batch_v3(
+    ctx: *mut UsiPrefixContext,
+    epoch: u64,
+    reads: *const u8,
+    read_bytes: u64,
+    requests: *const ProbeRequestV3,
+    n: u64,
+    output: *mut ProbeOutputV3,
+    stats: *mut ProbeStats,
+    error: *mut UsiErrorV1,
+) -> i32 {
+    std::panic::catch_unwind(|| {
+        if !valid_range(error, size_of::<UsiErrorV1>()) {
+            return BAD;
+        }
+        if !valid_range(ctx, size_of::<UsiPrefixContext>())
+            || n > MAX
+            || read_bytes > isize::MAX as u64
+            || (n != 0
+                && (!valid_range(reads, read_bytes as usize)
+                    || !valid_range(requests, n as usize * 88)
+                    || !valid_range(output, n as usize * 472)
+                    || !valid_range(stats, n as usize * 48)))
+        {
+            // Error storage may alias a malformed input: no write before overlap checks.
+            return BAD;
+        }
+        let ro: [(*const u8, usize); 3] = [
+            (ctx.cast::<u8>(), size_of::<UsiPrefixContext>()),
+            (reads, if n == 0 { 0 } else { read_bytes as usize }),
+            (requests.cast::<u8>(), n as usize * 88),
+        ];
+        let rw: [(*const u8, usize); 3] = [
+            (error.cast::<u8>(), size_of::<UsiErrorV1>()),
+            (output.cast::<u8>(), n as usize * 472),
+            (stats.cast::<u8>(), n as usize * 48),
+        ];
+        for (i, &(p, bytes)) in rw.iter().enumerate() {
+            if ro
+                .iter()
+                .chain(rw[..i].iter())
+                .any(|&(q, len)| overlaps(p, bytes, q, len))
+            {
+                return BAD; // error can alias live input/output: do not write it
+            }
+        }
+        // SAFETY: caller guarantees live context and disjoint slices; validated
+        // extents bound the views, all borrowed until synchronous search returns.
+        unsafe {
+            let mut session = match (*ctx).session.lock() {
+                Ok(x) => x,
+                Err(_) => return err(error, UNCERTAIN, "prefix poisoned"),
+            };
+            let (r, q) = if n == 0 {
+                (&[][..], &[][..])
+            } else {
+                (
+                    std::slice::from_raw_parts(reads, read_bytes as usize),
+                    std::slice::from_raw_parts(requests, n as usize),
+                )
+            };
+            match session.search_chains(epoch, r, q, ProbeVariant::Thread) {
+                Ok((o, s, _)) => {
+                    if n != 0 {
+                        ptr::copy_nonoverlapping(o.as_ptr(), output, n as usize);
+                        ptr::copy_nonoverlapping(s.as_ptr(), stats, n as usize);
+                    }
+                    err(error, OK, "")
+                }
+                Err(e) => err(error, GPU, &e),
+            }
+        }
+    })
+    .unwrap_or_else(|_| err(error, UNCERTAIN, "panic at prefix batch boundary"))
 }
 
 #[cfg(test)]

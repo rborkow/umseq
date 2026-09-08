@@ -1,0 +1,50 @@
+{
+  "date": "2026-09-07",
+  "host": "Mac Apple Silicon",
+  "task": "P2C-INTEGRATE-V2-T4R",
+  "evidence_directory": "bench/evidence/integrate-v2-t4-mac",
+  "checks": [
+    {
+      "command": "cargo fmt --all --check",
+      "exit_code": 0,
+      "log": "fmt.log"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "exit_code": 0,
+      "log": "clippy.log"
+    },
+    {
+      "command": "cargo test --workspace",
+      "exit_code": 0,
+      "log": "workspace-tests.log"
+    },
+    {
+      "command": "cargo test -p umstar --test prefix_walk",
+      "exit_code": 0,
+      "log": "chain-grid.log"
+    },
+    {
+      "command": "clang-format --dry-run --Werror crates/umgpu/shim/seed_probe.cu crates/umgpu/shim/seed_probe.h crates/umgpu/shim/seed_probe_abi.h bench/star-integrate/seed_probe_abi.h bench/star-integrate/prefix_config.hpp crates/umstar/tests/prefix_host.cpp",
+      "exit_code": 0,
+      "log": "clang-format.log"
+    },
+    {
+      "command": "clang -std=c11 -Wall -Wextra -Werror -x c -fsyntax-only crates/umgpu/shim/seed_probe_abi.h",
+      "exit_code": 0,
+      "log": "c-abi.log"
+    }
+  ],
+  "workspace_note": "Full workspace passed; final test-only zero-stride expansion was verified by targeted prefix_walk rerun.",
+  "clang_format_version": "23.1.0",
+  "independent_review": "docs/review-integrate-v2-t4.md",
+  "cuda_compilation": "pending Spark",
+  "device_grid": "pending Spark",
+  "raw_host_execution": "pending Spark",
+  "strict_20m_parity": "pending Spark",
+  "tier0_gpu_cpu_cmp": "pending Spark",
+  "kernel_gathers_per_second_vs_v2": "pending Spark",
+  "no_ssh": true,
+  "no_commits": true,
+  "terra_files_edited": false
+}
