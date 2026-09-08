@@ -1,0 +1,98 @@
+== bypass-thp: wall/user/sys/maxrss 24.50 255.19 12.15 32558372
+   samples 141885: user 137133 (96.7%)  kernel 4752 (3.3%)   [by DSO]
+   --- threads by kernel samples (top 5) ---
+     tid 606077: user   5529 kernel   2745  (33% kernel)
+     tid 606085: user   5172 kernel    206  (4% kernel)
+     tid 606082: user   5229 kernel    165  (3% kernel)
+     tid 606093: user   7370 kernel    103  (1% kernel)
+     tid 606092: user   6030 kernel     98  (2% kernel)
+   --- kernel leaf symbols (top 12) ---
+      19.1%  __arch_copy_from_user
+      17.4%  __arch_copy_to_user
+       9.4%  _raw_spin_unlock_irqrestore
+       5.1%  __pi_clear_page
+       3.2%  _raw_spin_lock
+       2.7%  _raw_spin_unlock_irq
+       2.1%  block_commit_write
+       1.8%  __update_cpu_freelist_fast
+       1.6%  kmem_cache_alloc_noprof
+       1.4%  page_counter_cancel
+       1.1%  el0_da
+       1.0%  el0_svc
+   --- first user-space frame under kernel samples (top 12) ---
+      40.4%  __GI___writev
+      35.5%  read
+       6.6%  __GI___libc_write
+       4.3%  __memcpy_sve
+       3.9%  posix_fadvise
+       3.4%  __memset_zva64
+       1.8%  __unlink
+       1.5%  _int_malloc
+       0.9%  Transcript::Transcript()
+       0.5%  __munmap
+       0.3%  __memcpy_generic
+       0.1%  sysmalloc
+   --- user stacks (3 frames) under kernel samples (top 8) ---
+      40.4%  __GI___writev < std::__basic_file<char>::xsputn_2(char const*, long, char const*, long) < std::basic_filebuf<char, std::char_traits<char> >::xsputn(char const*, long)
+      18.7%  read < std::__basic_file<char>::xsgetn(char*, long) < std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+      15.0%  read < std::__basic_file<char>::xsgetn(char*, long) < std::basic_filebuf<char, std::char_traits<char> >::underflow()
+       5.9%  __GI___libc_write < [unknown] < [unknown]
+       3.9%  posix_fadvise < Genome::genomeLoad() < main
+       3.7%  __memcpy_sve < std::basic_streambuf<char, std::char_traits<char> >::xsputn(char const*, long) < std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<c
+       1.8%  __unlink < remove < ReadAlignChunk::chunkFilesCat(std::ostream*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, unsigned long long&)
+       1.7%  read < [unknown] < [unknown]
+== gpu: wall/user/sys/maxrss 25.15 236.97 28.70 35111208
+   samples 141309: user 128537 (91.0%)  kernel 12772 (9.0%)   [by DSO]
+   --- threads by kernel samples (top 5) ---
+     tid 606463: user   5584 kernel   3315  (37% kernel)
+     tid 606485: user   6563 kernel    553  (8% kernel)
+     tid 606478: user   6119 kernel    541  (8% kernel)
+     tid 606487: user   5360 kernel    499  (9% kernel)
+     tid 606493: user   5650 kernel    499  (8% kernel)
+   --- kernel leaf symbols (top 12) ---
+      15.6%  _raw_spin_unlock_irqrestore
+      13.3%  _raw_spin_lock
+       7.8%  __arch_copy_to_user
+       7.6%  __arch_copy_from_user
+       7.4%  __pi_clear_page
+       4.9%  page_counter_cancel
+       4.6%  folio_remove_rmap_ptes
+       4.3%  el0_da
+       2.4%  do_page_fault
+       1.6%  mas_walk
+       1.0%  try_charge_memcg
+       0.9%  _raw_spin_unlock_irq
+   --- first user-space frame under kernel samples (top 12) ---
+      36.4%  __memcpy_sve
+      18.1%  __munmap
+      15.8%  read
+      15.7%  __GI___writev
+       4.8%  star_integrate::submit_window(std::vector<star_integrate::WindowRead, std::allocator<star_integrate::WindowRea
+       3.0%  __GI___libc_write
+       1.2%  __memset_zva64
+       1.0%  __mprotect
+       1.0%  posix_fadvise
+       0.8%  sysmalloc
+       0.6%  __unlink
+       0.6%  _int_malloc
+   --- user stacks (3 frames) under kernel samples (top 8) ---
+      34.3%  __memcpy_sve < star_integrate::submit_window(std::vector<star_integrate::WindowRead, std::allocator<star_integrate::WindowRead> >&&) < star_integrate::prepare_window(Read
+      17.8%  __munmap < cfree@GLIBC_2.17 < star_integrate::(anonymous namespace)::Window::~Window()
+      15.7%  __GI___writev < std::__basic_file<char>::xsputn_2(char const*, long, char const*, long) < std::basic_filebuf<char, std::char_traits<char> >::xsputn(char const*, long)
+       7.6%  read < std::__basic_file<char>::xsgetn(char*, long) < std::basic_filebuf<char, std::char_traits<char> >::xsgetn(char*, long)
+       6.9%  read < std::__basic_file<char>::xsgetn(char*, long) < std::basic_filebuf<char, std::char_traits<char> >::underflow()
+       4.8%  star_integrate::submit_window(std::vector<star_integrate::WindowRead, std::allocator<star_integrate::WindowRead> >&&) < star_integrate::prepare_window(ReadAlignChunk&) < 
+       2.7%  __GI___libc_write < [unknown] < [unknown]
+       1.5%  __memcpy_sve < std::basic_streambuf<char, std::char_traits<char> >::xsputn(char const*, long) < std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<c
+== MISS counters, 20M, GPU on, strict off ==
+time: 45.13 595.29 58.38 35188020
+  submitted: 159989084
+  gpu_consumed: 141201259
+  key_misses: 7363572
+  no_window: 0
+  cpu_fallback: 7363572
+  cpu_tails: 0
+  miss_reasons: {"read_bytes": 0, "positional_exhausted": 0, "chain_rejected_residue": 2011115, "no_job": 0, "key_mismatch": 0, "not_ready": 5352457, "device_stopped": 0, "shift": 0, "cas_lost": 0, "no_window": 0}
+  not_ready_where: {"queued": 2673947, "filling": 182421, "draining": 2496089}
+  device_stop_status: {}
+GPUSYS-DONE
