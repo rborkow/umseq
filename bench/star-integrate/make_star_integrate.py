@@ -108,9 +108,10 @@ def patch(rio,name,text):
         star_integrate::InnerCall starIntegrateCall={};
         starIntegrateCall.start=pieceStart; starIntegrateCall.length=pieceLength;
         starIntegrateCall.dir=dirR; starIntegrateCall.distance=iDist;
+        // Only the enabled arm reaches this per-candidate frame/key lookup.
         starIntegrateCall=star_integrate::build_current_inner_call(starIntegrateCall);
         uint64_t starIntegrateRange[2]={0,0}, starIntegrateNrep=0, starIntegrateMaxL=0;
-        const bool starIntegrateHit=star_integrate::enabled_fast() && star_integrate::lookup(P,mapGen,Read1,(uint64_t)Lread,starIntegrateCall,starIntegrateRange,starIntegrateNrep,starIntegrateMaxL);
+        const bool starIntegrateHit=star_integrate::lookup(P,mapGen,Read1,(uint64_t)Lread,starIntegrateCall,starIntegrateRange,starIntegrateNrep,starIntegrateMaxL);
         if (starIntegrateHit) {
             Nrep=starIntegrateNrep; maxL=starIntegrateMaxL;
             indStartEnd[0]=starIntegrateRange[0]; indStartEnd[1]=starIntegrateRange[1];
@@ -126,7 +127,42 @@ def patch(rio,name,text):
             starIntegrateStockOuter();
         }
 '''
-        return once(rio,text,old,new)
+        # A branch inside the sparse-distance loop costs the bypass arm even
+        # when it is predictably false.  Generate a stock-only loop selected
+        # once at function entry; its prefix body is verbatim pinned STAR.
+        text=once(rio,text,old,new)
+        marker='''    // gSAsparseD = 1
+    // gSAindexNbases = 14
+
+    for (uint iDist=0; iDist<min(pieceLengthIn,P.pGe.gSAsparseD); iDist++) {//cycle through different distances
+'''
+        store='''        if (maxL+iDist > maxLbest) {//this idist is better
+            maxLbest=maxL+iDist;
+        };
+        NrepAll[iDist]=Nrep;
+        indStartEndAll[iDist][0]=indStartEnd[0];
+        indStartEndAll[iDist][1]=indStartEnd[1];
+        maxLall[iDist]=maxL;
+    };
+
+    for (uint iDist=0; iDist<min(pieceLengthIn,P.pGe.gSAsparseD); iDist++) {//cycle through different distances, store the ones with largest maxL
+        if ( (maxLall[iDist]+iDist) == maxLbest) {
+            storeAligns(iDir, (dirR ? pieceStartIn+iDist : pieceStartIn-iDist), NrepAll[iDist], maxLall[iDist], indStartEndAll[iDist], iFrag);
+        };
+    };
+    return Nrep;
+'''
+        stock_loop='''    // setup completes before mapping workers enter this function.  One static,
+    // predictable dispatch keeps the disabled path out of every iDist iteration.
+    static const bool starIntegrateEnabled=star_integrate::enabled_fast();
+    if (!starIntegrateEnabled) {
+        for (uint iDist=0; iDist<min(pieceLengthIn,P.pGe.gSAsparseD); iDist++) {//cycle through different distances
+            uint pieceStart;
+            uint pieceLength=pieceLengthIn-iDist;
+'''+old+store+'''    }
+
+'''
+        return once(rio,text,marker,marker.replace('    for',stock_loop+'    for',1))
     if name=='SuffixArrayFuns.cpp':
         prefix,tail=text.split('\nuint findMultRange(',1)
         return prefix+'\nuint findMultRange('+tail
@@ -225,14 +261,14 @@ def patch(rio,name,text):
     if name=='ReadAlign_mapOneRead.cpp':
         text='#include "star_integrate.hpp"\n'+text
         text=once(rio,text,'int ReadAlign::mapOneRead() {',
-                  'int ReadAlign::mapOneRead() {\n    star_integrate::begin_map(*this);')
+                  'int ReadAlign::mapOneRead() {\n    // setup runs before mapping; avoid loading the mode inside seed loops.\n    static const bool starIntegrateEnabled=star_integrate::enabled_fast();\n    star_integrate::begin_map(*this);')
         call='                        maxMappableLength2strands(Shift, seedLength, iDir, 0, mapGen.nSA-1, L, splitR[2][ip]);//L=max mappable length, unique or multiple'
         if call in text:
             text=once(rio,text,call,
-                      '                        if (star_integrate::enabled_fast()) star_integrate::set_chain(ip, splitR[2][ip], istart, Nstart, Lstart, Lmapped, splitR[0][ip], splitR[1][ip], Nsplit);\n'+call)
+                      '                        if (starIntegrateEnabled) star_integrate::set_chain(ip, splitR[2][ip], istart, Nstart, Lstart, Lmapped, splitR[0][ip], splitR[1][ip], Nsplit);\n'+call)
         if '                            flagDirMap=false;\n' in text:
             text=once(rio,text,'                            flagDirMap=false;\n',
-                      '                            flagDirMap=false;\n                            if (star_integrate::enabled_fast()) star_integrate::reverse_suppressed(ip);\n')
+                      '                            flagDirMap=false;\n                            if (starIntegrateEnabled) star_integrate::reverse_suppressed(ip);\n')
         return text
     if name=='Makefile':
         return once(rio,text,'ReadAlign_maxMappableLength2strands.o binarySearch2.o\\\n','ReadAlign_maxMappableLength2strands.o binarySearch2.o star_integrate.o star_integrate_window.o star_integrate_work.o sha256.o\\\n')

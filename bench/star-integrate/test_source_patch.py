@@ -37,9 +37,12 @@ class PatchGuard(unittest.TestCase):
   self.assertIn('star_integrate::strict()',got)
   self.assertIn('star_integrate::note_cpu_fallback()',got)
   self.assertIn('star_integrate::fail_strict',got)
-  # The only executable prefix body is the lambda fallback; lookup precedes
-  # its invocation and the original bookkeeping remains after both paths.
-  self.assertLess(got.index('const bool starIntegrateHit'),got.index('if (maxL+iDist'))
+  # Bypass dispatch is once per function entry.  Its direct stock loop returns
+  # before the enabled-only frame lookup; the original bookkeeping remains in
+  # both loops.
+  self.assertEqual(got.count('static const bool starIntegrateEnabled'),1)
+  self.assertLess(got.index('if (!starIntegrateEnabled)'),got.index('const bool starIntegrateHit'))
+  self.assertLess(got.index('return Nrep;'),got.index('const bool starIntegrateHit'))
   self.assertIn('starIntegrateStockOuter(); // full stock',got)
  def test_window_hooks_are_staged(self):
   class R:

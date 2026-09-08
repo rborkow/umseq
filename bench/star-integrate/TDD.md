@@ -89,3 +89,11 @@ per-frame 40,000-job consumption scan.
   UMPROBE1 also lacks chain identity/lmapped/istart. Stopped per AGENTS.md before
   choosing an unsupported percentile capacity. No V3 implementation or test-pass
   claim. Findings and Terra hold/handoff: `bench/PHASE2C-integrate-v2-t4.md`.
+
+- **P2C-INTEGRATE-V2-T5 / Item A (2026-09-07):** GREEN by generated-source
+  inspection: `maxMappableLength2strands` caches `STAR_INTEGRATE` mode in a
+  function-local `static const bool`, dispatches its fully verbatim stock prefix
+  loop before entering any `iDist` iteration, and returns from that arm. The V2
+  frame/key lookup is consequently unreachable in bypass mode. `mapOneRead`
+  likewise caches the mode before its seed loops for `set_chain` and
+  `reverse_suppressed`. Spark timing remains the required acceptance check.
