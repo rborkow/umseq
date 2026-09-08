@@ -141,16 +141,25 @@ fn main() -> Result<()> {
         "select one arm"
     );
     if a.cpu_only {
-        let e = match umgpu::Context::new(0, umgpu::ContextOptions::default()) {
-            Err(e) => e,
-            Ok(_) => return Err(anyhow!("cpu-only requires the CUDA stub")),
-        };
-        ensure!(
-            matches!(e, umgpu::Error::Unsupported),
-            "stub must return Unsupported"
-        );
-        println!("arm\tcpu-only\tresult\tUnsupported");
-        return Ok(());
+        // Only meaningful against the stub backend (Mac): the CUDA backend has
+        // no `Unsupported` variant and a real context would succeed.
+        #[cfg(feature = "cuda")]
+        return Err(anyhow!(
+            "cpu-only is a stub-backend check; not applicable with --features cuda"
+        ));
+        #[cfg(not(feature = "cuda"))]
+        {
+            let e = match umgpu::Context::new(0, umgpu::ContextOptions::default()) {
+                Err(e) => e,
+                Ok(_) => return Err(anyhow!("cpu-only requires the CUDA stub")),
+            };
+            ensure!(
+                matches!(e, umgpu::Error::Unsupported),
+                "stub must return Unsupported"
+            );
+            println!("arm\tcpu-only\tresult\tUnsupported");
+            return Ok(());
+        }
     }
     let mut c = config(&a.config)?;
     let cap = probe_read(&a.requests, false)?;
