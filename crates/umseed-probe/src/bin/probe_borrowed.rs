@@ -93,23 +93,34 @@ fn anon_huge(ptr: *const u8) -> u64 {
     }
     0
 }
-fn advise_touch(v: &mut [u8]) -> Result<()> {
+/// STAR-shaped allocation: glibc mmaps a request this large and populates
+/// nothing until first write, exactly like `new char[]`. With `huge`,
+/// `MADV_HUGEPAGE` is applied to the reserved-but-untouched capacity *before*
+/// the zero-fill that first touches it — the only ordering under which the
+/// [madvise] THP policy hands out huge pages (already-populated 4K pages are
+/// not collapsed within a run). The zero-fill is the first touch; the file
+/// read then overwrites in place.
+fn alloc_advised(len: usize, huge: bool) -> Result<Vec<u8>> {
+    let mut v: Vec<u8> = Vec::with_capacity(len);
     #[cfg(target_os = "linux")]
-    {
+    if huge {
         let p = 4096usize;
         let lo = (v.as_ptr() as usize + p - 1) & !(p - 1);
-        let hi = (v.as_ptr() as usize + v.len()) & !(p - 1);
+        let hi = (v.as_ptr() as usize + len) & !(p - 1);
         if hi > lo {
+            // SAFETY: [lo, hi) lies inside the Vec's reserved capacity, which
+            // is a live mapping owned by `v` for the call; madvise only sets
+            // policy and does not read, write, or unmap.
             let r = unsafe { libc::madvise(lo as *mut libc::c_void, hi - lo, libc::MADV_HUGEPAGE) };
             if r != 0 {
                 return Err(std::io::Error::last_os_error().into());
             }
         }
     }
-    for x in v.iter_mut().step_by(4096) {
-        std::hint::black_box(*x);
-    }
-    Ok(())
+    #[cfg(not(target_os = "linux"))]
+    let _ = huge;
+    v.resize(len, 0);
+    Ok(v)
 }
 fn v2(r: umgpu::ProbeRequest) -> ProbeRequestV2 {
     let mut q = r;
@@ -238,24 +249,38 @@ fn main() -> Result<()> {
                 .sum::<u64>();
         }
     } else {
-        let mut g = vec![5; c.inner.n_genome as usize + 400];
+        // STAR-shaped allocations. `MADV_HUGEPAGE` only affects pages faulted in
+        // *after* the advice (the [madvise] THP policy never collapses
+        // already-populated 4K pages within a run), so the advice must precede
+        // the file read that populates the buffer. `alloc_uninit` reserves
+        // without touching; `vec![..]`/`fs::read` would fault everything at 4K.
+        let sa_len = ((c.inner.n_sa - 1) * (c.inner.strand_bit + 1) / 8 + 8) as usize;
+        let sai_hdr = c.sai_offset as usize;
+        let sai_file = fs::metadata(a.index.join("SAindex"))?.len() as usize;
+        ensure!(sai_hdr <= sai_file, "SAi header extent");
+        let mut g = alloc_advised(c.inner.n_genome as usize + 400, a.borrowed_madvise)?;
+        let mut sa = alloc_advised(sa_len, a.borrowed_madvise)?;
+        let mut si = alloc_advised(sai_file - sai_hdr, a.borrowed_madvise)?;
+        // Padding bytes STAR would leave: 5 (spacer) around G, 0 in SA tail.
+        g[..200].fill(5);
+        g[200 + c.inner.n_genome as usize..].fill(5);
         fs::File::open(a.index.join("Genome"))?
             .read_exact(&mut g[200..200 + c.inner.n_genome as usize])?;
-        let mut sa = fs::read(a.index.join("SA"))?;
-        sa.resize(
-            ((c.inner.n_sa - 1) * (c.inner.strand_bit + 1) / 8 + 8) as usize,
-            0,
-        );
-        let mut si = fs::read(a.index.join("SAindex"))?;
-        ensure!(c.sai_offset as usize <= si.len(), "SAi header extent");
-        si.drain(..c.sai_offset as usize);
+        {
+            let mut f = fs::File::open(a.index.join("SA"))?;
+            let sa_file = f.metadata()?.len() as usize;
+            ensure!(sa_file <= sa_len, "SA file exceeds padded extent");
+            f.read_exact(&mut sa[..sa_file])?;
+            sa[sa_file..].fill(0);
+        }
+        {
+            use std::io::{Read, Seek, SeekFrom};
+            let mut f = fs::File::open(a.index.join("SAindex"))?;
+            f.seek(SeekFrom::Start(sai_hdr as u64))?;
+            f.read_exact(&mut si)?;
+        }
         c.sai_offset = 0;
         c.sai_bytes = si.len() as u64;
-        if a.borrowed_madvise {
-            advise_touch(&mut g)?;
-            advise_touch(&mut sa)?;
-            advise_touch(&mut si)?;
-        }
         for (bi, q) in qs.chunks(262144).enumerate() {
             let n = q.len();
             let mut rb = probe_allocate(cap.reads.len(), false, "borrowed-reads")?;
