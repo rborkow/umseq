@@ -639,3 +639,58 @@ negative" line, short of −8% memo-grade. Recovering the 8M `not_ready` chains 
 most their CPU cost (5% of chains → ≈ 2–3% of mapping user time) — enough to reach −7 to
 −8% if the prefetch is clean. That is the last cheap lever; after it the accounting is
 what it is.
+
+## Round 9 (PREFETCH, `837c2a3`): −6.5% vs the huge-page baseline, −17.9% vs stock; misses 8.0M → 0.2M
+
+Evidence: `integrate-gate-host24/` (gate i, eleventh `PARITY_MATCH`; strict per-step oracle,
+0/0/0 shift/flag/step-count mismatches), `integrate-timing-host12/`,
+`bench/evidence/integrate-1-host/{timing-round9-raw.tsv,timing-round9-r1-gpu-stats.jsonl,gate-round9-host24.json}`.
+
+| arm (20M, 20 thr, 3 rotated repeats) | user | sys | user+sys | vs baseline | vs stock |
+|---|---|---|---|---|---|
+| stock | 722.8 | 31.1 | 753.9 | — | — |
+| integrated, hooks bypassed (huge-page baseline) | 640.8 | 20.8 | 661.5 | — | −12.3% |
+| integrated, GPU on, pool + prefetch | **590.4** | **28.2** | **618.7** | **−6.5%** | **−17.9%** |
+
+Raw rows: stock 725.13/26.74, 721.01/34.35, 722.34/32.17; bypass 641.77/20.19,
+642.25/17.75, 638.34/24.34; gpu 589.49/29.68, 589.78/27.79, 592.04/27.18. Peak RSS 38.7 GB
+(two live windows per worker). Round 8 → 9, GPU arm: user 600.3 → 590.4 (−10), sys 29.1 →
+28.2; total 629.4 → 618.7.
+
+**Misses**: 8.0M → **31k–215k** across the three repeats (`not_ready` 23k–158k, residue
+8k–57k; the spread is the race's timing, not a code path). `prefetch_windows` 873–874 of
+~1,000 windows (the rest are first-of-chunk, which race by design), `prefetch_refused` 1–2.
+Chains consumed 87.9% → **91.5%** of submitted; the remaining 8.4% is `suppressed_unused` +
+`other_unused` (13.4M) — chains the GPU computed that STAR never asked for (reverse-strand
+candidates stock skips after a forward hit, and pieces stock never reaches). Those are
+device waste, not CPU cost, and the only way to not compute them is to know stock's
+decision before it makes it.
+
+### Accounting, round 9, against the huge-page baseline (661.5)
+
+| | CPU-s | note |
+|---|---|---|
+| user saved by GPU seed search | −50.4 | 146.4M chains, 201.5M steps on the device |
+| sys added (GPU arm − bypass) | +7.4 | STAR's own I/O is in both; remainder is coordinator per-batch work |
+| **net** | **−42.8 (−6.5%)** | |
+
+What is left, each with its ceiling: the coordinator thread (~5% of process CPU in round
+7's profile, one thread of 21 — a few CPU-s); the 8.4% unused device chains (device time,
+no CPU); `prepare_window`'s own cost — `qualitySplit` + candidate enumeration duplicated
+from `oneRead` (measured 10% of the *hook* overhead in round 2's profile, before v2; not
+re-measured since) — a Task-0-style differential would size it. None of these is a
+mechanism change; all are polish, and each is worth ≤ 1–2%.
+
+### Against the gates, final for this lane
+
+- Gate (i): parity **eleven** times, the strict per-step oracle on every one since round 6.
+- Gate (iii), as written (≥ −12% STAR CPU-s vs stock): **met, −17.9%**. Of which −12.3%
+  is `madvise(MADV_HUGEPAGE)` on STAR's index (round 7b, ablated) and **−6.5% is the GPU
+  seed search on top of it** — past the −5% honest-negative line, short of the −8%
+  memo-grade line for the GPU alone.
+- The memo statement this supports: *on a GB10 workstation, a one-line huge-page patch to
+  stock STAR removes 12% of its CPU time; the GPU seed search removes a further 6.5%,
+  byte-identical output, gathering directly from the aligner's own arrays with no index
+  copy (T5B/T5C). Whether the first number transfers to x86 Batch nodes depends on their
+  THP policy (`docs/review-integrate-v2-huge.md` §4); the second is GB10-specific by
+  construction.*
