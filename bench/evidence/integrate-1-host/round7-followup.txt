@@ -1,0 +1,51 @@
+== B. stock THP check (4M) ==
+stock-thp: 21.85 s wall 141.27 user 14.99 sys 32520280 KiB maxrss | 
+== C. madvise-only vs fadvise effect (bypass arm, 4M) ==
+bypass-warm: 13.19 s wall 125.54 user 6.65 sys 32528972 KiB maxrss | 
+bypass-cold: 53.18 s wall 122.23 user 11.72 sys 32519176 KiB maxrss | 
+stock-warm: 21.77 s wall 140.66 user 14.44 sys 32522436 KiB maxrss | 
+== A. GPU arm sys attribution (8M, perf per-thread) ==
+samples 140939: user 100003 (71.0%) kernel 40936 (29.0%)
+--- kernel share by thread (top 6 by kernel samples) ---
+  tid 571022: user 38 kernel 5640  (99% kernel)
+  tid 571019: user 29 kernel 5589  (99% kernel)
+  tid 571014: user 4251 kernel 3640  (46% kernel)
+  tid 571028: user 2909 kernel 2064  (42% kernel)
+  tid 571032: user 5594 kernel 1429  (20% kernel)
+  tid 571037: user 5098 kernel 1371  (21% kernel)
+--- top kernel leaf symbols ---
+   28.8%  [unknown]
+   18.4%  __memset_zva64
+   18.0%  __memcpy_sve
+    4.8%  _raw_spin_unlock_irqrestore
+    4.0%  _raw_spin_lock
+    2.4%  __arch_copy_from_user
+    2.3%  __arch_copy_to_user
+    2.3%  __pi_clear_page
+    2.0%  __memcpy_generic
+    1.5%  page_counter_cancel
+    1.5%  folio_remove_rmap_ptes
+    1.3%  el0_da
+    0.8%  std::istreambuf_iterator<char, std::char_traits<char> > std::num_get<char, std::istreambuf
+    0.8%  do_page_fault
+    0.7%  std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf
+    0.5%  mas_walk
+    0.4%  memcpy@plt
+    0.4%  try_charge_memcg
+--- user-space callers of kernel time ---
+   26.5%  __libc_start_call_main
+   19.4%  ReadAlign::stitchPieces(char**, unsigned long long)
+   13.0%  star_integrate::submit_window(std::vector<star_integrate::WindowRead, std::allocator<star_integrate::WindowRead> >&&)
+   10.6%  Transcript::Transcript(Transcript const&)
+    5.8%  vms_clear_ptes
+    4.1%  do_iter_readv_writev
+    2.7%  star_integrate::(anonymous namespace)::coordinator_main()
+    2.3%  read
+    1.9%  std::basic_streambuf<char, std::char_traits<char> >::xsputn(char const*, long)
+    1.9%  std::ostream& std::ostream::_M_insert<unsigned long long>(unsigned long long)
+    1.7%  cuStreamSynchronize
+    1.0%  std::istream& std::istream::_M_extract<unsigned long long>(unsigned long long&)
+    0.8%  std::istream& std::istream::_M_extract<unsigned int>(unsigned int&)
+    0.5%  std::ostream& std::ostream::_M_insert<long>(long)
+gpu-perf: Sep 08 09:24:39 Sep 08 09:24:56 
+FOLLOWUP-DONE

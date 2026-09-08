@@ -1,0 +1,16 @@
+== stock (pid 603488, exe exited): time 37.27 138.35 19.48 32519132
+Rss:            32363492 kB
+AnonHugePages:         0 kB
+f10712513000-f10eafc80000 rw-p size_gb=30.46 rss_gb=30.36 anonhuge_gb=0.00 thp_eligible=0  rd wr mr mw me ac 
+== bypass-thp (pid 603750, exe exited): time 15.03 125.90 8.84 32523144
+Rss:            32485348 kB
+AnonHugePages:  29360128 kB
+eaa818713000-eaa8aef28000 rw-p size_gb=2.35 rss_gb=2.33 anonhuge_gb=0.00 thp_eligible=0  rd wr mr mw me ac 
+eaa8aef28000-eaa90c47c000 rw-p size_gb=1.46 rss_gb=1.46 anonhuge_gb=1.42 thp_eligible=1  rd wr mr mw me ac hg 
+eaa90c47e000-eaaef364a000 rw-p size_gb=23.61 rss_gb=23.61 anonhuge_gb=23.54 thp_eligible=1  rd wr mr mw me ac hg 
+eaaef364c000-eaafb5e7f000 rw-p size_gb=3.04 rss_gb=3.04 anonhuge_gb=3.04 thp_eligible=1  rd wr mr mw me ac hg 
+== bypass-4k (pid 603974, exe exited): time 21.51 142.42 14.43 32521472
+Rss:            32433788 kB
+AnonHugePages:         0 kB
+f142814a3000-f14a1ec10000 rw-p size_gb=30.46 rss_gb=30.41 anonhuge_gb=0.00 thp_eligible=0  rd wr mr mw me ac 
+RESIDENCY-DONE

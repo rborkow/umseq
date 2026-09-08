@@ -482,3 +482,68 @@ status and the stopping step status as numeric ABI codes.
 | `shift` | Device result violates the strict shift contract; diagnostic only in non-strict mode, investigate before reuse. | TBD |
 | `cas_lost` | Another path retired or consumed the selected job; inspect competing ownership/retirement. | TBD |
 | `no_window` | Lookup was never admitted/prepared (or is outside its supported start); bounds recoverable coverage before any miss fix. | TBD |
+
+## Round 7b — the huge-page ablation (review Blocking 1–2 closed)
+
+Evidence: `bench/evidence/integrate-1-host/thp-ablation-{raw.tsv,env.txt}`,
+`thp-residency.txt`, `round7-followup.txt`; review `docs/review-integrate-v2-huge.md`.
+Scripts: `bench/star-integrate/thp_ablation.sh`, `thp_residency.sh`.
+
+The review's blocking demand: same build, advice on vs off, `fadvise` kept in both, equal
+cache state before every run, page backing verified per arm from the real STAR pid. Done:
+the generator's `starIntegrateAdviseHuge` is now switched at run time by
+`STAR_INTEGRATE_THP=0` (same binary, sha `ee8ce7d4…`); every run is preceded by a `cat` of
+the three index files (so each arm's own `posix_fadvise(DONTNEED)` is neutralised for the
+next); `STAR_INTEGRATE` unset in all three arms; 3 rotated repeats × 20M × 20 threads.
+
+| arm | wall | user | sys | user+sys | vs stock |
+|---|---|---|---|---|---|
+| stock (`f84493ef…`) | 55.7 s | 726.8 | 27.8 | **754.6** | — |
+| integrated binary, advice **off** (`STAR_INTEGRATE_THP=0`) | 56.4 s | 727.0 | 27.5 | **754.5** | **−0.0%** |
+| integrated binary, advice **on** | 45.4 s | 643.9 | 20.8 | **664.8** | **−11.9%** |
+
+Raw rows (`thp-ablation-raw.tsv`): stock 725.26/27.94, 727.22/25.92, 727.96/29.48; off
+726.90/27.45, 726.08/27.32, 728.01/27.73; on 643.50/18.00, 644.81/23.22, 643.45/21.27.
+All three arms' `Aligned.out.sam` bodies are `cmp`-identical (53,710,727 lines).
+
+**Page backing, real STAR pid, sampled during mapping** (`thp-residency.txt`, 4M reads):
+
+| arm | index VMAs | `AnonHugePages` | `THPeligible` / `VmFlags` |
+|---|---|---|---|
+| stock | one merged 30.46 GB anon VMA | **0** | 0 / no `hg` |
+| advice off | one merged 30.46 GB anon VMA | **0** | 0 / no `hg` |
+| advice on | SA 23.61 GB, Genome 3.04, SAi 1.46 (separate VMAs) | **28.0 GB** (23.54 + 3.04 + 1.42) | 1 / `hg` on all three |
+
+Box: kernel 6.17.0-1031-nvidia, 4 KB base page, THP `[madvise]`, `hugepages-2048kB`
+`[inherit]`, glibc 2.39, `GLIBC_TUNABLES`/`LD_PRELOAD` unset.
+
+### What this settles
+
+- **The −12% is the `madvise` and nothing else.** Advice off reproduces stock to 0.1 CPU-s
+  (the hook floor is gone with T5A; the review's "don't subtract +1.8%" is moot). `fadvise`
+  moves no CPU-s. Equal cache state also removed the sys skew the review flagged in round
+  7's rotation (stock sys 26–29 in every position now, vs 27–35 there).
+- **Stock STAR 2.7.11b on this box runs its whole 30 GB index at 4 KB pages.** Not glibc's
+  hugetlb tunable, not `[always]` — a plain `new char[]` under `[madvise]` policy gets
+  nothing. The user-time saving is 83 CPU-s (11.4%) on 20 threads, sys 6.7.
+- The review's mechanism arithmetic (TLB reach 8 MB → 4 GB with a 2048-entry L2 TLB;
+  ~25 ns saved per gather over 3.19 G consumed gathers) is consistent with 83 s; it is not
+  a PMU measurement and is not claimed as one. "TLB-bound" stays a hypothesis with a
+  measured effect; a walk-event PMU profile (review Suggested 5) would make it a mechanism.
+- **Portability is still open** and is the memo question: whether the team's x86 Batch
+  nodes run THP `[always]` (in which case stock already has this and the patch is a
+  workstation fix) or `[madvise]` (in which case it is a free 12% for the fleet). Review §4
+  gives the cheap check — one stock run on the Batch AMI reading the real pid's index
+  `smaps`. Needs the user's AWS access; not a Spark measurement.
+
+### The GPU arm, re-read
+
+Against the corrected baseline (advice on, 664.8) the round-7 GPU arm (654.7) is **−1.5%**
+CPU-s: user −51, sys +41. The +43 s sys is now the only thing between the GPU and a
+memo-grade increment (611 CPU-s ≈ −8% over the huge-page baseline if the sys excess is
+ours to remove). `round7-followup.txt` has a first per-thread profile of the GPU arm at 8M:
+29% of samples in kernel mode, top user-space callers into the kernel `stitchPieces` (19%)
+and `Transcript` copy-construction (11%) — STAR's own per-read allocation faulting — then
+`submit_window` (13%); the review correctly notes the substring classifier is not evidence
+(28.8% of kernel leaves were `[unknown]`). Next: `perf` with the privilege field, GPU vs
+advice-on bypass, same 8M, per thread.

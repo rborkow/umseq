@@ -1,0 +1,14 @@
+kernel: 6.17.0-1031-nvidia  pagesize: 4096
+thp: always [madvise] never / defrag: always defer defer+madvise [madvise] never / hpage_pmd_size: 2097152
+  hugepages-1024kB: always inherit madvise [never]
+  hugepages-128kB: always inherit madvise [never]
+  hugepages-16kB: always inherit madvise [never]
+  hugepages-2048kB: always [inherit] madvise never
+  hugepages-256kB: always inherit madvise [never]
+  hugepages-32kB: always inherit madvise [never]
+  hugepages-512kB: always inherit madvise [never]
+  hugepages-64kB: always inherit madvise [never]
+  hugepages-8kB: 
+glibc: ldd (Ubuntu GLIBC 2.39-0ubuntu8.8) 2.39  GLIBC_TUNABLES=<unset>  LD_PRELOAD=<unset>
+stock: /home/rborkows/uni-rnaseq-seed-lab/seed-split-private-v2/baseline/STAR f84493ef8c9a6d39
+integ: /home/rborkows/uni-rnaseq-probe-lab/thp-ablation/private/integrated/STAR ee8ce7d493071f08
