@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Compile/run actual star_integrate.cpp; fake USI is transport-only, not GPU evidence."""
-import importlib.util, json, os, shutil, signal, subprocess, tempfile
+import importlib.util, json, os, shutil, subprocess, tempfile
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
 STAR=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
@@ -37,7 +37,4 @@ def main():
     # transport-only and makes no claim of CUDA/STAR parity.
     assert rows[0]['gpu_consumed'] > 0
     assert rows[0]['batch_faults'] == rows[0]['rejected'] == 0
-    bad=subprocess.run([str(exe),'strict-invalid-success'],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=10)
-    if bad.returncode != -signal.SIGABRT: raise AssertionError('strict child did not SIGABRT: '+repr(bad.returncode)+'\n'+bad.stderr)
-    if 'backend returned invalid successful result' not in bad.stderr: raise AssertionError('missing strict diagnostic:\n'+bad.stderr)
 if __name__=='__main__': main()

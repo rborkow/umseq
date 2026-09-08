@@ -36,7 +36,9 @@ constexpr uint64_t INITIAL_KIND = 1;
 constexpr uint64_t MAX_WINDOW_READS = 32768;
 constexpr uint64_t MAX_WINDOW_CANDIDATES = 262144;
 constexpr uint64_t MAX_WINDOW_BYTES = 128ULL * 1024 * 1024;
-constexpr uint64_t CANDIDATE_BUDGET_BYTES = 512;
+// A V3 chain carries one 472-byte result plus its immutable CPU key.  Keep the
+// producer's admission accounting larger than that live pair.
+constexpr uint64_t CANDIDATE_BUDGET_BYTES = 768;
 constexpr uint64_t MAX_INFLIGHT_REQUESTS = 8ULL * 1024 * 1024;
 constexpr uint64_t MAX_INFLIGHT_BYTES = 4ULL * 1024 * 1024 * 1024;
 constexpr uint64_t MAX_PENDING_REQUESTS = MAX_WINDOW_CANDIDATES;
@@ -56,6 +58,9 @@ void set_chain(uint64_t piece, uint64_t fragment, uint64_t istart,
                uint64_t piece_start, uint64_t piece_length,
                uint64_t split_count);
 void reverse_suppressed(uint64_t piece);
+// Called only by STAR's original flagDirMap-clearing branch.  The V3 device bit
+// is a cross-check; STAR remains the source of the flag mutation.
+void note_flag_clear();
 void end_chunk();
 bool setup(const Parameters &, const Genome &);
 bool enabled();
@@ -64,8 +69,8 @@ bool enabled();
 extern bool fast_enabled;
 inline bool enabled_fast() { return fast_enabled; }
 bool lookup(const Parameters &, const Genome &, char **read1, uint64_t read_len,
-            const InnerCall &, uint64_t out_range[2], uint64_t &nrep,
-            uint64_t &maxL);
+            uint64_t shift, const InnerCall &, uint64_t out_range[2],
+            uint64_t &nrep, uint64_t &maxL);
 bool strict();
 [[noreturn]] void fail_strict(const char *message);
 // Strict-mode assertion for the same frame hand-off that feeds the device.

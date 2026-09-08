@@ -37,10 +37,10 @@ int main() {
   assert(actual.size() == 1);
   const auto &a = actual.front();
   assert(a.start == 1 && a.length == 2 && a.low == 0 && a.high == 0 && a.dir &&
-         a.prefix == 0 && a.piece == 7 && a.fragment == 3 && a.distance == 0 &&
-         a.nstart == 2 && a.lstart == 5 && a.istart == 1 && a.generation == 0 &&
-         a.piece_start == 0 && a.piece_length == 0 && a.kind == 0 &&
-         a.read_id == 0 && a.index_epoch == 0);
+         a.prefix == p.seedMapMin && a.piece == 7 && a.fragment == 3 &&
+         a.distance == 0 && a.nstart == 2 && a.lstart == 5 && a.istart == 1 &&
+         a.generation == 0 && a.piece_start == 0 && a.piece_length == 0 &&
+         a.kind == 0 && a.read_id == 0 && a.index_epoch == 0);
   // No SAindex content can change admission now.
   actual.clear();
   assert(star_integrate::append_prefix_call(p, 1, 2, 0, 7, 3, 2, 5, 1, actual));

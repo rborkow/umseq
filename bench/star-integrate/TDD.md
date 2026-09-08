@@ -106,3 +106,12 @@ per-frame 40,000-job consumption scan.
   Mac fmt/clippy/workspace tests pass. CUDA grid, strict 20M per-step + Read1,
   GPU/CPU Tier 0 cmp and measured V2/thread/warp gathers/s remain pending Spark.
   Exact ABI, raw-pointer lifetime and Terra handoff: `bench/PHASE2C-integrate-v2-t4.md`.
+
+- **P2C-INTEGRATE-V2-T4B (2026-09-07):** V3 host integration submits one
+  88-byte request per `(read, piece, dir, istart)` chain and retains a
+  per-chain, per-step cursor through the 472-byte result. The consumer rejects
+  whole nonzero-status chains before a STAR effect, checks each returned shift,
+  runs the full generated stock body in strict mode for every consumed step,
+  and cross-checks (but never assigns from) the device flagDirMap bit. The
+  coordinator fixture continues to cover positional completion and is extended
+  with V3 records; CUDA/strict-20M/Tier-0 validation remains pending Spark.

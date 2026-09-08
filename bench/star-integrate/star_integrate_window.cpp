@@ -92,6 +92,9 @@ bool append_prefix_call(const Parameters &p, uint piece_start,
   InnerCall call = {};
   call.start = piece_start;
   call.length = piece_length;
+  // V3 uses this otherwise-unused producer field to retain the exact STAR
+  // seedMapMin value with the chain metadata.
+  call.prefix = p.seedMapMin;
   call.dir = dir_r;
   call.piece = piece;
   call.fragment = fragment;

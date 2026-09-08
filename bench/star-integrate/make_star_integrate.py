@@ -20,7 +20,7 @@ def patch(rio,name,text):
         text=once(rio,text,'    genomeMain.genomeLoad();\n','    genomeMain.genomeLoad();\n    star_integrate::setup(P, genomeMain);\n')
         return once(rio,text,'    delete P.inOut; // to close files\n\n    return 0;','    delete P.inOut; // to close files\n\n    star_integrate::finish();\n    star_integrate_work::finish();\n    return 0;')
     if name=='ReadAlign_maxMappableLength2strands.cpp':
-        # V2 consumes above STAR's prefix block: the device owns ind1, SAi and
+        # V3 consumes whole chains above STAR's prefix block: the device owns ind1, SAi and
         # branch selection, while the stock outer body remains the fallback and
         # strict oracle.
         text='#include "star_integrate.hpp"\n#include "star_integrate_work.hpp"\n#include <cstdio>\n'+text
@@ -111,7 +111,7 @@ def patch(rio,name,text):
         // Only the enabled arm reaches this per-candidate frame/key lookup.
         starIntegrateCall=star_integrate::build_current_inner_call(starIntegrateCall);
         uint64_t starIntegrateRange[2]={0,0}, starIntegrateNrep=0, starIntegrateMaxL=0;
-        const bool starIntegrateHit=star_integrate::lookup(P,mapGen,Read1,(uint64_t)Lread,starIntegrateCall,starIntegrateRange,starIntegrateNrep,starIntegrateMaxL);
+        const bool starIntegrateHit=star_integrate::lookup(P,mapGen,Read1,(uint64_t)Lread,(uint64_t)pieceStartIn,starIntegrateCall,starIntegrateRange,starIntegrateNrep,starIntegrateMaxL);
         if (starIntegrateHit) {
             Nrep=starIntegrateNrep; maxL=starIntegrateMaxL;
             indStartEnd[0]=starIntegrateRange[0]; indStartEnd[1]=starIntegrateRange[1];
@@ -119,7 +119,7 @@ def patch(rio,name,text):
                 const uint gpuN=Nrep, gpuL=maxL, gpu0=indStartEnd[0], gpu1=indStartEnd[1];
                 if (!star_integrate::strict_read1(Read1,(uint64_t)Lread)) star_integrate::fail_strict("Read1 frame hand-off mismatch");
                 starIntegrateStockOuter(); // full stock ind1 -> walk -> branch -> search oracle
-                if (gpuN!=Nrep || gpuL!=maxL || gpu0!=indStartEnd[0] || gpu1!=indStartEnd[1]) star_integrate::fail_strict("V2 outer result mismatch");
+                if (gpuN!=Nrep || gpuL!=maxL || gpu0!=indStartEnd[0] || gpu1!=indStartEnd[1]) star_integrate::fail_strict("V3 outer result mismatch");
                 Nrep=gpuN; maxL=gpuL; indStartEnd[0]=gpu0; indStartEnd[1]=gpu1;
             }
         } else {
@@ -268,7 +268,7 @@ def patch(rio,name,text):
                       '                        if (starIntegrateEnabled) star_integrate::set_chain(ip, splitR[2][ip], istart, Nstart, Lstart, Lmapped, splitR[0][ip], splitR[1][ip], Nsplit);\n'+call)
         if '                            flagDirMap=false;\n' in text:
             text=once(rio,text,'                            flagDirMap=false;\n',
-                      '                            flagDirMap=false;\n                            if (starIntegrateEnabled) star_integrate::reverse_suppressed(ip);\n')
+                      '                            flagDirMap=false;\n                            if (starIntegrateEnabled) { star_integrate::note_flag_clear(); star_integrate::reverse_suppressed(ip); }\n')
         return text
     if name=='Makefile':
         return once(rio,text,'ReadAlign_maxMappableLength2strands.o binarySearch2.o\\\n','ReadAlign_maxMappableLength2strands.o binarySearch2.o star_integrate.o star_integrate_window.o star_integrate_work.o sha256.o\\\n')

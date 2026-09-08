@@ -43,7 +43,7 @@ enum JobState : uint8_t { COMPLETE = 1, VALID = 2, CONSUMED = 4, RETIRED = 8 };
 struct Job {
   WindowRead *frame;
   InnerCall *call;
-  ProbeOutputV2 out;
+  ProbeOutputV3 out;
   ProbeStats stats;
   std::atomic<uint8_t> state;
   Job(WindowRead *f = nullptr, InnerCall *c = nullptr)
@@ -78,16 +78,17 @@ struct Window {
   std::vector<size_t> cursors;
   size_t next_frame;
   uint64_t charged_bytes, charged_requests;
-  uint64_t consumed, misses, prefix_only, unique, searched, suppressed_unused,
-      other_unused, rejected, cpu_fallback, read1_fallback, hit_bytes,
-      hit_gathers, unused_bytes, unused_gathers;
+  uint64_t consumed, steps_consumed, misses, prefix_only, unique, searched,
+      suppressed_unused, other_unused, rejected, cpu_fallback, read1_fallback,
+      hit_bytes, hit_gathers, unused_bytes, unused_gathers;
   ProbeStats consumed_stats, suppressed_stats, other_stats;
   Window()
       : next_frame(0), charged_bytes(0), charged_requests(0), consumed(0),
-        misses(0), prefix_only(0), unique(0), searched(0), suppressed_unused(0),
-        other_unused(0), rejected(0), cpu_fallback(0), read1_fallback(0),
-        hit_bytes(0), hit_gathers(0), unused_bytes(0), unused_gathers(0),
-        consumed_stats(), suppressed_stats(), other_stats() {}
+        steps_consumed(0), misses(0), prefix_only(0), unique(0), searched(0),
+        suppressed_unused(0), other_unused(0), rejected(0), cpu_fallback(0),
+        read1_fallback(0), hit_bytes(0), hit_gathers(0), unused_bytes(0),
+        unused_gathers(0), consumed_stats(), suppressed_stats(), other_stats() {
+  }
 };
 // One producer (the mapping thread which owns a window) and one consumer
 // (coordinator).  A full ring is a CPU-only admission result, never a wait.
@@ -123,17 +124,23 @@ struct Visits {
         positional_misses(0) {}
 };
 struct Totals {
-  uint64_t batches, submitted, gpu_consumed, cpu_tails, misses, prefix_only,
-      unique, searched, suppressed_unused, other_unused, rejected, faults,
-      cpu_fallback, read1_fallback, coordinator_wakeups, hit_bytes, hit_gathers,
-      unused_bytes, unused_gathers;
+  uint64_t batches, submitted, chains_submitted, chains_consumed,
+      steps_consumed, chain_overflow, chain_max_steps, chain_no_progress,
+      chain_rejected_other, shift_mismatch, flag_mismatch, step_count_mismatch,
+      gpu_consumed, cpu_tails, misses, prefix_only, unique, searched,
+      suppressed_unused, other_unused, rejected, faults, cpu_fallback,
+      read1_fallback, coordinator_wakeups, hit_bytes, hit_gathers, unused_bytes,
+      unused_gathers;
   std::vector<uint64_t> batch_sizes, fill_wait_us;
   uint64_t chain_length_hist[64];
   ProbeStats submitted_stats, consumed_stats, suppressed_stats, other_stats,
       rejected_stats;
   Totals()
-      : batches(0), submitted(0), gpu_consumed(0), cpu_tails(0), misses(0),
-        prefix_only(0), unique(0), searched(0), suppressed_unused(0),
+      : batches(0), submitted(0), chains_submitted(0), chains_consumed(0),
+        steps_consumed(0), chain_overflow(0), chain_max_steps(0),
+        chain_no_progress(0), chain_rejected_other(0), shift_mismatch(0),
+        flag_mismatch(0), step_count_mismatch(0), gpu_consumed(0), cpu_tails(0),
+        misses(0), prefix_only(0), unique(0), searched(0), suppressed_unused(0),
         other_unused(0), rejected(0), faults(0), cpu_fallback(0),
         read1_fallback(0), coordinator_wakeups(0), hit_bytes(0), hit_gathers(0),
         unused_bytes(0), unused_gathers(0), submitted_stats(), consumed_stats(),
@@ -172,6 +179,11 @@ thread_local std::shared_ptr<Window> current_window;
 thread_local WindowRead *current_frame = nullptr;
 thread_local size_t current_index = 0;
 thread_local ChainContext chain;
+thread_local Job *chain_job = nullptr;
+thread_local uint64_t chain_cursor = 0;
+thread_local bool chain_rejected = false;
+thread_local bool chain_stock_clear = false;
+State &S();
 // Per-chain outer-call count (every maxMappableLength2strands call of one
 // (read, piece, dir, istart) chain, including prefix-only/unique steps). A
 // chain starts at lmapped == 0; its length is flushed at the next chain start
@@ -185,6 +197,22 @@ void flush_chain() {
     ++chain_hist[chain_steps < CHAIN_HIST_BINS ? chain_steps
                                                : CHAIN_HIST_BINS - 1];
     chain_steps = 0;
+  }
+}
+void finish_active_chain() {
+  if (!chain_job || chain_rejected)
+    return;
+  const ProbeOutputV3 &o = chain_job->out;
+  if (chain_cursor != o.n_steps) {
+    ++S().totals.step_count_mismatch;
+    if (strict())
+      fail_strict("V3 chain step count mismatch");
+  }
+  const bool device_clear = o.flag_dir_map_cleared != 0;
+  if (chain_stock_clear != device_clear) {
+    ++S().totals.flag_mismatch;
+    if (strict())
+      fail_strict("V3 flagDirMap cross-check mismatch");
   }
 }
 thread_local SpscQueue *worker_queue = nullptr;
@@ -287,9 +315,8 @@ void resolve_cpu(Job &j) {
     ;
 }
 bool valid_result(const Job &j) {
-  const ProbeOutput &o = j.out.inner;
-  return o.status == 0 && o.low <= o.high && o.count == o.high - o.low + 1 &&
-         o.length <= j.call->length && j.out.branch >= 1 && j.out.branch <= 3;
+  const ProbeOutputV3 &o = j.out;
+  return o.status == 0 && o.n_steps <= PROBE_CHAIN_CAPACITY;
 }
 void retire(Job &j, bool suppressed) {
   const uint8_t before = j.state.fetch_or(RETIRED, std::memory_order_acq_rel);
@@ -315,8 +342,8 @@ void dispatch(std::vector<Job *> jobs) {
   State &s = S();
   std::vector<uint8_t> reads;
   std::unordered_map<WindowRead *, std::pair<uint64_t, uint64_t>> offsets;
-  std::vector<ProbeRequestV2> req(jobs.size());
-  std::vector<ProbeOutputV2> out(jobs.size());
+  std::vector<ProbeRequestV3> req(jobs.size());
+  std::vector<ProbeOutputV3> out(jobs.size());
   std::vector<ProbeStats> stats(jobs.size());
   for (size_t i = 0; i < jobs.size(); ++i) {
     Job &j = *jobs[i];
@@ -332,17 +359,28 @@ void dispatch(std::vector<Job *> jobs) {
     }
     const InnerCall &c = *j.call;
     ++s.visits.dispatched_jobs;
-    req[i] = {{1, at->second.first, at->second.second,
-               (uint64_t)j.frame->a.size(), c.start, c.length, 0, 0, 0, c.dir},
-              0};
+    ProbeRequestV3 q = {};
+    q.s0 = at->second.first;
+    q.s1 = at->second.second;
+    q.read_len = j.frame->a.size();
+    q.piece_start = c.piece_start;
+    q.piece_length = c.piece_length;
+    q.istart = c.istart;
+    q.nstart = c.nstart;
+    q.lstart = c.lstart;
+    q.dir = c.dir;
+    q.seed_map_min = c.prefix;
+    q.max_steps = PROBE_CHAIN_CAPACITY;
+    req[i] = q;
   }
   UsiErrorV1 e = {};
-  int32_t rc = usi_search_batch_v2(s.ctx, s.epoch, reads.data(), reads.size(),
+  int32_t rc = usi_search_batch_v3(s.ctx, s.epoch, reads.data(), reads.size(),
                                    req.data(), jobs.size(), out.data(),
                                    stats.data(), &e);
   std::lock_guard<std::mutex> lock(s.mu);
   ++s.totals.batches;
   s.totals.submitted += jobs.size();
+  s.totals.chains_submitted += jobs.size();
   s.totals.batch_sizes.push_back(jobs.size());
   if (rc) {
     ++s.totals.faults;
@@ -367,8 +405,17 @@ void dispatch(std::vector<Job *> jobs) {
       if (!valid) {
         add_stats(s.totals.rejected_stats, j.stats);
         ++s.totals.rejected;
-        if (strict())
-          strict_fail("backend returned invalid successful result");
+        if (j.out.status == 9)
+          ++s.totals.chain_overflow;
+        else if (j.out.status == 10)
+          ++s.totals.chain_max_steps;
+        else if (j.out.status == 11)
+          ++s.totals.chain_no_progress;
+        else
+          ++s.totals.chain_rejected_other;
+        // Rejected chains deliberately fall back as a whole; strict compares
+        // the stock body at each step rather than treating transport rejection
+        // as a fatal result.
       }
     }
 #endif
@@ -460,6 +507,8 @@ void merge_window(const Window &w) {
   State &s = S();
   std::lock_guard<std::mutex> lock(s.mu);
   s.totals.gpu_consumed += w.consumed;
+  s.totals.chains_consumed += w.consumed;
+  s.totals.steps_consumed += w.steps_consumed;
   s.totals.misses += w.misses;
   s.totals.prefix_only += w.prefix_only;
   s.totals.unique += w.unique;
@@ -483,6 +532,7 @@ void merge_window(const Window &w) {
 void close_window() {
   if (!current_window)
     return;
+  finish_active_chain();
   for (size_t i = 0; i < current_window->jobs.size(); ++i)
     retire(current_window->jobs[i], false);
   merge_window(*current_window);
@@ -490,6 +540,10 @@ void close_window() {
   current_frame = nullptr;
   current_index = 0;
   chain = ChainContext();
+  chain_job = nullptr;
+  chain_cursor = 0;
+  chain_rejected = false;
+  chain_stock_clear = false;
 }
 void sidecar(const State &s) {
   const char *p = getenv("STAR_INTEGRATE_SIDECAR");
@@ -500,6 +554,16 @@ void sidecar(const State &s) {
   f << "{\"mode\":\"" << (s.enabled ? "enabled" : "cpu-bypass")
     << "\",\"batches\":" << t.batches << ",\"submitted\":" << t.submitted
     << ",\"gpu_consumed\":" << t.gpu_consumed
+    << ",\"chains_submitted\":" << t.chains_submitted
+    << ",\"chains_consumed\":" << t.chains_consumed
+    << ",\"steps_consumed\":" << t.steps_consumed
+    << ",\"chain_overflow\":" << t.chain_overflow
+    << ",\"chain_max_steps\":" << t.chain_max_steps
+    << ",\"chain_no_progress\":" << t.chain_no_progress
+    << ",\"chain_rejected_other\":" << t.chain_rejected_other
+    << ",\"shift_mismatch\":" << t.shift_mismatch
+    << ",\"flag_mismatch\":" << t.flag_mismatch
+    << ",\"step_count_mismatch\":" << t.step_count_mismatch
     << ",\"cpu_tails\":" << t.cpu_tails << ",\"key_misses\":" << t.misses
     << ",\"prefix_only\":" << t.prefix_only << ",\"unique\":" << t.unique
     << ",\"searched\":" << t.searched
@@ -760,9 +824,14 @@ void submit_window(std::vector<WindowRead> &&frames) {
 #endif
 }
 void begin_map(ReadAlign &ra) {
+  finish_active_chain();
   flush_chain();
   current_frame = nullptr;
   chain = ChainContext();
+  chain_job = nullptr;
+  chain_cursor = 0;
+  chain_rejected = false;
+  chain_stock_clear = false;
   if (!current_window ||
       current_window->next_frame >= current_window->frames.size())
     return;
@@ -806,12 +875,22 @@ void set_chain(uint64_t piece, uint64_t fragment, uint64_t istart,
   chain.nstart = nstart;
   chain.lstart = lstart;
   chain.lmapped = lmapped;
-  if (!lmapped)
+  if (!lmapped) {
+    finish_active_chain();
     flush_chain();
+    chain_job = nullptr;
+    chain_cursor = 0;
+    chain_rejected = false;
+    chain_stock_clear = false;
+  }
   ++chain_steps;
   chain.piece_start = piece_start;
   chain.piece_length = piece_length;
   chain.split_count = split_count;
+}
+void note_flag_clear() {
+  if (chain_job && !chain_rejected)
+    chain_stock_clear = true;
 }
 void reverse_suppressed(uint64_t piece) {
   if (!current_window || !current_frame)
@@ -834,13 +913,14 @@ void end_chunk() {
   }
 }
 bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
-            const InnerCall &in, uint64_t out[2], uint64_t &nrep,
-            uint64_t &maxL) {
+            uint64_t shift, const InnerCall &in, uint64_t out[2],
+            uint64_t &nrep, uint64_t &maxL) {
 #if !STAR_INTEGRATE
   (void)p;
   (void)g;
   (void)r;
   (void)len;
+  (void)shift;
   (void)in;
   (void)out;
   (void)nrep;
@@ -848,8 +928,8 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
   return false;
 #else
   if (!current_window || !current_frame || !r || !r[0] || !r[1] || !len ||
-      len > read_cap || chain.piece == ~uint64_t(0) || chain.lmapped ||
-      chain.istart >= 2 || !same_index(g) || !admitted(p, g))
+      len > read_cap || chain.piece == ~uint64_t(0) || chain.istart >= 2 ||
+      !same_index(g) || !admitted(p, g))
     return false;
   const uint64_t mate_length =
       current_frame->mate1_len
@@ -866,21 +946,40 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
   size_t &cursor = current_window->cursors[current_index];
   // Suppressed reverse candidates are never visited by STAR.  Retire them
   // before selecting the next positional initial-start candidate.
-  while (cursor < range.last &&
-         (current_window->jobs[cursor].state.load(std::memory_order_acquire) &
-          RETIRED))
-    ++cursor;
-  if (cursor == range.last) {
+  Job *jp = chain_job;
+  if (!chain.lmapped) {
+    while (cursor < range.last &&
+           (current_window->jobs[cursor].state.load(std::memory_order_acquire) &
+            RETIRED))
+      ++cursor;
+    if (cursor == range.last) {
+      ++current_window->misses;
+      ++S().visits.positional_misses;
+      return false;
+    }
+    jp = &current_window->jobs[cursor++];
+    chain_job = jp;
+    chain_cursor = 0;
+  }
+  if (!jp) {
     ++current_window->misses;
-    ++S().visits.positional_misses;
     return false;
   }
-  Job &j = current_window->jobs[cursor++];
+  Job &j = *jp;
   ++S().visits.lookup_jobs;
   const InnerCall &c = *j.call;
-  const bool quick_match = c.start == in.start && c.length == in.length &&
-                           c.dir == in.dir && c.piece == chain.piece &&
-                           c.istart == chain.istart;
+  const bool initial = chain.lmapped == 0;
+  const bool quick_match =
+      c.dir == in.dir && c.piece == chain.piece && c.istart == chain.istart &&
+      (!initial || (c.start == in.start && c.length == in.length));
+  const bool immutable_match =
+      c.generation == in.generation && c.index_epoch == in.index_epoch &&
+      c.read_id == in.read_id && c.piece == in.piece &&
+      c.fragment == in.fragment && c.istart == in.istart &&
+      c.nstart == in.nstart && c.lstart == in.lstart &&
+      c.piece_start == in.piece_start && c.piece_length == in.piece_length &&
+      c.kind == in.kind && c.worker == in.worker && c.chunk == in.chunk &&
+      c.mate_context == in.mate_context && c.split_context == in.split_context;
   if (!quick_match || c.generation != current_frame->generation ||
       c.index_epoch != S().epoch || current_frame->index_epoch != S().epoch ||
       in.generation != c.generation || in.index_epoch != c.index_epoch ||
@@ -889,40 +988,58 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
       c.istart != chain.istart || c.nstart != chain.nstart ||
       c.lstart != chain.lstart || c.piece_start != chain.piece_start ||
       c.piece_length != chain.piece_length || c.kind != INITIAL_KIND ||
-      in.kind != c.kind || c.distance != in.distance ||
+      in.kind != c.kind || (initial && c.distance != in.distance) ||
       in.fragment != c.fragment || c.worker != current_frame->worker ||
       c.chunk != current_frame->chunk || c.worker != in.worker ||
       c.chunk != in.chunk || c.mate_context != in.mate_context ||
-      c.split_context != in.split_context || !same_call(c, in)) {
+      c.split_context != in.split_context ||
+      (initial ? !same_call(c, in) : !immutable_match)) {
     ++current_window->misses;
     ++S().visits.positional_misses;
     return false;
   }
   uint8_t state = j.state.load(std::memory_order_acquire);
-  if ((state & (CONSUMED | RETIRED)) || !(state & COMPLETE) ||
-      !(state & VALID)) {
+  if ((state & RETIRED) || !(state & COMPLETE) || !(state & VALID)) {
     ++current_window->misses;
+    chain_rejected = true;
     return false;
   }
-  out[0] = j.out.inner.low;
-  out[1] = j.out.inner.high;
-  nrep = j.out.inner.count;
-  maxL = j.out.inner.length;
-  while (!(state & (CONSUMED | RETIRED)) &&
-         !j.state.compare_exchange_weak(state, state | CONSUMED,
-                                        std::memory_order_acq_rel,
-                                        std::memory_order_acquire))
-    ;
-  if (state & (CONSUMED | RETIRED)) {
+  if (chain_cursor >= j.out.n_steps || j.out.steps[chain_cursor].status != 0) {
     ++current_window->misses;
+    chain_rejected = true;
     return false;
   }
-  ++current_window->consumed;
-  if (j.out.branch == 1)
+  const ProbeStepV3 &step = j.out.steps[chain_cursor];
+  if (step.shift != shift) {
+    ++S().totals.shift_mismatch;
+    if (strict())
+      strict_fail("V3 step shift mismatch");
+    chain_rejected = true;
+    return false;
+  }
+  out[0] = step.low;
+  out[1] = step.high;
+  nrep = step.nrep;
+  maxL = step.max_l;
+  ++chain_cursor;
+  if (chain_cursor == 1) {
+    while (!(state & (CONSUMED | RETIRED)) &&
+           !j.state.compare_exchange_weak(state, state | CONSUMED,
+                                          std::memory_order_acq_rel,
+                                          std::memory_order_acquire))
+      ;
+    if (state & (CONSUMED | RETIRED)) {
+      ++current_window->misses;
+      return false;
+    }
+    ++current_window->consumed;
+  }
+  ++current_window->steps_consumed;
+  if (step.branch == 1)
     ++current_window->prefix_only;
-  else if (j.out.branch == 2)
+  else if (step.branch == 2)
     ++current_window->unique;
-  else if (j.out.branch == 3)
+  else if (step.branch == 3)
     ++current_window->searched;
   current_window->hit_bytes += j.stats.bytes;
   current_window->hit_gathers += j.stats.gathers;

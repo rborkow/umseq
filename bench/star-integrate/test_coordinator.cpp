@@ -85,7 +85,7 @@ void map_and_check(uint64_t ordinal) {
   star_integrate::InnerCall probe = call(ordinal, 1, false);
   star_integrate::set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
   star_integrate::begin_map(wrong);
-  assert(!star_integrate::lookup(p, g, reads, 4, probe, range, nrep,
+  assert(!star_integrate::lookup(p, g, reads, 4, 0, probe, range, nrep,
                                  maxl)); // ordinal
   star_integrate::begin_map(ra);
   assert(star_integrate::current_generation() != 0);
@@ -96,18 +96,18 @@ void map_and_check(uint64_t ordinal) {
   assert(star_integrate::same_call(
       *star_integrate::current_window->jobs[1].call, probe));
   star_integrate::reverse_suppressed(77);
-  assert(!star_integrate::lookup(p, g, bad_reads, 4, probe, range, nrep,
+  assert(!star_integrate::lookup(p, g, bad_reads, 4, 0, probe, range, nrep,
                                  maxl)); // bytes
   star_integrate::set_chain(7, 3, 1, 2, 5, 1, 0, 4, 1);
-  assert(!star_integrate::lookup(p, g, reads, 4, probe, range, nrep,
+  assert(!star_integrate::lookup(p, g, reads, 4, 0, probe, range, nrep,
                                  maxl)); // adaptive Lmapped
   star_integrate::set_chain(7, 3, 2, 3, 5, 0, 0, 4, 1);
-  assert(!star_integrate::lookup(p, g, reads, 4, probe, range, nrep,
+  assert(!star_integrate::lookup(p, g, reads, 4, 0, probe, range, nrep,
                                  maxl)); // higher start
   star_integrate::set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
-  assert(star_integrate::lookup(p, g, reads, 4, probe, range, nrep, maxl));
+  assert(star_integrate::lookup(p, g, reads, 4, 0, probe, range, nrep, maxl));
   assert(range[0] == 10 && range[1] == 20 && nrep == 11 && maxl == 4);
-  assert(!star_integrate::lookup(p, g, reads, 4, probe, range, nrep,
+  assert(!star_integrate::lookup(p, g, reads, 4, 0, probe, range, nrep,
                                  maxl)); // repeated key is a positional miss
   assert(!star_integrate::window_remaining()); // EOF / retirement
 }
@@ -219,7 +219,7 @@ void generated_key_hook() {
   generated = star_integrate::build_current_inner_call(generated);
   assert(star_integrate::same_call(
       *star_integrate::current_window->jobs[0].call, generated));
-  assert(star_integrate::lookup(fixture_p, fixture_g, reads, 4, generated,
+  assert(star_integrate::lookup(fixture_p, fixture_g, reads, 4, 0, generated,
                                 range, nrep, maxl));
   assert(star_integrate::current_window->consumed == 1);
   assert(star_integrate::current_window->misses == 0);
@@ -263,12 +263,15 @@ void positional_shuffled_completion() {
   for (size_t n = 0; n != w->jobs.size(); ++n) {
     const size_t i = (n * 37) % w->jobs.size();
     star_integrate::Job &j = w->jobs[i];
-    j.out.inner.length = j.call->length;
-    j.out.inner.low = j.call->low;
-    j.out.inner.high = j.call->high;
-    j.out.inner.count = j.out.inner.high - j.out.inner.low + 1;
-    j.out.inner.status = 0;
-    j.out.branch = 3;
+    j.out.n_steps = 1;
+    j.out.steps[0].shift = j.call->start;
+    j.out.steps[0].max_l = j.call->length;
+    j.out.steps[0].low = j.call->low;
+    j.out.steps[0].high = j.call->high;
+    j.out.steps[0].nrep = j.out.steps[0].high - j.out.steps[0].low + 1;
+    j.out.steps[0].branch = 3;
+    j.out.steps[0].status = 0;
+    j.out.status = 0;
     j.state.store(star_integrate::COMPLETE | star_integrate::VALID);
   }
   star_integrate::current_window = w;
@@ -285,7 +288,7 @@ void positional_shuffled_completion() {
     c.low = 10 + i;
     c.high = 20 + i;
     c = star_integrate::build_current_inner_call(c);
-    assert(star_integrate::lookup(fixture_p, fixture_g, reads, 4, c, range,
+    assert(star_integrate::lookup(fixture_p, fixture_g, reads, 4, 0, c, range,
                                   nrep, maxl));
     assert(range[0] == 10 + i && range[1] == 20 + i && nrep == 11 && maxl == 4);
   }
@@ -319,21 +322,25 @@ extern "C" int32_t usi_destroy_v2(UsiPrefixContext **ctx, UsiErrorV1 *e) {
   std::memset(e, 0, sizeof(*e));
   return 0;
 }
-extern "C" int32_t usi_search_batch_v2(UsiPrefixContext *, uint64_t,
+extern "C" int32_t usi_search_batch_v3(UsiPrefixContext *, uint64_t,
                                        const uint8_t *, uint64_t,
-                                       const ProbeRequestV2 *req, uint64_t n,
-                                       ProbeOutputV2 *out, ProbeStats *stats,
+                                       const ProbeRequestV3 *req, uint64_t n,
+                                       ProbeOutputV3 *out, ProbeStats *stats,
                                        UsiErrorV1 *e) {
   ++backend_calls;
   std::memset(e, 0, sizeof(*e));
   for (uint64_t i = 0; i < n; ++i) {
-    out[i].inner.length =
-        invalid_success ? req[i].inner.length + 1 : req[i].inner.length;
-    out[i].inner.low = 10;
-    out[i].inner.high = 20;
-    out[i].inner.count = 11;
-    out[i].inner.status = 0;
-    out[i].branch = 3;
+    out[i].n_steps = invalid_success ? PROBE_CHAIN_CAPACITY + 1 : 1;
+    // Fixture records use deliberately tiny synthetic geometry; the generated
+    // hook's current Shift is their piece_start.
+    out[i].steps[0].shift = req[i].piece_start;
+    out[i].steps[0].max_l = req[i].piece_length;
+    out[i].steps[0].low = 10;
+    out[i].steps[0].high = 20;
+    out[i].steps[0].nrep = 11;
+    out[i].steps[0].branch = 3;
+    out[i].steps[0].status = 0;
+    out[i].status = 0;
     stats[i].bytes = 4;
     stats[i].gathers = 1;
   }
