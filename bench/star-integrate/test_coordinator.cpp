@@ -305,7 +305,8 @@ void strict_invalid_success() {
   star_integrate::WindowRead f = frame(3);
   star_integrate::Job j(&f, &f.candidates[1]);
   std::vector<star_integrate::Job *> jobs(1, &j);
-  star_integrate::dispatch(jobs);
+  star_integrate::DispatchScratch scratch;
+  star_integrate::dispatch(jobs, scratch);
   assert(false && "strict invalid backend success must abort");
 }
 } // namespace

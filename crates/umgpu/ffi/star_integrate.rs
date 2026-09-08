@@ -168,6 +168,19 @@ fn valid_range<T>(p: *const T, bytes: usize) -> bool {
 fn checked_bytes(n: u64, w: usize) -> Option<usize> {
     usize::try_from(n).ok()?.checked_mul(w)
 }
+/// Batch buffers grow geometrically with headroom. Every `probe_allocate`
+/// pays a full `/proc/self/smaps` walk of the process (19% of the coordinator
+/// thread in round 7, plus 14% in `munmap` of the buffer it replaced): with
+/// exact-fit sizing each slightly larger batch re-allocated all four buffers.
+fn grown(have: Option<usize>, need: usize) -> Option<usize> {
+    match have {
+        Some(len) if len >= need => None,
+        _ => Some(
+            need.max(have.unwrap_or(0).saturating_mul(2))
+                .max(need + need / 4),
+        ),
+    }
+}
 impl Owned {
     fn prepare(
         &mut self,
@@ -176,18 +189,19 @@ impl Owned {
         ob: usize,
         sb: usize,
     ) -> Result<BatchBuffers, String> {
-        if self.reads.as_ref().is_none_or(|b| b.len() < rb) {
-            self.reads = Some(probe_allocate(rb, false, "USI-reads").map_err(|e| e.to_string())?);
+        if let Some(len) = grown(self.reads.as_ref().map(|b| b.len()), rb) {
+            self.reads = Some(probe_allocate(len, false, "USI-reads").map_err(|e| e.to_string())?);
         }
-        if self.requests.as_ref().is_none_or(|b| b.len() < nb) {
+        if let Some(len) = grown(self.requests.as_ref().map(|b| b.len()), nb) {
             self.requests =
-                Some(probe_allocate(nb, false, "USI-requests").map_err(|e| e.to_string())?);
+                Some(probe_allocate(len, false, "USI-requests").map_err(|e| e.to_string())?);
         }
-        if self.output.as_ref().is_none_or(|b| b.len() < ob) {
-            self.output = Some(probe_allocate(ob, false, "USI-output").map_err(|e| e.to_string())?);
+        if let Some(len) = grown(self.output.as_ref().map(|b| b.len()), ob) {
+            self.output =
+                Some(probe_allocate(len, false, "USI-output").map_err(|e| e.to_string())?);
         }
-        if self.stats.as_ref().is_none_or(|b| b.len() < sb) {
-            self.stats = Some(probe_allocate(sb, false, "USI-stats").map_err(|e| e.to_string())?);
+        if let Some(len) = grown(self.stats.as_ref().map(|b| b.len()), sb) {
+            self.stats = Some(probe_allocate(len, false, "USI-stats").map_err(|e| e.to_string())?);
         }
         Ok(BatchBuffers {
             reads: self.reads.take().expect("allocated reads"),
@@ -720,5 +734,25 @@ mod tests {
         let code = unsafe { usi_destroy_v1(error.cast::<*mut UsiContext>(), error) };
         assert_eq!(code, BAD);
         assert!(storage.iter().all(|&x| x == 0xa5a5_a5a5_a5a5_a5a5));
+    }
+}
+
+#[cfg(test)]
+mod grown_tests {
+    use super::grown;
+    #[test]
+    fn reuse_when_large_enough() {
+        assert_eq!(grown(Some(100), 100), None);
+        assert_eq!(grown(Some(100), 80), None);
+    }
+    #[test]
+    fn first_allocation_has_headroom() {
+        assert_eq!(grown(None, 100), Some(125));
+    }
+    #[test]
+    fn growth_is_geometric_not_exact_fit() {
+        // Round 7: 75,395,392 → 75,396,336 re-allocated a 75 MB buffer for 944 bytes.
+        assert_eq!(grown(Some(75_395_392), 75_396_336), Some(150_790_784));
+        assert!(grown(Some(100), 1000) == Some(1250));
     }
 }

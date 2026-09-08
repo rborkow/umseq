@@ -7,6 +7,8 @@ exec 9>"$HOME/.cache/uni-rnaseq-resource.lock"; flock 9
 rm -rf "$P"; mkdir -p "$P"
 SRC=$O/integrate-source-v1
 cp "$SRC/bench/star-integrate/star_integrate.cpp" "$G/private/integrated/star_integrate.cpp" 2>/dev/null || true
+export PATH=/usr/local/cuda/bin:$HOME/.cargo/bin:$PATH
+(cd "$SRC" && CARGO_TARGET_DIR=$G/target cargo build -q -p umstar --release --features cuda > "$P/cargo.log" 2>&1) || { echo "CARGO-FAIL"; tail -5 "$P/cargo.log"; echo CENSUS-DONE; exit 0; }
 cd "$G/private/integrated" && make -j4 STAR CXX=$(which g++) "CXXFLAGSextra=-DSTAR_INTEGRATE=1 -I$SRC/bench/star-integrate" "LDFLAGSextra=$G/target/release/libumstar.a -L/usr/local/cuda/lib64 -Wl,-rpath,/usr/local/cuda/lib64 -lcudart -ldl -lm -lrt" CXXFLAGS_SIMD= > "$P/make.log" 2>&1 || { echo "BUILD-FAIL"; tail -5 "$P/make.log"; echo CENSUS-DONE; exit 0; }
 ARGV=$(python3 - "$G/stages/integrated.argv.json" <<'EOF'
 import json,sys

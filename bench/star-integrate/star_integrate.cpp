@@ -432,17 +432,34 @@ void retire(Job &j, bool suppressed) {
     add_stats(current_window->other_stats, j.stats);
   }
 }
-void dispatch(std::vector<Job *> jobs) {
+// Coordinator-thread scratch, reused across batches. Fresh per-batch vectors
+// (75 MB of 472-byte outputs alone) were malloc'd, page-faulted and munmap'd
+// every batch: 14% of the coordinator thread in round 7.
+struct DispatchScratch {
+  std::vector<uint8_t> reads;
+  std::unordered_map<WindowRead *, std::pair<uint64_t, uint64_t>> offsets;
+  std::vector<ProbeRequestV3> req;
+  std::vector<ProbeOutputV3> out;
+  std::vector<ProbeStats> stats;
+};
+void dispatch(const std::vector<Job *> &jobs, DispatchScratch &d) {
 #if !STAR_INTEGRATE
+  (void)d;
   for (size_t i = 0; i < jobs.size(); ++i)
     resolve_cpu(*jobs[i]);
 #else
   State &s = S();
-  std::vector<uint8_t> reads;
-  std::unordered_map<WindowRead *, std::pair<uint64_t, uint64_t>> offsets;
-  std::vector<ProbeRequestV3> req(jobs.size());
-  std::vector<ProbeOutputV3> out(jobs.size());
-  std::vector<ProbeStats> stats(jobs.size());
+  std::vector<uint8_t> &reads = d.reads;
+  std::unordered_map<WindowRead *, std::pair<uint64_t, uint64_t>> &offsets =
+      d.offsets;
+  std::vector<ProbeRequestV3> &req = d.req;
+  std::vector<ProbeOutputV3> &out = d.out;
+  std::vector<ProbeStats> &stats = d.stats;
+  reads.clear();
+  offsets.clear();
+  req.resize(jobs.size());
+  out.resize(jobs.size());
+  stats.resize(jobs.size());
   for (size_t i = 0; i < jobs.size(); ++i) {
     Job &j = *jobs[i];
     std::unordered_map<WindowRead *, std::pair<uint64_t, uint64_t>>::iterator
@@ -523,6 +540,7 @@ void coordinator_main() {
   State &s = S();
   std::vector<Job *> fill;
   std::vector<std::shared_ptr<Window>> owners;
+  DispatchScratch scratch;
   std::chrono::steady_clock::time_point fill_started;
   bool filling = false, previous_drained = false;
   for (;;) {
@@ -565,7 +583,7 @@ void coordinator_main() {
          (previous_drained || fill_age_us >= FILL_MAX_US))) {
       const uint64_t wait_us = fill_age_us;
       if (enabled)
-        dispatch(std::move(fill));
+        dispatch(fill, scratch);
       else {
         for (size_t i = 0; i < fill.size(); ++i)
           resolve_cpu(*fill[i]);
