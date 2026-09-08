@@ -27,6 +27,11 @@ struct Args {
     /// Mac/stub check: the raw-host launch must return Unsupported, never a fake rate.
     #[arg(long)]
     cpu_only: bool,
+    /// Also run the V3 (whole-chain) raw-host kernel over the same borrowed
+    /// allocation, each request as a one-step chain; step 0 must equal the
+    /// STAR tuple. Discriminates a V3 raw-host defect from a STAR-process one.
+    #[arg(long)]
+    v3: bool,
 }
 fn config(path: &PathBuf) -> Result<ProbeConfigV2> {
     let b = fs::read(path)?;
@@ -339,6 +344,90 @@ fn main() -> Result<()> {
                 + anon_huge(sa.as_ptr(), sa.len())
                 + anon_huge(si.as_ptr(), si.len())
         );
+        if a.v3 {
+            let seed_map_min = 5u64;
+            let chains: Vec<umgpu::ProbeRequestV3> = qs
+                .iter()
+                .map(|q| umgpu::ProbeRequestV3 {
+                    s0: q.inner.s0,
+                    s1: q.inner.s1,
+                    read_len: q.inner.read_len,
+                    piece_start: if q.inner.dir == 1 {
+                        q.inner.start
+                    } else {
+                        q.inner.start + 1 - q.inner.length
+                    },
+                    piece_length: q.inner.length,
+                    istart: 0,
+                    nstart: 1,
+                    lstart: q.inner.length,
+                    dir: q.inner.dir,
+                    seed_map_min,
+                    max_steps: 1,
+                })
+                .collect();
+            let mut v3_ms = 0f32;
+            let mut ok = 0usize;
+            for (bi, q) in chains.chunks(262144).enumerate() {
+                let n = q.len();
+                let mut rb = probe_allocate(cap.reads.len(), false, "borrowed-reads")?;
+                rb.as_mut_slice().copy_from_slice(cap.reads.as_slice());
+                let mut qb = probe_allocate(n * 88, false, "borrowed-requests")?;
+                qb.as_pod_mut_slice::<umgpu::ProbeRequestV3>()[..n].copy_from_slice(q);
+                let ob = probe_allocate(n * 472, false, "borrowed-output")?;
+                let sb = probe_allocate(n * 48, false, "borrowed-stats")?;
+                let r = rb.freeze().lease(&uc);
+                let qq = qb.freeze().lease(&uc);
+                let o = ob.lease(&uc);
+                let s = sb.lease(&uc);
+                let z = unsafe {
+                    umgpu::seed_probe_v3_raw_host(
+                        &ctx,
+                        (g.as_ptr(), g.len()),
+                        (sa.as_ptr(), sa.len()),
+                        (si.as_ptr(), si.len()),
+                        &r,
+                        cap.reads.len(),
+                        &qq,
+                        &o,
+                        &s,
+                        c,
+                        n,
+                        umgpu::ProbeVariant::Thread,
+                    )
+                };
+                let x = umgpu::seed_probe_reclaim(
+                    &ctx,
+                    vec![r.erase(), qq.erase(), o.erase(), s.erase()],
+                )
+                .map_err(|e| anyhow!(e))?;
+                let mut x = x.into_iter();
+                let _r = ro(x.next().unwrap());
+                let _q = ro(x.next().unwrap());
+                let o = rw(x.next().unwrap());
+                let _s = rw(x.next().unwrap());
+                v3_ms += z.map_err(|e| anyhow!(e.to_string()))?;
+                for (j, out) in o.as_pod_slice::<umgpu::ProbeOutputV3>()[..n]
+                    .iter()
+                    .enumerate()
+                {
+                    let w = want[bi * 262144 + j];
+                    if out.status == 0
+                        && out.n_steps >= 1
+                        && out.steps[0].max_l == w.length
+                        && out.steps[0].low == w.low
+                        && out.steps[0].high == w.high
+                        && out.steps[0].nrep == w.count
+                    {
+                        ok += 1;
+                    }
+                }
+            }
+            println!(
+                "v3_raw_host\tevent_ms\t{v3_ms:.3}\tstep0_match\t{ok}\tof\t{}",
+                chains.len()
+            );
+        }
     }
     println!(
         "arm\t{}\tgathers\t{}\tevent_ms\t{total_ms:.3}\tgathers_per_s\t{:.4e}\twall_s\t{:.3}\tvm_rss_bytes\t{}",
