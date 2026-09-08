@@ -1,0 +1,7 @@
+PROBE annotation_SJ_count=621870 overhang=100 sjdbInsertSave=Some("Basic"); retained on-disk bytes, no mapping-time insertion
+PROBE resident_snapshot_sha256 Genome=44c54824a99ddcde29eee65ed77e1896adc2a75ecc4979a2096f3beb6040b0f6
+PROBE resident_snapshot_sha256 SA=dc08616e0b01a8c1f9713e71a4eaf8d2354e559a4e1146aa294b3fbc507663d5
+PROBE resident_snapshot_sha256 SAindex=975941953bc1348047b81799ca639ccb5e880faf0a04a3c640d065bdad1c620e
+PROBE nGenome=3263383838 nSA=6146003510 GstrandBit=32 GstrandMask=0xfffffffeffffffff SAiMarkNmask=0xfffffffdffffffff SAiMarkAbsentMask=0xfffffffbffffffff SA_SEARCH_FULL; seedSearchLmax=0 unlimited
+arm	umem	gathers	9925160	event_ms	12.680	gathers_per_s	7.8272e8	wall_s	73.471	vm_rss_bytes	640577536
+time 74.94 s wall 40.36 user 16.42 sys 30444180 KiB maxrss

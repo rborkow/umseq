@@ -364,3 +364,28 @@ STAR's own arrays, no second copy; drop the index files' page cache after STAR's
 (`posix_fadvise(DONTNEED)`). Expected: RSS ~66 → ~34 GB, setup → seconds, and the GPU arm's
 mapping-phase number becomes measurable with V3 for the first time. Until then round 6's
 mapping-phase CPU-s cannot be quoted.
+
+## T5B part 1 — the borrowed index (`probe_borrowed`, three arms, real corpus)
+
+Evidence: `bench/evidence/integrate-1-host/probe-borrowed-{umem,borrowed,borrowed-madvise}.txt`.
+Same 999,914 real requests, V2 kernel, **every tuple identical to the STAR sidecar in all
+three arms**. Index loaded STAR-style (plain anonymous allocation, file read into it) in the
+two borrowed arms; today's `probe_load` second copy in the control.
+
+| arm | gathers/s | vs umem | load wall | sys CPU-s |
+|---|---|---|---|---|
+| `umem` (second resident copy, today) | 7.83e8 | — | 73 s | 16.4 |
+| borrowed, 4K pages | 9.06e6 | 0.012× | 42 s | 16.5 |
+| **borrowed + `MADV_HUGEPAGE` before first touch** | **7.81e8** | **1.00×** | **25 s** | **3.7** |
+
+- The GPU gathers from the aligner's own arrays at the full `umem` rate. No copy, no
+  registration, no staging — T6's HMM/ATS finding applied to memory we don't allocate.
+- Ordering is the whole trick: `madvise` must precede population. The first run advised
+  *after* `fs::read` and got the 4K rate (0.012×, matching P2C-SEED-GPU-PROBE's 4K control).
+  STAR's `new char[]` + `fread` has the same shape, so the `genomeLoad` patch is: advise
+  right after `new`, before the read.
+- `index_anon_huge_bytes` printed 0 in the madvise arm — a smaps-parse defect in the probe
+  (the 86× rate is the evidence it took); to fix, not to argue about.
+- This removes the second 30 GB copy that put the box at `MemFree 0` for 50 s in every round
+  (round 6 timeline). Expected in the integrated STAR: RSS ~66 → ~34 GB, setup → STAR's own
+  load, and a valid V3 mapping-phase measurement for the first time.

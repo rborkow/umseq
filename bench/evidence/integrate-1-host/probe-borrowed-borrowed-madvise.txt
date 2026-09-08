@@ -1,0 +1,3 @@
+index_anon_huge_bytes	0
+arm	borrowed-madvise	gathers	9925160	event_ms	12.716	gathers_per_s	7.8054e8	wall_s	25.232	vm_rss_bytes	623079424
+time 26.43 s wall 0.49 user 3.73 sys 30424304 KiB maxrss
