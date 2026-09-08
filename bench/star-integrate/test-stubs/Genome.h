@@ -1,6 +1,11 @@
 #ifndef STAR_INTEGRATE_TEST_GENOME_H
 #define STAR_INTEGRATE_TEST_GENOME_H
 #include <cstdint>
+// STAR IncludeDefine.h:50 `#define uint unsigned long long` (a macro, so it also
+// overrides the BSD `typedef unsigned int uint` that macOS <sys/types.h> provides).
+#ifndef uint
+#define uint unsigned long long
+#endif
 class Genome {
 public:
   struct {
