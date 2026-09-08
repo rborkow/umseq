@@ -135,12 +135,13 @@ impl PrefixSession {
             return Err("empty prefix read arena".into());
         }
         let n = requests.len();
-        let mut b = self.owned.prepare(reads.len(), n * 88, n * 48, n * 48)?;
-        b.reads.as_mut_slice()[..reads.len()].copy_from_slice(reads);
-        b.requests.as_pod_mut_slice::<ProbeRequestV2>()[..n].copy_from_slice(requests);
+        // Borrowed index: dispatch before taking the batch buffers (see V3 note).
         if let PrefixIndex::Borrowed { genome, sa, sai } = &self.index {
             return self.search_borrowed_v2(epoch, reads, requests, *genome, *sa, *sai);
         }
+        let mut b = self.owned.prepare(reads.len(), n * 88, n * 48, n * 48)?;
+        b.reads.as_mut_slice()[..reads.len()].copy_from_slice(reads);
+        b.requests.as_pod_mut_slice::<ProbeRequestV2>()[..n].copy_from_slice(requests);
         let PrefixIndex::Owned(index) = &mut self.index else {
             unreachable!()
         };
@@ -230,12 +231,15 @@ impl PrefixSession {
             return Err("empty prefix read arena".into());
         }
         let n = requests.len();
-        let mut b = self.owned.prepare(reads.len(), n * 88, n * 472, n * 48)?;
-        b.reads.as_mut_slice()[..reads.len()].copy_from_slice(reads);
-        b.requests.as_pod_mut_slice::<ProbeRequestV3>()[..n].copy_from_slice(requests);
+        // Borrowed index: dispatch before taking the batch buffers, so the
+        // borrowed path's own `prepare` reuses them (taking them here and
+        // dropping `b` on return re-allocated ~240 MB of THP per batch).
         if let PrefixIndex::Borrowed { genome, sa, sai } = &self.index {
             return self.search_borrowed_v3(epoch, reads, requests, variant, *genome, *sa, *sai);
         }
+        let mut b = self.owned.prepare(reads.len(), n * 88, n * 472, n * 48)?;
+        b.reads.as_mut_slice()[..reads.len()].copy_from_slice(reads);
+        b.requests.as_pod_mut_slice::<ProbeRequestV3>()[..n].copy_from_slice(requests);
         let PrefixIndex::Owned(index) = &mut self.index else {
             unreachable!()
         };

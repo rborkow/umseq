@@ -10,7 +10,10 @@ import shutil
 import subprocess
 import time
 
-CUTOFF = 1788836400
+# Wall-clock authorization deadline (epoch). The seed lane's 20:00 PDT 2026-09-07 cutoff
+# was retired when the user authorized INTEGRATE v2 ('one more swing' → 'proceed with the
+# tasks'); override with INTEGRATE_CUTOFF if a new one is set.
+CUTOFF = int(os.environ.get('INTEGRATE_CUTOFF', '4102444800'))
 LAB = Path.home() / 'uni-rnaseq-probe-lab'
 PINNED = Path.home() / 'uni-rnaseq-seed-lab/real-index-input-2.7.11b/source'
 OLD = LAB / 'real-requests-host1'
