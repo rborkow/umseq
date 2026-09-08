@@ -1559,3 +1559,133 @@ pub unsafe fn seed_probe_v2_raw_host(
     })?;
     Ok(ms)
 }
+
+/// Synchronous whole-chain prefix probe borrowing the caller's ATS-accessible index,
+/// without registration.
+/// # Safety
+/// Caller owns G (including 200-byte guards), packed SA and SAi for the entire call.
+/// genome.0 is STAR G-200, NOT logical G; genome.1 must cover nGenome+400 bytes.
+/// SA must include the final unaligned 8-byte packed load. They must be readable,
+/// immutable, ATS-accessible host allocations of the supplied extents and remain alive
+/// until a successful drain. If drain fails, retain them until context/device teardown
+/// confirms no outstanding work. SAi may be the packed payload with config.sai_offset=0.
+/// Batch storage remains checked umem leases.
+#[allow(clippy::too_many_arguments)]
+pub unsafe fn seed_probe_v3_raw_host(
+    ctx: &Context,
+    genome: (*const u8, usize),
+    sa: (*const u8, usize),
+    sai: (*const u8, usize),
+    reads: &GpuLease<umem::Ro>,
+    read_bytes: usize,
+    requests: &GpuLease<umem::Ro>,
+    output: &GpuLease<Rw>,
+    stats: &GpuLease<Rw>,
+    config: crate::ProbeConfigV2,
+    n: usize,
+    variant: crate::ProbeVariant,
+) -> Result<f32, Error> {
+    ctx.activate()?;
+    let c = config.inner;
+    if ctx.host_register
+        || ctx.props.pageable_memory_access_uses_host_page_tables != 1
+        || n == 0
+        || n > 4_000_000
+        || !(32..=53).contains(&c.strand_bit)
+        || c.n_genome == 0
+        || c.n_genome > (8 << 30)
+        || c.n_sa == 0
+        || c.n_sa > (64u64 << 30) / 4
+        || config.sai_bytes > sai.1 as u64
+        || read_bytes == 0
+        || read_bytes > reads.len()
+    {
+        return Err(Error::InvalidInput("PROBE V3 config/count/ATS domain"));
+    }
+    for (pointer, len, needed) in [
+        (genome.0, genome.1, c.n_genome as usize + 400),
+        (
+            sa.0,
+            sa.1,
+            ((c.n_sa - 1) * (c.strand_bit + 1) / 8 + 8) as usize,
+        ),
+        (sai.0, sai.1, config.sai_bytes as usize),
+    ] {
+        if pointer.is_null()
+            || len < needed
+            || len > isize::MAX as usize
+            || (pointer as usize).checked_add(len).is_none()
+        {
+            return Err(Error::InvalidInput("PROBE raw index extent"));
+        }
+    }
+    ctx.check_lease(reads, "PROBE V3 reads", read_bytes)?;
+    ctx.check_lease(
+        requests,
+        "PROBE V3 requests",
+        n * size_of::<crate::ProbeRequestV3>(),
+    )?;
+    ctx.check_lease(
+        output,
+        "PROBE V3 output",
+        n * size_of::<crate::ProbeOutputV3>(),
+    )?;
+    ctx.check_lease(stats, "PROBE V3 stats", n * size_of::<crate::ProbeStats>())?;
+    // SAFETY: caller's index lifetime covers G/SA/SAi; batch leases are checked
+    // and remain alive through the synchronous drain.
+    let (g, sa_p, sai_p, r, q, o, s) = unsafe {
+        (
+            genome.0,
+            sa.0,
+            sai.0,
+            reads.as_ptr(),
+            requests.as_ptr(),
+            output.as_ptr(),
+            stats.as_ptr(),
+        )
+    };
+    let ranges = [
+        (g as usize, genome.1),
+        (sa_p as usize, sa.1),
+        (sai_p as usize, sai.1),
+        (r as usize, reads.len()),
+        (q as usize, requests.len()),
+        (o as usize, output.len()),
+        (s as usize, stats.len()),
+    ];
+    for i in 5..7 {
+        for j in 0..i {
+            if ranges[i].0 < ranges[j].0.saturating_add(ranges[j].1)
+                && ranges[j].0 < ranges[i].0.saturating_add(ranges[i].1)
+            {
+                return Err(Error::InvalidInput("PROBE V3 writable overlap"));
+            }
+        }
+    }
+    if [q as usize, o as usize, s as usize]
+        .iter()
+        .any(|p| p % 8 != 0)
+    {
+        return Err(Error::InvalidInput("PROBE V3 record alignment"));
+    }
+    let mut ms = 0.0;
+    // SAFETY: checked extents/leases remain live until the shim synchronously drains.
+    check(unsafe {
+        umgpu_seed_probe_v3(
+            g,
+            sa_p,
+            sai_p,
+            r,
+            read_bytes,
+            q.cast(),
+            n,
+            config,
+            o.cast(),
+            s.cast(),
+            variant as u32,
+            &mut ms,
+            ctx.default_stream().raw,
+        )
+    })?;
+    Ok(ms)
+}

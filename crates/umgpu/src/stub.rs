@@ -260,6 +260,28 @@ pub unsafe fn seed_probe_v2_raw_host(
 ) -> Result<f32, Error> {
     Err(Error::Unsupported)
 }
+
+/// Raw host whole-chain prefix probe requires CUDA.
+/// # Safety
+/// Caller index allocations must remain immutable and live through drain; on
+/// uncertain drain retain them until device teardown. See CUDA implementation.
+#[allow(clippy::too_many_arguments)]
+pub unsafe fn seed_probe_v3_raw_host(
+    _ctx: &Context,
+    _genome: (*const u8, usize),
+    _sa: (*const u8, usize),
+    _sai: (*const u8, usize),
+    _reads: &umem::GpuLease<umem::Ro>,
+    _read_bytes: usize,
+    _requests: &umem::GpuLease<umem::Ro>,
+    _output: &umem::GpuLease<umem::Rw>,
+    _stats: &umem::GpuLease<umem::Rw>,
+    _config: crate::ProbeConfigV2,
+    _n: usize,
+    _variant: crate::ProbeVariant,
+) -> Result<f32, Error> {
+    Err(Error::Unsupported)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
