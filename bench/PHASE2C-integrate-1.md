@@ -547,3 +547,56 @@ and `Transcript` copy-construction (11%) — STAR's own per-read allocation faul
 `submit_window` (13%); the review correctly notes the substring classifier is not evidence
 (28.8% of kernel leaves were `[unknown]`). Next: `perf` with the privilege field, GPU vs
 advice-on bypass, same 8M, per thread.
+
+## Round 7c — sys attribution, miss classification, and the window pool (LAT 1a)
+
+Evidence: `bench/evidence/integrate-1-host/gpu-sys.txt` (perf by DSO, GPU vs advised-bypass,
+8M), `malloc-disq.txt`; cards `P2C-INTEGRATE-V2-MISS`, `-LAT`.
+
+**Where the GPU arm's +41 s sys goes** (8M, 20 thr, classified by perf's DSO field — the
+review's objection to the substring classifier stands and was acted on): kernel share
+3.3% (bypass) → 9.0% (GPU), evenly across the 20 mapping threads. The user-space frame
+beneath the kernel samples:
+
+| share of GPU-arm kernel samples | user frame | meaning |
+|---|---|---|
+| 34.3% | `__memcpy_sve` ← `submit_window` ← `prepare_window` | first-touch faulting of a fresh window |
+| 17.8% | `__munmap` ← `cfree` ← `Window::~Window` | that window's death |
+| 15.7% + 7.6% + 6.9% | `writev` / `read` ← `basic_filebuf` | STAR's own SAM/FASTQ I/O (present in bypass too) |
+| 4.8% | `submit_window` self | — |
+
+Kernel leaves `_raw_spin_*`, `__pi_clear_page`, `page_counter_cancel`, `folio_remove_rmap_ptes`,
+`do_page_fault`. Half the excess is a window being born and dying: `jobs` is up to 262,144 ×
+544 B = 142 MB, above glibc's mmap threshold, so every window is a fresh mapping (~1,000 per
+20M run).
+
+**Disqualifier before the fix** (`malloc-disq.txt`): GPU arm at 8M with
+`MALLOC_MMAP_THRESHOLD_=MALLOC_TRIM_THRESHOLD_=1 GB` (keep the windows inside the heap, no
+mmap/munmap) — sys 37.4/32.0 → 32.2/30.5 s, user unchanged. **A few seconds, not the 20 the
+mmap story predicted.** So the cost is the first touch of ~140 MB of fresh pages per
+window (`clear_page`, the rmap/memcg bookkeeping), which the heap pays as well as `mmap`
+does; only *reusing* the object avoids it. That is LAT item 1a, landed (Terra): a per-worker
+pool of up to 8 `Window`s behind a `shared_ptr` custom deleter; `jobs`/`ranges`/`cursors`
+keep their capacity across windows; the admission charge is still released exactly once
+(an `active` flag, since the object now outlives its charge). Round 8 measures it.
+
+**Why 12% of chains fall back** (`gpu-sys.txt`, MISS counters at 20M, strict off):
+
+| reason | chains |
+|---|---|
+| `not_ready` — mapping thread reached the read before its GPU result existed | **5,352,457** |
+| ↳ window still in the SPSC ring (`queued`) | 2,673,947 |
+| ↳ popped, batch filling | 182,421 |
+| ↳ dispatched, draining | 2,496,089 |
+| `chain_rejected_residue` — later steps of the chains above | 2,011,115 |
+| `key_mismatch`, `positional_exhausted`, `device_stopped`, `read_bytes`, `no_job`, `shift`, `cas_lost`, `no_window` | **0** |
+
+The identity contract is exact and the device never stops a chain early. Every recoverable
+miss is the producer racing the coordinator on the window it just submitted: the first
+reads of each window are consumed before the batch has been popped, let alone drained.
+Two levers, in order of cost: submit at a lower floor / age-out sooner when a queue is
+non-empty (coordinator-only), or have each producer consume one window behind the one it
+last submitted (`prepare_window` would peek two windows ahead of STAR's stream position;
+the frame↔read match is by ordinal so the bookkeeping is already safe; the rewind
+distance is the thing to verify — Terra declined it without a stream fixture, correctly).
+Round 8's `not_ready_where` decides which.
