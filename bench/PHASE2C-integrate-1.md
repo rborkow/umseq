@@ -389,3 +389,75 @@ two borrowed arms; today's `probe_load` second copy in the control.
 - This removes the second 30 GB copy that put the box at `MemFree 0` for 50 s in every round
   (round 6 timeline). Expected in the integrated STAR: RSS ~66 → ~34 GB, setup → STAR's own
   load, and a valid V3 mapping-phase measurement for the first time.
+
+## Round 7 (INTEGRATE v2 T5C + coordinator fixes, `92471bf`..HEAD): borrowed index, gate passed, first valid whole-chain timing
+
+Evidence: `integrate-gate-host22/` (gate i, V3 whole-chain contract, strict per-step oracle,
+borrowed index), `integrate-timing-host10/` (3 rotated repeats × 3 arms),
+`bench/evidence/integrate-1-host/{timing-round7-raw.tsv,gate-round7-host22.json,
+timing-round7-r1-gpu-stats.jsonl,round7-*.log}`.
+
+**Gate (i)**: `PARITY_MATCH` (ninth; 53,710,530 records), whole chain on the device, GPU
+gathering from **STAR's own `G`/`SA`/`SAi` arrays** — no second index copy, `setup_wall_s`
+0.34 (was 60–90), `index_anon_huge_bytes` 30.2 GB inside STAR's process. 160.0M chains
+submitted, **140.7M consumed (88%)**, 193.8M steps strict-verified, zero shift/flag/step-count
+mismatches, `cpu_tails` 0, 8.0M key misses (5%).
+
+| arm (20M, 20 thr, 3 rotated repeats) | startup | mapping wall | user | sys | user+sys | max RSS |
+|---|---|---|---|---|---|---|
+| stock | 7–24 s | 47–49 s | 723 | 31.5 | **754.6** | 31.2 GB |
+| integrated, hooks bypassed (= stock + `MADV_HUGEPAGE` on the index) | 2–25 s | 40–41 s | 643 | 18.9 | **661.9 (−12.3%)** | 31.2 GB |
+| integrated, GPU on | 24–30 s | **40 s** | **593** | 62.1 | **654.7 (−13.2%)** | 33.6 GB |
+
+Raw rows (`timing-round7-raw.tsv`): stock 725.20/27.09, 722.15/35.20, 721.91/32.16; bypass
+643.75/18.43, 643.69/17.36, 641.55/20.92; gpu 591.86/62.34, 591.53/64.59, 594.62/59.24.
+
+### Two results, and the comparator matters
+
+1. **`MADV_HUGEPAGE` on STAR's index alone is −12.3% CPU-s** (user −80, sys −12.6), with no
+   GPU involved. The bypass arm is the T5A verbatim-stock loop (round 5b: +1.8% vs stock) plus
+   T5C's generator patch: `madvise` after each `new char[]` in `genomeLoad`, before the read.
+   Three repeats each, 641–644 vs 722–725 user. STAR's seed search is TLB-bound on a 30 GB
+   index at 4K pages; 2 MB pages fix that on the CPU as much as they did for the GPU (T5B:
+   0.012× → 1.00×). A one-line patch to stock STAR, portable, needs nothing from this lane.
+2. **The GPU seed search on top of that: −1.1% CPU-s vs the huge-page baseline** (−7.8% user,
+   +43 s sys). Against stock it reads −13.2%, but stock is the wrong comparator now: the
+   memo-grade number for the GPU is the increment over (1), and that is marginal today.
+   If the 43 s of sys excess is removable (it is not the index copy any more — setup is
+   0.34 s; not profiled yet), the GPU arm is 611.6 = −7.6% vs the huge-page baseline,
+   −19.0% vs stock. Profile before believing that.
+
+Against the gates: gate (iii) target ≥ −12% STAR CPU-s. **Met against stock (−13.2%)**; the
+GPU's own share of it is −1.1%. Both numbers go in the memo, labelled.
+
+### What round 7 took (four host-side bugs, none in the kernel)
+
+The strict oracle had verified every chain step since round 6; every failure between round 6
+and this table was plumbing between STAR and the GPU, and all four were invisible until the
+borrowed index removed the memory noise that had been masking them.
+
+| bug | symptom | fix |
+|---|---|---|
+| `finish()` after `genomeMain.freeMemory()` | CUDA 700 at 20M, sanitizer-clean at 200k (the drain won the race) | `finish()` moved before `freeMemory()` in the generated `STAR.cpp`; order pinned by test |
+| window split across the 262,144 batch cap | tail never dispatched nor CPU-resolved: 76% of chains missed | `pop_if_fits`: a window is popped whole or waits; RED/GREEN test |
+| admission charge released at `close_window()` | producer closed windows the coordinator still held: 146 live windows / 18.8M queued against a 0.5 GB "charge"; RSS +2.7 GB per M reads (91 GB, `earlyoom`) | charge released by the `Window` destructor (last owner); `STAR_INTEGRATE_MEMLOG` census |
+| coordinator 450 ms/batch host-side vs ~3 ms kernel | one thread could not keep 20 producers fed: 40% consumed at 4M | exact-fit batch buffers re-allocated per batch, each `probe_allocate` walking `/proc/self/smaps` (19% of the thread) and `munmap`ing its predecessor (14%); geometric growth + reused dispatch scratch + `search_chains_into` (no `to_vec`) |
+
+Census at 4M reads, 20 threads (`round7-v3-census*.log`): batches 88 → 158 → 200; chains
+consumed 5.9M → 14.3M → 28.3M (88%); key misses 32.2M → 1.4M; queued at end 11M → 0;
+coordinator wakeups 3 → 632 (it sleeps now; the producers are the bottleneck); peak RSS
+42.7 → 35.1 GB; CPU-s 167.8 → 135.2.
+
+Disqualified on the way: glibc arena retention (`MALLOC_ARENA_MAX=1` made peak RSS *worse*,
+72.5 GB) and the strict oracle (strict on/off identical at 47.9/47.6 GB).
+
+### Open
+
+- The GPU arm's +43 s sys over the huge-page baseline: profile (`perf` per-thread, as for the
+  coordinator). Candidates: the remaining per-batch `smaps` reads at buffer growth (few),
+  GPU-driver page-table work on ATS access to 2 MB host pages, `cuStreamSynchronize` spin.
+- 12% of chains still fall back (8M key misses at 20M) — not the coordinator any more; a
+  per-miss reason count is the next sidecar field.
+- `posix_fadvise(DONTNEED)` after load evicts the index from page cache, so the *next* run's
+  startup re-reads 30 GB (the 24–30 s startups above). Correct for a one-shot; for the
+  timing harness it penalises whichever arm follows. Wall-time claims wait on that.
