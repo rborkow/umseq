@@ -36,6 +36,12 @@ class PatchGuard(unittest.TestCase):
   gen=(ROOT/'make_star_integrate.py').read_text()
   self.assertIn('starIntegrateCall.prefix=P.seedMapMin',gen)
   self.assertIn('call.prefix = p.seedMapMin',(ROOT/'star_integrate_window.cpp').read_text())
+  # Borrowed index lifetime: star_integrate::finish() must run before
+  # genomeMain.freeMemory() in the generated STAR.cpp (the GPU gathers from
+  # STAR's own arrays; a drain after free is a CUDA 700).
+  self.assertIn('star_integrate::finish(); // joins the coordinator',gen)
+  new=gen[gen.index('star_integrate::finish(); // joins the coordinator'):]
+  self.assertLess(new.index('star_integrate::finish()'),new.index('genomeMain.freeMemory();'))
  def test_real_call_patch_has_oracle_and_cpu_fallback(self):
   class R:
    def replace_once(self,t,o,n):

@@ -27,7 +27,14 @@ def patch(rio,name,text):
     if name=='STAR.cpp':
         text=once(rio,text,'#include "parametersDefault.xxd"\n','#include "parametersDefault.xxd"\n#include "star_integrate.hpp"\n#include "star_integrate_work.hpp"\n')
         text=once(rio,text,'    genomeMain.genomeLoad();\n','    genomeMain.genomeLoad();\n    star_integrate::setup(P, genomeMain);\n')
-        return once(rio,text,'    delete P.inOut; // to close files\n\n    return 0;','    delete P.inOut; // to close files\n\n    star_integrate::finish();\n    star_integrate_work::finish();\n    return 0;')
+        # The borrowed index is STAR's own G/SA/SAi; genomeMain.freeMemory() (STAR.cpp:247)
+        # deletes them right after mapping. The coordinator must have joined and the
+        # context been destroyed BEFORE that, or an in-flight drain reads freed memory
+        # (host19: CUDA 700 at 20M; sanitizer-clean at 200k because the drain won the race).
+        # Every read's chain is consumed synchronously inside mapChunk, so nothing on the
+        # GPU is needed once mapping has finished.
+        text=once(rio,text,'    // no need for genome anymore, free the memory\n    genomeMain.freeMemory();','    // no need for genome anymore, free the memory\n    star_integrate::finish(); // joins the coordinator; the GPU never touches G/SA/SAi after this\n    genomeMain.freeMemory();')
+        return once(rio,text,'    delete P.inOut; // to close files\n\n    return 0;','    delete P.inOut; // to close files\n\n    star_integrate_work::finish();\n    return 0;')
     if name=='ReadAlign_maxMappableLength2strands.cpp':
         # V3 consumes whole chains above STAR's prefix block: the device owns ind1, SAi and
         # branch selection, while the stock outer body remains the fallback and
