@@ -88,6 +88,8 @@ void map_and_check(uint64_t ordinal) {
   star_integrate::begin_map(wrong);
   assert(!star_integrate::lookup(p, g, reads, 4, 0, probe, range, nrep,
                                  maxl)); // ordinal
+  assert(star_integrate::current_window
+             ->miss_reasons[star_integrate::MISS_NO_WINDOW] == 1);
   star_integrate::begin_map(ra);
   assert(star_integrate::current_generation() != 0);
   star_integrate::set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
@@ -106,10 +108,26 @@ void map_and_check(uint64_t ordinal) {
   assert(!star_integrate::lookup(p, g, reads, 4, 0, probe, range, nrep,
                                  maxl)); // higher start
   star_integrate::set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
+  star_integrate::InnerCall mismatched = probe;
+  ++mismatched.distance;
+  assert(!star_integrate::lookup(p, g, reads, 4, 0, mismatched, range, nrep,
+                                 maxl));
+  assert(star_integrate::current_window
+             ->miss_reasons[star_integrate::MISS_KEY_MISMATCH] == 1);
+  star_integrate::current_window->cursors[star_integrate::current_index] =
+      star_integrate::current_window->ranges[star_integrate::current_index]
+          .first +
+      1;
+  star_integrate::set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
   assert(star_integrate::lookup(p, g, reads, 4, 0, probe, range, nrep, maxl));
   assert(range[0] == 10 && range[1] == 20 && nrep == 11 && maxl == 4);
+  star_integrate::current_window->cursors[star_integrate::current_index] =
+      star_integrate::current_window->ranges[star_integrate::current_index]
+          .last;
   assert(!star_integrate::lookup(p, g, reads, 4, 0, probe, range, nrep,
                                  maxl)); // repeated key is a positional miss
+  assert(star_integrate::current_window
+             ->miss_reasons[star_integrate::MISS_POSITIONAL_EXHAUSTED] == 1);
   assert(!star_integrate::window_remaining()); // EOF / retirement
 }
 void normal() {
@@ -156,10 +174,10 @@ void normal() {
     assert(s.totals.gpu_consumed > 0);
     assert(s.totals.suppressed_unused > 0 && s.pending.empty() &&
            s.pending_bytes == 0);
-    // Two mapped frames and one exact candidate lookup per frame: no scan of
-    // 40K frame jobs is permitted at consumption.
+    // Two mapped frames, one exact lookup, key mismatch, and positional
+    // exhaustion per frame: no scan of 40K frame jobs is permitted.
     assert(s.visits.frame_cursor == 2 && s.visits.lookup_jobs == 4 &&
-           s.visits.positional_misses == 2);
+           s.visits.positional_misses == 4);
     assert(s.visits.dispatched_jobs == dispatched &&
            s.visits.frame_offsets <= 2);
     // Two 40K windows cross the notification floor at most once before the
@@ -220,10 +238,24 @@ void generated_key_hook() {
   generated = star_integrate::build_current_inner_call(generated);
   assert(star_integrate::same_call(
       *star_integrate::current_window->jobs[0].call, generated));
+  star_integrate::current_window->jobs[0].state.store(
+      0, std::memory_order_relaxed);
+  assert(!star_integrate::lookup(fixture_p, fixture_g, reads, 4, 0, generated,
+                                 range, nrep, maxl));
+  assert(star_integrate::current_window
+             ->miss_reasons[star_integrate::MISS_NOT_READY] == 1);
+  assert(star_integrate::current_window
+             ->not_ready_where[star_integrate::DRAINING] == 1);
+  star_integrate::current_window->jobs[0].state.store(
+      star_integrate::COMPLETE | star_integrate::VALID,
+      std::memory_order_relaxed);
+  star_integrate::set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
+  generated = star_integrate::build_current_inner_call(generated);
   assert(star_integrate::lookup(fixture_p, fixture_g, reads, 4, 0, generated,
                                 range, nrep, maxl));
   assert(star_integrate::current_window->consumed == 1);
-  assert(star_integrate::current_window->misses == 0);
+  assert(star_integrate::current_window
+             ->miss_reasons[star_integrate::MISS_NO_WINDOW] == 0);
   std::puts("generated key hook: consumed=1 key_misses=0");
   star_integrate::finish();
 }

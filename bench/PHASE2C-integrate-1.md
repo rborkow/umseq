@@ -461,3 +461,24 @@ Disqualified on the way: glibc arena retention (`MALLOC_ARENA_MAX=1` made peak R
 - `posix_fadvise(DONTNEED)` after load evicts the index from page cache, so the *next* run's
   startup re-reads 30 GB (the 24–30 s startups above). Correct for a one-shot; for the
   timing harness it penalises whichever arm follows. Wall-time claims wait on that.
+
+### Miss classification (P2C-INTEGRATE-V2-MISS)
+
+The sidecar now keeps `key_misses` as the sum of its nine previously conflated
+consuming lookup failures and reports `no_window` separately, including in
+`miss_reasons`. `not_ready_where` records the coordinator phase observed with
+relaxed diagnostic atomics; `device_stop_status` records both the chain output
+status and the stopping step status as numeric ABI codes.
+
+| reason | implication for a fix | 20M host count |
+|---|---|---:|
+| `read_bytes` | Frame/read hand-off identity or lifetime defect; inspect producer framing, not scheduling. | TBD |
+| `positional_exhausted` | STAR requested more eligible candidates than the frame retained; inspect candidate enumeration/retirement. | TBD |
+| `chain_rejected_residue` | Expected all-CPU remainder after an earlier fallback; fix its first cause, not this residue. | TBD |
+| `no_job` | Chain bookkeeping lost its selected job; inspect initial-chain selection. | TBD |
+| `key_mismatch` | Frozen identity differs from STAR's call; compare key construction and hook context. | TBD |
+| `not_ready` | Producer won the race; `queued`/`filling`/`draining` distinguishes coordinator admission from dispatch/drain latency. | TBD |
+| `device_stopped` | Device terminated the chain; use `device_stop_status` (8 non-ACGT, 9 overflow, 10 max steps, 11 no progress) to choose capacity/input work. | TBD |
+| `shift` | Device result violates the strict shift contract; diagnostic only in non-strict mode, investigate before reuse. | TBD |
+| `cas_lost` | Another path retired or consumed the selected job; inspect competing ownership/retirement. | TBD |
+| `no_window` | Lookup was never admitted/prepared (or is outside its supported start); bounds recoverable coverage before any miss fix. | TBD |

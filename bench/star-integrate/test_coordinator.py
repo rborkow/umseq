@@ -39,4 +39,10 @@ def main():
     # transport-only and makes no claim of CUDA/STAR parity.
     assert rows[0]['gpu_consumed'] > 0
     assert rows[0]['batch_faults'] == rows[0]['rejected'] == 0
+    assert rows[0]['key_misses'] == sum(rows[0]['miss_reasons'][name] for name in (
+      'read_bytes','positional_exhausted','chain_rejected_residue','no_job',
+      'key_mismatch','not_ready','device_stopped','shift','cas_lost'))
+    assert rows[0]['no_window'] == rows[0]['miss_reasons']['no_window']
+    assert set(rows[0]['not_ready_where']) == {'queued','filling','draining'}
+    assert isinstance(rows[0]['device_stop_status'], dict)
 if __name__=='__main__': main()

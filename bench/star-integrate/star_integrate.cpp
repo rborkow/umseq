@@ -41,23 +41,42 @@ static_assert(submit_floor < target && target < cap,
               "v2 admission bounds must preserve the v1 transport floor");
 constexpr size_t queue_slots = 64;
 enum JobState : uint8_t { COMPLETE = 1, VALID = 2, CONSUMED = 4, RETIRED = 8 };
+enum JobPhase : uint8_t { QUEUED, FILLING, DRAINING };
+enum MissReason : size_t {
+  MISS_READ_BYTES,
+  MISS_POSITIONAL_EXHAUSTED,
+  MISS_CHAIN_REJECTED_RESIDUE,
+  MISS_NO_JOB,
+  MISS_KEY_MISMATCH,
+  MISS_NOT_READY,
+  MISS_DEVICE_STOPPED,
+  MISS_SHIFT,
+  MISS_CAS_LOST,
+  MISS_NO_WINDOW,
+  MISS_REASON_COUNT
+};
+constexpr size_t KEY_MISS_REASON_COUNT = MISS_NO_WINDOW;
 struct Job {
   WindowRead *frame;
   InnerCall *call;
   ProbeOutputV3 out;
   ProbeStats stats;
   std::atomic<uint8_t> state;
+  std::atomic<uint8_t> phase;
   Job(WindowRead *f = nullptr, InnerCall *c = nullptr)
-      : frame(f), call(c), out(), stats(), state(0) {}
+      : frame(f), call(c), out(), stats(), state(0), phase(QUEUED) {}
   Job(Job &&o)
       : frame(o.frame), call(o.call), out(o.out), stats(o.stats),
-        state(o.state.load(std::memory_order_relaxed)) {}
+        state(o.state.load(std::memory_order_relaxed)),
+        phase(o.phase.load(std::memory_order_relaxed)) {}
   Job &operator=(Job &&o) {
     frame = o.frame;
     call = o.call;
     out = o.out;
     stats = o.stats;
     state.store(o.state.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+    phase.store(o.phase.load(std::memory_order_relaxed),
                 std::memory_order_relaxed);
     return *this;
   }
@@ -85,16 +104,19 @@ struct Window {
   std::vector<size_t> cursors;
   size_t next_frame;
   uint64_t charged_bytes, charged_requests;
-  uint64_t consumed, steps_consumed, misses, prefix_only, unique, searched,
+  uint64_t consumed, steps_consumed, prefix_only, unique, searched,
       suppressed_unused, other_unused, rejected, cpu_fallback, read1_fallback,
       hit_bytes, hit_gathers, unused_bytes, unused_gathers;
+  uint64_t miss_reasons[MISS_REASON_COUNT], device_stop_status[256],
+      not_ready_where[3];
   ProbeStats consumed_stats, suppressed_stats, other_stats;
   Window()
       : next_frame(0), charged_bytes(0), charged_requests(0), consumed(0),
-        steps_consumed(0), misses(0), prefix_only(0), unique(0), searched(0),
+        steps_consumed(0), prefix_only(0), unique(0), searched(0),
         suppressed_unused(0), other_unused(0), rejected(0), cpu_fallback(0),
         read1_fallback(0), hit_bytes(0), hit_gathers(0), unused_bytes(0),
-        unused_gathers(0), consumed_stats(), suppressed_stats(), other_stats() {
+        unused_gathers(0), miss_reasons(), device_stop_status(),
+        not_ready_where(), consumed_stats(), suppressed_stats(), other_stats() {
     live_windows.fetch_add(1, std::memory_order_relaxed);
     windows_created.fetch_add(1, std::memory_order_relaxed);
   }
@@ -156,10 +178,11 @@ struct Totals {
   uint64_t batches, submitted, chains_submitted, chains_consumed,
       steps_consumed, chain_overflow, chain_max_steps, chain_no_progress,
       chain_rejected_other, shift_mismatch, flag_mismatch, step_count_mismatch,
-      gpu_consumed, cpu_tails, misses, prefix_only, unique, searched,
-      suppressed_unused, other_unused, rejected, faults, cpu_fallback,
-      read1_fallback, coordinator_wakeups, hit_bytes, hit_gathers, unused_bytes,
-      unused_gathers;
+      gpu_consumed, cpu_tails, prefix_only, unique, searched, suppressed_unused,
+      other_unused, rejected, faults, cpu_fallback, read1_fallback,
+      coordinator_wakeups, hit_bytes, hit_gathers, unused_bytes, unused_gathers;
+  uint64_t miss_reasons[MISS_REASON_COUNT], device_stop_status[256],
+      not_ready_where[3];
   std::vector<uint64_t> batch_sizes, fill_wait_us;
   uint64_t chain_length_hist[64];
   ProbeStats submitted_stats, consumed_stats, suppressed_stats, other_stats,
@@ -169,11 +192,12 @@ struct Totals {
         steps_consumed(0), chain_overflow(0), chain_max_steps(0),
         chain_no_progress(0), chain_rejected_other(0), shift_mismatch(0),
         flag_mismatch(0), step_count_mismatch(0), gpu_consumed(0), cpu_tails(0),
-        misses(0), prefix_only(0), unique(0), searched(0), suppressed_unused(0),
+        prefix_only(0), unique(0), searched(0), suppressed_unused(0),
         other_unused(0), rejected(0), faults(0), cpu_fallback(0),
         read1_fallback(0), coordinator_wakeups(0), hit_bytes(0), hit_gathers(0),
-        unused_bytes(0), unused_gathers(0), submitted_stats(), consumed_stats(),
-        suppressed_stats(), other_stats(), rejected_stats() {
+        unused_bytes(0), unused_gathers(0), miss_reasons(),
+        device_stop_status(), not_ready_where(), submitted_stats(),
+        consumed_stats(), suppressed_stats(), other_stats(), rejected_stats() {
     for (size_t i = 0; i < 64; ++i)
       chain_length_hist[i] = 0;
   }
@@ -276,6 +300,25 @@ thread_local SpscQueue *worker_queue = nullptr;
 State &S() {
   static State s;
   return s;
+}
+void note_miss(MissReason reason) {
+  if (current_window) {
+    ++current_window->miss_reasons[reason];
+    return;
+  }
+  State &s = S();
+  std::lock_guard<std::mutex> lock(s.mu);
+  ++s.totals.miss_reasons[reason];
+}
+void note_not_ready(const Job &j) {
+  const uint8_t phase = j.phase.load(std::memory_order_relaxed);
+  const size_t bucket = phase <= DRAINING ? phase : QUEUED;
+  ++current_window->not_ready_where[bucket];
+}
+void note_device_stopped(const Job &j) {
+  ++current_window->device_stop_status[j.out.status];
+  if (chain_cursor < j.out.n_steps)
+    ++current_window->device_stop_status[j.out.steps[chain_cursor].status];
 }
 Window::~Window() {
   live_windows.fetch_sub(1, std::memory_order_relaxed);
@@ -449,6 +492,8 @@ void dispatch(const std::vector<Job *> &jobs, DispatchScratch &d) {
     resolve_cpu(*jobs[i]);
 #else
   State &s = S();
+  for (size_t i = 0; i < jobs.size(); ++i)
+    jobs[i]->phase.store(DRAINING, std::memory_order_relaxed);
   std::vector<uint8_t> &reads = d.reads;
   std::unordered_map<WindowRead *, std::pair<uint64_t, uint64_t>> &offsets =
       d.offsets;
@@ -562,8 +607,10 @@ void coordinator_main() {
             filling = true;
           }
           owners.push_back(w); // jobs/frame bytes remain live through drain.
-          for (size_t ji = 0; ji < w->jobs.size(); ++ji)
+          for (size_t ji = 0; ji < w->jobs.size(); ++ji) {
+            w->jobs[ji].phase.store(FILLING, std::memory_order_relaxed);
             fill.push_back(&w->jobs[ji]);
+          }
         }
       }
     }
@@ -627,7 +674,12 @@ void merge_window(const Window &w) {
   s.totals.gpu_consumed += w.consumed;
   s.totals.chains_consumed += w.consumed;
   s.totals.steps_consumed += w.steps_consumed;
-  s.totals.misses += w.misses;
+  for (size_t i = 0; i < MISS_REASON_COUNT; ++i)
+    s.totals.miss_reasons[i] += w.miss_reasons[i];
+  for (size_t i = 0; i < 256; ++i)
+    s.totals.device_stop_status[i] += w.device_stop_status[i];
+  for (size_t i = 0; i < 3; ++i)
+    s.totals.not_ready_where[i] += w.not_ready_where[i];
   s.totals.prefix_only += w.prefix_only;
   s.totals.unique += w.unique;
   s.totals.searched += w.searched;
@@ -666,6 +718,9 @@ void sidecar(const State &s) {
     return;
   std::ofstream f(p, std::ios::app);
   const Totals &t = s.totals;
+  uint64_t key_misses = 0;
+  for (size_t i = 0; i < KEY_MISS_REASON_COUNT; ++i)
+    key_misses += t.miss_reasons[i];
   f << "{\"mode\":\"" << (s.enabled ? "enabled" : "cpu-bypass")
     << "\",\"batches\":" << t.batches << ",\"submitted\":" << t.submitted
     << ",\"gpu_consumed\":" << t.gpu_consumed
@@ -679,7 +734,31 @@ void sidecar(const State &s) {
     << ",\"shift_mismatch\":" << t.shift_mismatch
     << ",\"flag_mismatch\":" << t.flag_mismatch
     << ",\"step_count_mismatch\":" << t.step_count_mismatch
-    << ",\"cpu_tails\":" << t.cpu_tails << ",\"key_misses\":" << t.misses
+    << ",\"cpu_tails\":" << t.cpu_tails << ",\"key_misses\":" << key_misses
+    << ",\"no_window\":" << t.miss_reasons[MISS_NO_WINDOW]
+    << ",\"miss_reasons\":{\"read_bytes\":" << t.miss_reasons[MISS_READ_BYTES]
+    << ",\"positional_exhausted\":" << t.miss_reasons[MISS_POSITIONAL_EXHAUSTED]
+    << ",\"chain_rejected_residue\":"
+    << t.miss_reasons[MISS_CHAIN_REJECTED_RESIDUE]
+    << ",\"no_job\":" << t.miss_reasons[MISS_NO_JOB]
+    << ",\"key_mismatch\":" << t.miss_reasons[MISS_KEY_MISMATCH]
+    << ",\"not_ready\":" << t.miss_reasons[MISS_NOT_READY]
+    << ",\"device_stopped\":" << t.miss_reasons[MISS_DEVICE_STOPPED]
+    << ",\"shift\":" << t.miss_reasons[MISS_SHIFT]
+    << ",\"cas_lost\":" << t.miss_reasons[MISS_CAS_LOST]
+    << ",\"no_window\":" << t.miss_reasons[MISS_NO_WINDOW] << "}"
+    << ",\"not_ready_where\":{\"queued\":" << t.not_ready_where[QUEUED]
+    << ",\"filling\":" << t.not_ready_where[FILLING]
+    << ",\"draining\":" << t.not_ready_where[DRAINING] << "}"
+    << ",\"device_stop_status\":{";
+  bool first_stop_status = true;
+  for (size_t i = 0; i < 256; ++i)
+    if (t.device_stop_status[i]) {
+      f << (first_stop_status ? "" : ",") << "\"" << i
+        << "\":" << t.device_stop_status[i];
+      first_stop_status = false;
+    }
+  f << "}"
     << ",\"prefix_only\":" << t.prefix_only << ",\"unique\":" << t.unique
     << ",\"searched\":" << t.searched
     << ",\"suppressed_unused\":" << t.suppressed_unused
@@ -1049,8 +1128,10 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
 #else
   if (!current_window || !current_frame || !r || !r[0] || !r[1] || !len ||
       len > read_cap || chain.piece == ~uint64_t(0) || chain.istart >= 2 ||
-      !same_index(g) || !admitted(p, g))
+      !same_index(g) || !admitted(p, g)) {
+    note_miss(MISS_NO_WINDOW);
     return false;
+  }
   const uint64_t mate_length =
       current_frame->mate1_len
           ? current_frame->mate0_len + current_frame->mate1_len + 1
@@ -1059,7 +1140,7 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
       current_frame->b.size() != len ||
       memcmp(current_frame->a.data(), r[0], len) ||
       memcmp(current_frame->b.data(), r[1], len)) {
-    ++current_window->misses;
+    note_miss(MISS_READ_BYTES);
     return false;
   }
   Range range = current_window->ranges[current_index];
@@ -1073,7 +1154,7 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
             RETIRED))
       ++cursor;
     if (cursor == range.last) {
-      ++current_window->misses;
+      note_miss(MISS_POSITIONAL_EXHAUSTED);
       ++S().visits.positional_misses;
       return false;
     }
@@ -1084,11 +1165,11 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
     // A chain is all-device or all-CPU: once any step has gone to stock, the
     // device's remaining steps are indexed against a chain STAR is no longer
     // walking (its Lmapped advanced by the CPU result). Never resume.
-    ++current_window->misses;
+    note_miss(MISS_CHAIN_REJECTED_RESIDUE);
     return false;
   }
   if (!jp) {
-    ++current_window->misses;
+    note_miss(MISS_NO_JOB);
     chain_rejected = true;
     return false;
   }
@@ -1121,7 +1202,7 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
       c.chunk != in.chunk || c.mate_context != in.mate_context ||
       c.split_context != in.split_context ||
       (initial ? !same_call(c, in) : !immutable_match)) {
-    ++current_window->misses;
+    note_miss(MISS_KEY_MISMATCH);
     ++S().visits.positional_misses;
     // Stock runs this and every later step of the chain on the CPU; nothing
     // further from this device job is comparable.
@@ -1130,18 +1211,28 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
   }
   uint8_t state = j.state.load(std::memory_order_acquire);
   if ((state & RETIRED) || !(state & COMPLETE) || !(state & VALID)) {
-    ++current_window->misses;
+    // A completed but invalid result is a device stop, not a producer-ahead
+    // timing miss. This preserves the original CPU fallback condition.
+    if (!(state & RETIRED) && (state & COMPLETE) && !(state & VALID)) {
+      note_miss(MISS_DEVICE_STOPPED);
+      note_device_stopped(j);
+    } else {
+      note_miss(MISS_NOT_READY);
+      note_not_ready(j);
+    }
     chain_rejected = true;
     return false;
   }
   if (chain_cursor >= j.out.n_steps || j.out.steps[chain_cursor].status != 0) {
-    ++current_window->misses;
+    note_miss(MISS_DEVICE_STOPPED);
+    note_device_stopped(j);
     chain_rejected = true;
     return false;
   }
   const ProbeStepV3 &step = j.out.steps[chain_cursor];
   if (step.shift != shift) {
     ++S().totals.shift_mismatch;
+    note_miss(MISS_SHIFT);
     if (strict())
       strict_fail("V3 step shift mismatch");
     chain_rejected = true;
@@ -1159,7 +1250,7 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
                                           std::memory_order_acquire))
       ;
     if (state & (CONSUMED | RETIRED)) {
-      ++current_window->misses;
+      note_miss(MISS_CAS_LOST);
       chain_rejected = true;
       return false;
     }
