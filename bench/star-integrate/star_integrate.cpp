@@ -70,6 +70,12 @@ struct Range {
   size_t first, last;
   Range(size_t a = 0, size_t b = 0) : first(a), last(b) {}
 };
+// Live-object census for the memory investigation (round 7: RSS grew ~2.7 GB
+// per million reads with no retained windows visible in the code). Every
+// Window is counted at construction and destruction; STAR_INTEGRATE_MEMLOG=1
+// prints the census and VmRSS from the coordinator every 16 batches.
+std::atomic<int64_t> live_windows(0);
+std::atomic<int64_t> windows_created(0);
 struct Window {
   std::vector<WindowRead> frames;
   std::vector<Job> jobs;
@@ -89,7 +95,15 @@ struct Window {
         suppressed_unused(0), other_unused(0), rejected(0), cpu_fallback(0),
         read1_fallback(0), hit_bytes(0), hit_gathers(0), unused_bytes(0),
         unused_gathers(0), consumed_stats(), suppressed_stats(), other_stats() {
+    live_windows.fetch_add(1, std::memory_order_relaxed);
+    windows_created.fetch_add(1, std::memory_order_relaxed);
   }
+  // The admission charge is released here, by the last owner, not at
+  // close_window(): a producer closes (exhausts) a window while the
+  // coordinator may still hold it in the ring or in a batch. Round 7 census:
+  // 146 live windows / 18.8M queued requests against a 0.5 GB charge, RSS +2.7
+  // GB per million reads, because the charge was released at close.
+  ~Window();
 };
 // One producer (the mapping thread which owns a window) and one consumer
 // (coordinator).  A full ring is a CPU-only admission result, never a wait.
@@ -191,6 +205,30 @@ struct State {
         index_ngenome(0), index_anon_huge_bytes(0), setup_wall_s(0),
         tried(false), enabled(false), stopping(false), fault(false) {}
 };
+void memlog(const State &s, uint64_t batches) {
+  static const bool on = std::getenv("STAR_INTEGRATE_MEMLOG") != nullptr;
+  if (!on || batches % 16)
+    return;
+  long rss_kb = 0;
+  if (FILE *f = std::fopen("/proc/self/status", "r")) {
+    char line[256];
+    while (std::fgets(line, sizeof line, f))
+      if (!std::strncmp(line, "VmRSS:", 6))
+        rss_kb = std::atol(line + 6);
+    std::fclose(f);
+  }
+  uint64_t queued = 0;
+  for (size_t qi = 0; qi < s.queues.size(); ++qi)
+    queued += s.queues[qi]->requests.load(std::memory_order_relaxed);
+  std::fprintf(stderr,
+               "MEMLOG batch=%llu rss_gb=%.1f live_windows=%lld created=%lld "
+               "live_bytes_gb=%.2f live_requests=%llu queued_requests=%llu\n",
+               (unsigned long long)batches, rss_kb / 1048576.0,
+               (long long)live_windows.load(std::memory_order_relaxed),
+               (long long)windows_created.load(std::memory_order_relaxed),
+               s.live_bytes / 1073741824.0, (unsigned long long)s.live_requests,
+               (unsigned long long)queued);
+}
 thread_local std::shared_ptr<Window> current_window;
 thread_local WindowRead *current_frame = nullptr;
 thread_local size_t current_index = 0;
@@ -238,6 +276,16 @@ thread_local SpscQueue *worker_queue = nullptr;
 State &S() {
   static State s;
   return s;
+}
+Window::~Window() {
+  live_windows.fetch_sub(1, std::memory_order_relaxed);
+  if (!charged_requests && !charged_bytes)
+    return;
+  State &s = S();
+  std::lock_guard<std::mutex> lock(s.mu);
+  s.live_bytes -= charged_bytes;
+  s.live_requests -= charged_requests;
+  s.cv.notify_one();
 }
 void bind_index(const Genome &g) {
   State &s = S();
@@ -432,6 +480,7 @@ void dispatch(std::vector<Job *> jobs) {
   s.totals.submitted += jobs.size();
   s.totals.chains_submitted += jobs.size();
   s.totals.batch_sizes.push_back(jobs.size());
+  memlog(s, s.totals.batches);
   if (rc) {
     ++s.totals.faults;
     s.fault = true;
@@ -576,9 +625,6 @@ void merge_window(const Window &w) {
   add_stats(s.totals.consumed_stats, w.consumed_stats);
   add_stats(s.totals.suppressed_stats, w.suppressed_stats);
   add_stats(s.totals.other_stats, w.other_stats);
-  s.live_bytes -= w.charged_bytes;
-  s.live_requests -= w.charged_requests;
-  s.cv.notify_one();
 }
 void close_window() {
   if (!current_window)
