@@ -964,6 +964,12 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
     jp = &current_window->jobs[cursor++];
     chain_job = jp;
     chain_cursor = 0;
+  } else if (chain_rejected) {
+    // A chain is all-device or all-CPU: once any step has gone to stock, the
+    // device's remaining steps are indexed against a chain STAR is no longer
+    // walking (its Lmapped advanced by the CPU result). Never resume.
+    ++current_window->misses;
+    return false;
   }
   if (!jp) {
     ++current_window->misses;
