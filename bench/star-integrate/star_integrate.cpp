@@ -116,6 +116,20 @@ struct SpscQueue {
     head.store((h + 1) % queue_slots, std::memory_order_release);
     return true;
   }
+  // Single consumer: the head slot may be inspected before it is taken. Pops
+  // only if the whole window fits in `room` jobs, so a window is never split
+  // across batches (a split's tail was silently dropped: never dispatched,
+  // never resolved, every lookup a miss — 76% of chains in round 7).
+  bool pop_if_fits(std::shared_ptr<Window> &w, size_t room) {
+    const size_t h = head.load(std::memory_order_relaxed);
+    if (h == tail.load(std::memory_order_acquire))
+      return false;
+    if (slots[h]->jobs.size() > room)
+      return false;
+    w = std::move(slots[h]);
+    head.store((h + 1) % queue_slots, std::memory_order_release);
+    return true;
+  }
 };
 struct Visits {
   uint64_t frame_cursor, frame_offsets, dispatched_jobs, lookup_jobs,
@@ -472,7 +486,8 @@ void coordinator_main() {
       // Queue registry changes only at a producer's first publication.
       for (size_t qi = 0; qi < s.queues.size() && fill.size() < cap; ++qi) {
         std::shared_ptr<Window> w;
-        while (fill.size() < cap && s.queues[qi]->pop(w)) {
+        while (fill.size() < cap &&
+               s.queues[qi]->pop_if_fits(w, cap - fill.size())) {
           s.queues[qi]->requests.fetch_sub(w->jobs.size(),
                                            std::memory_order_acq_rel);
           if (!filling) {
@@ -480,7 +495,7 @@ void coordinator_main() {
             filling = true;
           }
           owners.push_back(w); // jobs/frame bytes remain live through drain.
-          for (size_t ji = 0; ji < w->jobs.size() && fill.size() < cap; ++ji)
+          for (size_t ji = 0; ji < w->jobs.size(); ++ji)
             fill.push_back(&w->jobs[ji]);
         }
       }

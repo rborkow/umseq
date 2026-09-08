@@ -2,6 +2,7 @@
 // model.
 #define STAR_INTEGRATE 1
 #include "star_integrate.cpp"
+#include <atomic>
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
@@ -356,8 +357,63 @@ extern "C" int32_t usi_search_batch_v3(UsiPrefixContext *, uint64_t,
   }
   return 0;
 }
+// Round 7 (host20): 76% of chains missed because the coordinator split a
+// window across the 262,144-job batch cap — the head of the window was
+// dispatched, the tail was neither dispatched nor CPU-resolved, and every
+// lookup into the tail missed. Seven 40,000-job windows from one producer
+// exceed the cap; every one of them must be consumable in full.
+void whole_window_batching() {
+  prepare_fixture_index();
+  star_integrate::State &s = star_integrate::S();
+  s.ctx = &fake_context;
+  s.enabled = true;
+  s.stopping = false;
+  s.fault = false;
+  s.epoch = 41;
+  s.next_generation = 1;
+  // Seven producers each submit one 40,000-job window before the coordinator
+  // is started, so its first fill sees 280,000 queued jobs against a cap of
+  // 262,144 and must leave a whole window for the second batch.
+  std::atomic<int> submitted(0);
+  std::atomic<bool> go(false);
+  std::vector<std::thread> producers;
+  for (uint64_t k = 0; k < 7; ++k)
+    producers.emplace_back([&, k] {
+      std::vector<star_integrate::WindowRead> v;
+      v.push_back(frame(100 + k));
+      star_integrate::submit_window(std::move(v));
+      submitted.fetch_add(1);
+      while (!go.load())
+        std::this_thread::yield();
+      star_integrate::settle_for_test();
+      map_and_check(100 + k);
+    });
+  while (submitted.load() != 7)
+    std::this_thread::yield();
+  s.coordinator = std::thread(star_integrate::coordinator_main);
+  go.store(true);
+  for (size_t k = 0; k < producers.size(); ++k)
+    producers[k].join();
+  {
+    std::lock_guard<std::mutex> lock(s.mu);
+    assert(s.totals.batches >= 2);
+    uint64_t dispatched = 0;
+    for (size_t i = 0; i < s.totals.batch_sizes.size(); ++i) {
+      assert(s.totals.batch_sizes[i] % 40000 == 0); // never a partial window
+      dispatched += s.totals.batch_sizes[i];
+    }
+    assert(dispatched == 280000 && s.totals.cpu_tails == 0);
+    assert(s.totals.gpu_consumed == 7);
+  }
+  star_integrate::finish();
+  std::printf("whole window batching: batches=%llu consumed=%llu\n",
+              (unsigned long long)s.totals.batches,
+              (unsigned long long)s.totals.gpu_consumed);
+}
 int main(int argc, char **argv) {
-  if (argc == 2 && !std::strcmp(argv[1], "strict-invalid-success"))
+  if (argc == 2 && !std::strcmp(argv[1], "whole-window-batching"))
+    whole_window_batching();
+  else if (argc == 2 && !std::strcmp(argv[1], "strict-invalid-success"))
     strict_invalid_success();
   else if (argc == 2 && !std::strcmp(argv[1], "generated-key-hook"))
     generated_key_hook();
