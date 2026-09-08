@@ -112,9 +112,10 @@ void prepare_window(ReadAlignChunk &chunk) {
   (void)chunk;
   return;
 #else
-  if (window_remaining() || !enabled())
-    return;
   ReadAlign &ra = *chunk.RA;
+  const bool current = window_remaining(ra.iReadAll);
+  if (!enabled() || (current && next_window_pending()))
+    return;
   const uint32_t ends = chunk.P.readNends;
   if (!ends || ends > MAX_N_MATES || ra.clipMates.size() < ends)
     return;
@@ -132,6 +133,21 @@ void prepare_window(ReadAlignChunk &chunk) {
     for (uint32_t mate = 0; mate < ends; ++mate)
       if (!save_seekable(*ra.readInStream[mate], saved[mate]))
         return;
+    WindowEnd peek_end;
+    const bool after_window = current && lookahead_start(peek_end);
+    if (after_window) {
+      if (peek_end.stream_pos.size() != ends)
+        return;
+      for (uint32_t mate = 0; mate < ends; ++mate) {
+        std::istream &stream = *ra.readInStream[mate];
+        stream.clear();
+        stream.seekg(peek_end.stream_pos[mate]);
+        if (stream.fail()) {
+          restore_streams(ra, ends, saved);
+          return;
+        }
+      }
+    }
     for (uint32_t mate = 0; mate < ends; ++mate)
       ra.readInStream[mate]->clear();
     std::vector<uint> split(3 * chunk.P.maxNsplit);
@@ -257,10 +273,17 @@ void prepare_window(ReadAlignChunk &chunk) {
       frame_candidates += candidate_bound;
       frames.push_back(std::move(frame));
     }
+    WindowEnd end;
+    end.stream_pos.resize(ends);
+    for (uint32_t mate = 0; mate < ends; ++mate)
+      end.stream_pos[mate] = ra.readInStream[mate]->tellg();
+    if (!frames.empty())
+      end.ordinal = frames.back().ordinal + 1;
     if (!restore_streams(ra, ends, saved))
       fatal_restore();
+    submit_window(std::move(frames), std::move(end));
+    return;
   } // restoration is verified before stock consumes any published frame
-  submit_window(std::move(frames));
 #endif
 }
 } // namespace star_integrate

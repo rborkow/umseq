@@ -12,9 +12,11 @@
 // Link the actual enabled producer TU without bringing in the asynchronous
 // coordinator.  V2's producer only admits starts; the device owns SAindex.
 namespace star_integrate {
-bool window_remaining() { return false; }
+bool window_remaining(uint64_t) { return false; }
+bool next_window_pending() { return false; }
+bool lookahead_start(WindowEnd &) { return false; }
 bool setup(const Parameters &, const Genome &) { return false; }
-void submit_window(std::vector<WindowRead> &&) {}
+bool submit_window(std::vector<WindowRead> &&, WindowEnd &&) { return false; }
 } // namespace star_integrate
 
 int main() {

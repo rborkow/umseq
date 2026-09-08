@@ -128,7 +128,7 @@ void map_and_check(uint64_t ordinal) {
                                  maxl)); // repeated key is a positional miss
   assert(star_integrate::current_window
              ->miss_reasons[star_integrate::MISS_POSITIONAL_EXHAUSTED] == 1);
-  assert(!star_integrate::window_remaining()); // EOF / retirement
+  assert(!star_integrate::window_remaining(ordinal + 1)); // EOF / retirement
 }
 void normal() {
   prepare_fixture_index();
@@ -354,17 +354,76 @@ void window_pool_reuse() {
   second_frames.push_back(frame(402));
   star_integrate::submit_window(std::move(second_frames));
   assert(star_integrate::current_window.get() == first);
-  assert(star_integrate::current_window->next_frame == 0);
-  assert(star_integrate::current_window->consumed == 0);
-  assert(star_integrate::current_window
-             ->miss_reasons[star_integrate::MISS_NOT_READY] == 0);
-  assert(star_integrate::current_window->jobs.size() == 40000);
-  assert(star_integrate::current_window->ranges.size() == 1);
-  assert(star_integrate::current_window->cursors.size() == 1);
+  assert(star_integrate::next_window);
+  assert(star_integrate::next_window->jobs.size() == 40000);
+  star_integrate::current_window->next_frame =
+      star_integrate::current_window->frames.size();
+  assert(star_integrate::window_remaining(402));
+  assert(star_integrate::current_window->frames[0].ordinal == 402);
+  assert(s.totals.prefetch_windows == 1);
   star_integrate::settle_for_test();
+  map_and_check(402);
   star_integrate::close_window();
   star_integrate::finish();
-  std::puts("window pool: reused=1 reset=1");
+  std::puts("window pool: rotation=1 not_ready=0");
+}
+void chunk_boundary_drops_next() {
+  prepare_fixture_index();
+  star_integrate::State &s = star_integrate::S();
+  s.ctx = &fake_context;
+  s.enabled = true;
+  s.stopping = false;
+  s.fault = false;
+  s.epoch = 41;
+  s.next_generation = 1;
+  s.coordinator = std::thread(star_integrate::coordinator_main);
+  std::vector<star_integrate::WindowRead> first, second;
+  first.push_back(frame(501));
+  second.push_back(frame(502));
+  assert(star_integrate::submit_window(std::move(first)));
+  assert(star_integrate::submit_window(std::move(second)));
+  star_integrate::settle_for_test();
+  assert(star_integrate::next_window);
+  for (int spins = 0; spins != 50000; ++spins) {
+    bool pending = false;
+    for (size_t i = 0; i < star_integrate::next_window->jobs.size(); ++i)
+      pending |= !(star_integrate::next_window->jobs[i].state.load(
+                       std::memory_order_acquire) &
+                   star_integrate::COMPLETE);
+    if (!pending)
+      break;
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
+  }
+  star_integrate::end_chunk();
+  assert(!star_integrate::current_window && !star_integrate::next_window);
+  assert(s.live_bytes == 0 && s.live_requests == 0);
+  star_integrate::finish();
+  std::puts("chunk boundary: next_dropped=1 live_bytes=0");
+}
+void prefetch_refusal() {
+  prepare_fixture_index();
+  star_integrate::State &s = star_integrate::S();
+  s.ctx = &fake_context;
+  s.enabled = true;
+  s.stopping = false;
+  s.fault = false;
+  s.epoch = 41;
+  s.next_generation = 1;
+  s.coordinator = std::thread(star_integrate::coordinator_main);
+  std::vector<star_integrate::WindowRead> first, second;
+  first.push_back(frame(601));
+  second.push_back(frame(602));
+  assert(star_integrate::submit_window(std::move(first)));
+  star_integrate::settle_for_test();
+  s.live_bytes = star_integrate::MAX_INFLIGHT_BYTES;
+  assert(!star_integrate::submit_window(std::move(second)));
+  assert(!star_integrate::next_window && s.totals.prefetch_refused == 1);
+  // Restore the real first-window charge so close_window releases it exactly.
+  s.live_bytes = star_integrate::current_window->charged_bytes;
+  star_integrate::close_window();
+  assert(s.live_bytes == 0 && s.live_requests == 0);
+  star_integrate::finish();
+  std::puts("prefetch refusal: refused=1 fallback=1");
 }
 void strict_invalid_success() {
   invalid_success = true;
@@ -493,6 +552,10 @@ int main(int argc, char **argv) {
     positional_shuffled_completion();
   else if (argc == 2 && !std::strcmp(argv[1], "window-pool"))
     window_pool_reuse();
+  else if (argc == 2 && !std::strcmp(argv[1], "chunk-boundary"))
+    chunk_boundary_drops_next();
+  else if (argc == 2 && !std::strcmp(argv[1], "prefetch-refusal"))
+    prefetch_refusal();
   else
     normal();
 }

@@ -30,7 +30,11 @@ def main():
     wwb=subprocess.run([str(exe),'whole-window-batching'],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,timeout=30)
     assert 'batches=2 consumed=7' in wwb.stdout, wwb.stdout+wwb.stderr
     pool=subprocess.run([str(exe),'window-pool'],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,timeout=30)
-    assert pool.stdout.strip() == 'window pool: reused=1 reset=1', pool.stdout+pool.stderr
+    assert pool.stdout.strip() == 'window pool: rotation=1 not_ready=0', pool.stdout+pool.stderr
+    boundary=subprocess.run([str(exe),'chunk-boundary'],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,timeout=30)
+    assert boundary.stdout.strip() == 'chunk boundary: next_dropped=1 live_bytes=0', boundary.stdout+boundary.stderr
+    refusal=subprocess.run([str(exe),'prefetch-refusal'],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,timeout=30)
+    assert refusal.stdout.strip() == 'prefetch refusal: refused=1 fallback=1', refusal.stdout+refusal.stderr
     if key.stdout.strip() != 'generated key hook: consumed=1 key_misses=0':
       raise AssertionError('generated hook key fixture did not consume exactly once:\n'+key.stdout+key.stderr)
     subprocess.run([str(exe),'positional-shuffled'],check=True,timeout=30)

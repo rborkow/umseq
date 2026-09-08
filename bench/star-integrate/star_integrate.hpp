@@ -3,6 +3,7 @@
 // records.
 #ifndef STAR_INTEGRATE_HPP
 #define STAR_INTEGRATE_HPP
+#include <ios>
 #include <stdint.h>
 #include <vector>
 class Parameters;
@@ -32,6 +33,14 @@ struct WindowRead {
   uint64_t mate0_len, mate1_len, generation, index_epoch, worker, chunk,
       split_count;
 };
+// Position immediately after a producer peek.  It is kept with the submitted
+// window so the following peek can begin after it while STAR remains at its
+// real (current-window) input position.
+struct WindowEnd {
+  uint64_t ordinal;
+  std::vector<std::streampos> stream_pos;
+  WindowEnd() : ordinal(0) {}
+};
 constexpr uint64_t INITIAL_KIND = 1;
 constexpr uint64_t MAX_WINDOW_READS = 32768;
 constexpr uint64_t MAX_WINDOW_CANDIDATES = 262144;
@@ -43,8 +52,10 @@ constexpr uint64_t MAX_INFLIGHT_REQUESTS = 8ULL * 1024 * 1024;
 constexpr uint64_t MAX_INFLIGHT_BYTES = 4ULL * 1024 * 1024 * 1024;
 constexpr uint64_t MAX_PENDING_REQUESTS = MAX_WINDOW_CANDIDATES;
 constexpr uint64_t MAX_PENDING_BYTES = MAX_WINDOW_BYTES;
-bool window_remaining();
-void submit_window(std::vector<WindowRead> &&);
+bool window_remaining(uint64_t ordinal);
+bool next_window_pending();
+bool lookahead_start(WindowEnd &);
+bool submit_window(std::vector<WindowRead> &&, WindowEnd && = WindowEnd());
 // `read_id` is STAR's iReadAll; readLoad returns that same global ordinal.
 void assign_frame_identity(WindowRead &, uint64_t read_id, uint64_t worker,
                            uint64_t chunk);

@@ -103,6 +103,7 @@ struct Window {
   // cursor therefore selects its next candidate without a hash/search.
   std::vector<size_t> cursors;
   size_t next_frame;
+  WindowEnd peek_end;
   uint64_t charged_bytes, charged_requests;
   uint64_t consumed, steps_consumed, prefix_only, unique, searched,
       suppressed_unused, other_unused, rejected, cpu_fallback, read1_fallback,
@@ -110,7 +111,7 @@ struct Window {
   uint64_t miss_reasons[MISS_REASON_COUNT], device_stop_status[256],
       not_ready_where[3];
   ProbeStats consumed_stats, suppressed_stats, other_stats;
-  bool active;
+  bool active, prefetch_refused;
   Window() : active(true) {
     live_windows.fetch_add(1, std::memory_order_relaxed);
     windows_created.fetch_add(1, std::memory_order_relaxed);
@@ -131,6 +132,8 @@ struct Window {
     ranges.clear();
     cursors.clear();
     next_frame = 0;
+    peek_end = WindowEnd();
+    prefetch_refused = false;
     charged_bytes = charged_requests = 0;
     consumed = steps_consumed = prefix_only = unique = searched = 0;
     suppressed_unused = other_unused = rejected = cpu_fallback = 0;
@@ -228,7 +231,8 @@ struct Totals {
       chain_rejected_other, shift_mismatch, flag_mismatch, step_count_mismatch,
       gpu_consumed, cpu_tails, prefix_only, unique, searched, suppressed_unused,
       other_unused, rejected, faults, cpu_fallback, read1_fallback,
-      coordinator_wakeups, hit_bytes, hit_gathers, unused_bytes, unused_gathers;
+      prefetch_windows, prefetch_refused, coordinator_wakeups, hit_bytes,
+      hit_gathers, unused_bytes, unused_gathers;
   uint64_t miss_reasons[MISS_REASON_COUNT], device_stop_status[256],
       not_ready_where[3];
   std::vector<uint64_t> batch_sizes, fill_wait_us;
@@ -242,10 +246,11 @@ struct Totals {
         flag_mismatch(0), step_count_mismatch(0), gpu_consumed(0), cpu_tails(0),
         prefix_only(0), unique(0), searched(0), suppressed_unused(0),
         other_unused(0), rejected(0), faults(0), cpu_fallback(0),
-        read1_fallback(0), coordinator_wakeups(0), hit_bytes(0), hit_gathers(0),
-        unused_bytes(0), unused_gathers(0), miss_reasons(),
-        device_stop_status(), not_ready_where(), submitted_stats(),
-        consumed_stats(), suppressed_stats(), other_stats(), rejected_stats() {
+        read1_fallback(0), prefetch_windows(0), prefetch_refused(0),
+        coordinator_wakeups(0), hit_bytes(0), hit_gathers(0), unused_bytes(0),
+        unused_gathers(0), miss_reasons(), device_stop_status(),
+        not_ready_where(), submitted_stats(), consumed_stats(),
+        suppressed_stats(), other_stats(), rejected_stats() {
     for (size_t i = 0; i < 64; ++i)
       chain_length_hist[i] = 0;
   }
@@ -302,6 +307,7 @@ void memlog(const State &s, uint64_t batches) {
                (unsigned long long)queued);
 }
 thread_local std::shared_ptr<Window> current_window;
+thread_local std::shared_ptr<Window> next_window;
 thread_local WindowRead *current_frame = nullptr;
 thread_local size_t current_index = 0;
 thread_local ChainContext chain;
@@ -749,14 +755,17 @@ void merge_window(const Window &w) {
   add_stats(s.totals.suppressed_stats, w.suppressed_stats);
   add_stats(s.totals.other_stats, w.other_stats);
 }
-void close_window() {
-  if (!current_window)
+void close_one_window(std::shared_ptr<Window> &window) {
+  if (!window)
     return;
   finish_active_chain();
-  for (size_t i = 0; i < current_window->jobs.size(); ++i)
-    retire(current_window->jobs[i], false);
-  merge_window(*current_window);
-  current_window.reset();
+  for (size_t i = 0; i < window->jobs.size(); ++i)
+    retire(window->jobs[i], false);
+  merge_window(*window);
+  window.reset();
+}
+void close_window() {
+  close_one_window(current_window);
   current_frame = nullptr;
   current_index = 0;
   chain = ChainContext();
@@ -765,6 +774,7 @@ void close_window() {
   chain_rejected = false;
   chain_stock_clear = false;
 }
+void close_next_window() { close_one_window(next_window); }
 void sidecar(const State &s) {
   const char *p = getenv("STAR_INTEGRATE_SIDECAR");
   if (!p)
@@ -818,6 +828,8 @@ void sidecar(const State &s) {
     << ",\"other_unused\":" << t.other_unused
     << ",\"cpu_fallback\":" << t.cpu_fallback
     << ",\"read1_fallback\":" << t.read1_fallback
+    << ",\"prefetch_windows\":" << t.prefetch_windows
+    << ",\"prefetch_refused\":" << t.prefetch_refused
     << ",\"coordinator_wakeups\":" << t.coordinator_wakeups
     << ",\"compared_bytes_hit\":" << t.hit_bytes
     << ",\"gathers_hit\":" << t.hit_gathers
@@ -994,7 +1006,7 @@ bool setup(const Parameters &p, const Genome &g) {
 #endif
 }
 bool enabled() { return S().enabled; }
-bool window_remaining() {
+bool window_remaining(uint64_t ordinal) {
   if (!current_window)
     return false;
   if (current_window->next_frame < current_window->frames.size()) {
@@ -1002,12 +1014,35 @@ bool window_remaining() {
     return true;
   }
   close_window();
+  if (next_window) {
+    current_window = std::move(next_window);
+    current_frame = nullptr;
+    current_index = 0;
+    if (!current_window->frames.empty() &&
+        current_window->frames.front().ordinal >= ordinal) {
+      std::lock_guard<std::mutex> lock(S().mu);
+      ++S().totals.prefetch_windows;
+      return true;
+    }
+    close_window();
+  }
   return false;
 }
-void submit_window(std::vector<WindowRead> &&frames) {
+bool lookahead_start(WindowEnd &end) {
+  const std::shared_ptr<Window> &window =
+      next_window ? next_window : current_window;
+  if (!window || window->peek_end.stream_pos.empty())
+    return false;
+  end = window->peek_end;
+  return true;
+}
+bool next_window_pending() {
+  return next_window || (current_window && current_window->prefetch_refused);
+}
+bool submit_window(std::vector<WindowRead> &&frames, WindowEnd &&peek_end) {
 #if STAR_INTEGRATE
   if (frames.empty() || frames.size() > MAX_WINDOW_READS)
-    return;
+    return false;
   uint64_t bytes = frames.capacity() * (sizeof(WindowRead) + 32), nj = 0;
   for (size_t i = 0; i < frames.size(); ++i) {
     bytes += frames[i].a.capacity() + frames[i].b.capacity() +
@@ -1015,7 +1050,7 @@ void submit_window(std::vector<WindowRead> &&frames) {
     nj += frames[i].candidates.size();
   }
   if (bytes > MAX_WINDOW_BYTES || nj > MAX_WINDOW_CANDIDATES)
-    return;
+    return false;
   State &s = S();
   // Register before acquiring so the per-worker pool is available while the
   // large jobs vector is rebuilt.  Its custom deleter can run on the
@@ -1025,13 +1060,14 @@ void submit_window(std::vector<WindowRead> &&frames) {
     s.queues.emplace_back(new SpscQueue);
     worker_queue = s.queues.back().get();
   }
-  close_window();
+  const bool prefetch = static_cast<bool>(current_window);
   SpscQueue *const owner = worker_queue;
   std::shared_ptr<Window> w(owner->acquire_window(), [owner](Window *p) {
     p->release();
     owner->recycle_window(p);
   });
   w->frames = std::move(frames);
+  w->peek_end = std::move(peek_end);
   w->charged_requests = nj;
   w->charged_bytes = bytes;
   w->jobs.reserve((size_t)nj);
@@ -1073,13 +1109,29 @@ void submit_window(std::vector<WindowRead> &&frames) {
     // Bounded admission is an immediate CPU fallback, never producer wait.
     for (size_t i = 0; i < w->jobs.size(); ++i)
       resolve_cpu(w->jobs[i]);
+    // This window never acquired an admission charge; do not let its custom
+    // deleter release somebody else's live-byte accounting.
+    w->charged_bytes = w->charged_requests = 0;
+    if (prefetch) {
+      std::lock_guard<std::mutex> lock(s.mu);
+      ++s.totals.prefetch_refused;
+      current_window->prefetch_refused = true;
+      return false;
+    }
   } else if (notify)
     s.cv.notify_one();
-  current_window = w;
-  current_frame = nullptr;
-  current_index = 0;
+  if (prefetch)
+    next_window = w;
+  else {
+    current_window = w;
+    current_frame = nullptr;
+    current_index = 0;
+  }
+  return true;
 #else
   (void)frames;
+  (void)peek_end;
+  return false;
 #endif
 }
 void begin_map(ReadAlign &ra) {
@@ -1163,6 +1215,7 @@ void reverse_suppressed(uint64_t piece) {
 }
 void end_chunk() {
   close_window();
+  close_next_window();
   flush_chain();
   State &s = S();
   std::lock_guard<std::mutex> lock(s.mu);
