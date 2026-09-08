@@ -211,6 +211,10 @@ impl PrefixSession {
         self.disabled = false;
         Ok((outputs, stats, ms))
     }
+    /// Whole-chain search returning owned vectors (tests, replay). The
+    /// integration hot path uses [`Self::search_chains_into`], which writes
+    /// the 472-byte outputs straight into the caller's records: `to_vec` here
+    /// was a 75 MB allocation + copy per batch on the coordinator thread.
     pub fn search_chains(
         &mut self,
         epoch: u64,
@@ -218,14 +222,33 @@ impl PrefixSession {
         requests: &[ProbeRequestV3],
         variant: ProbeVariant,
     ) -> Result<(Vec<ProbeOutputV3>, Vec<ProbeStats>, f32), String> {
+        let mut outputs = vec![ProbeOutputV3::default(); requests.len()];
+        let mut stats = vec![ProbeStats::default(); requests.len()];
+        let ms =
+            self.search_chains_into(epoch, reads, requests, variant, &mut outputs, &mut stats)?;
+        Ok((outputs, stats, ms))
+    }
+    /// Whole-chain search; `outputs`/`stats` must hold `requests.len()` records.
+    pub fn search_chains_into(
+        &mut self,
+        epoch: u64,
+        reads: &[u8],
+        requests: &[ProbeRequestV3],
+        variant: ProbeVariant,
+        outputs: &mut [ProbeOutputV3],
+        stats: &mut [ProbeStats],
+    ) -> Result<f32, String> {
         if self.disabled || epoch != self.epoch {
             return Err("prefix context disabled or epoch mismatch".into());
         }
         if requests.len() > MAX as usize {
             return Err("prefix batch exceeds cap".into());
         }
+        if outputs.len() < requests.len() || stats.len() < requests.len() {
+            return Err("prefix result slices shorter than the batch".into());
+        }
         if requests.is_empty() {
-            return Ok((Vec::new(), Vec::new(), 0.0));
+            return Ok(0.0);
         }
         if reads.is_empty() {
             return Err("empty prefix read arena".into());
@@ -234,9 +257,26 @@ impl PrefixSession {
         // Borrowed index: dispatch before taking the batch buffers, so the
         // borrowed path's own `prepare` reuses them (taking them here and
         // dropping `b` on return re-allocated ~240 MB of THP per batch).
-        if let PrefixIndex::Borrowed { genome, sa, sai } = &self.index {
-            return self.search_borrowed_v3(epoch, reads, requests, variant, *genome, *sa, *sai);
-        }
+        let d = if let PrefixIndex::Borrowed { genome, sa, sai } = &self.index {
+            let (genome, sa, sai) = (*genome, *sa, *sai);
+            self.search_borrowed_v3(epoch, reads, requests, variant, genome, sa, sai)?
+        } else {
+            self.search_owned_v3(epoch, reads, requests, variant)?
+        };
+        outputs[..n].copy_from_slice(&d.b.output.as_pod_slice::<ProbeOutputV3>()[..n]);
+        stats[..n].copy_from_slice(&d.b.stats.as_pod_slice::<ProbeStats>()[..n]);
+        self.owned.restore(d.b);
+        Ok(d.ms)
+    }
+    fn search_owned_v3(
+        &mut self,
+        epoch: u64,
+        reads: &[u8],
+        requests: &[ProbeRequestV3],
+        variant: ProbeVariant,
+    ) -> Result<Drained, String> {
+        let n = requests.len();
+        let _ = epoch;
         let mut b = self.owned.prepare(reads.len(), n * 88, n * 472, n * 48)?;
         b.reads.as_mut_slice()[..reads.len()].copy_from_slice(reads);
         b.requests.as_pod_mut_slice::<ProbeRequestV3>()[..n].copy_from_slice(requests);
@@ -303,12 +343,15 @@ impl PrefixSession {
             output: rw(v.next().unwrap()),
             stats: rw(v.next().unwrap()),
         };
-        let outputs = b.output.as_pod_slice::<ProbeOutputV3>()[..n].to_vec();
-        let stats = b.stats.as_pod_slice::<ProbeStats>()[..n].to_vec();
-        self.owned.restore(b);
-        let ms = result.map_err(|e| e.to_string())?;
+        let ms = match result {
+            Ok(ms) => ms,
+            Err(e) => {
+                self.owned.restore(b);
+                return Err(e.to_string());
+            }
+        };
         self.disabled = false;
-        Ok((outputs, stats, ms))
+        Ok(Drained { b, ms })
     }
     fn search_borrowed_v2(
         &mut self,
@@ -380,7 +423,7 @@ impl PrefixSession {
         genome: (*const u8, usize),
         sa: (*const u8, usize),
         sai: (*const u8, usize),
-    ) -> Result<(Vec<ProbeOutputV3>, Vec<ProbeStats>, f32), String> {
+    ) -> Result<Drained, String> {
         let n = requests.len();
         let mut b = self.owned.prepare(reads.len(), n * 88, n * 472, n * 48)?;
         b.reads.as_mut_slice()[..reads.len()].copy_from_slice(reads);
@@ -425,15 +468,23 @@ impl PrefixSession {
             output: rw(v.next().unwrap()),
             stats: rw(v.next().unwrap()),
         };
-        let outputs = b.output.as_pod_slice::<ProbeOutputV3>()[..n].to_vec();
-        let stats = b.stats.as_pod_slice::<ProbeStats>()[..n].to_vec();
-        self.owned.restore(b);
-        let ms = result.map_err(|e| e.to_string())?;
+        let ms = match result {
+            Ok(ms) => ms,
+            Err(e) => {
+                self.owned.restore(b);
+                return Err(e.to_string());
+            }
+        };
         self.disabled = false;
-        Ok((outputs, stats, ms))
+        Ok(Drained { b, ms })
     }
 }
 
+/// A drained V3 batch: results still sit in the umem batch buffers.
+struct Drained {
+    b: BatchBuffers,
+    ms: f32,
+}
 fn validate_borrowed_config(
     genome: (*const u8, usize),
     sa: (*const u8, usize),
@@ -831,14 +882,16 @@ pub unsafe extern "C" fn usi_search_batch_v3(
                     std::slice::from_raw_parts(requests, n as usize),
                 )
             };
-            match session.search_chains(epoch, r, q, ProbeVariant::Thread) {
-                Ok((o, s, _)) => {
-                    if n != 0 {
-                        ptr::copy_nonoverlapping(o.as_ptr(), output, n as usize);
-                        ptr::copy_nonoverlapping(s.as_ptr(), stats, n as usize);
-                    }
-                    err(error, OK, "")
-                }
+            let (o, s) = if n == 0 {
+                (&mut [][..], &mut [][..])
+            } else {
+                (
+                    std::slice::from_raw_parts_mut(output, n as usize),
+                    std::slice::from_raw_parts_mut(stats, n as usize),
+                )
+            };
+            match session.search_chains_into(epoch, r, q, ProbeVariant::Thread, o, s) {
+                Ok(_) => err(error, OK, ""),
                 Err(e) => err(error, GPU, &e),
             }
         }
