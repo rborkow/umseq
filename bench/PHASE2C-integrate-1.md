@@ -600,3 +600,42 @@ last submitted (`prepare_window` would peek two windows ahead of STAR's stream p
 the frame↔read match is by ordinal so the bookkeeping is already safe; the rewind
 distance is the thing to verify — Terra declined it without a stream fixture, correctly).
 Round 8's `not_ready_where` decides which.
+
+## Round 8 (LAT 1a, `f6647ac`): window pool — sys excess gone, GPU arm −4.9% vs the huge-page baseline
+
+Evidence: `integrate-gate-host23/` (gate i, tenth `PARITY_MATCH`), `integrate-timing-host11/`,
+`bench/evidence/integrate-1-host/{timing-round8-raw.tsv,timing-round8-r1-gpu-stats.jsonl,gate-round8-host23.json}`.
+
+| arm (20M, 20 thr, 3 rotated repeats) | user | sys | user+sys | vs bypass | vs stock |
+|---|---|---|---|---|---|
+| stock | 724.2 | 31.3 | 755.5 | — | — |
+| integrated, hooks bypassed (huge-page baseline) | 643.1 | 19.0 | 662.1 | — | −12.4% |
+| integrated, GPU on, window pool | **600.3** | **29.1** | **629.4** | **−4.9%** | **−16.7%** |
+
+Raw rows: stock 725.40/28.05, 723.39/31.35, 723.95/34.42; bypass 643.51/18.78,
+643.52/18.33, 642.12/19.98; gpu 599.87/29.03, 601.39/29.56, 599.76/28.61. Round 7 → 8, GPU
+arm: sys 62.1 → **29.1** (−33 s; the pool removed the per-window first-touch), user 592.7 →
+600.3 (+8; three repeats within 1.6 s of each other, so real — the pool's reset/lock or
+the retained 140 MB `jobs` staying cache-cold; small, not chased yet). Net 654.7 → 629.4.
+Peak RSS 33.6 → 34.5 GB (8 pooled windows per worker).
+
+The GPU arm's sys is now 10 s above bypass, of which STAR's own SAM/FASTQ I/O and the
+coordinator's remaining per-batch work are the candidates; the 41 s question is closed.
+
+**Misses are unchanged, as expected** (the pool changes memory, not timing): 8.0M of 160M,
+`not_ready` 5.86M (queued 3.11M / filling 0.15M / draining 2.59M), residue 2.20M, all other
+reasons 0. Batch shape from the histogram: 1,001 batches, 1,000 of them 120–175k jobs — one
+window per batch; fill wait p50 590 µs, p90 776 µs. So the coordinator pops each window
+within a millisecond of its arrival; the "queued" half of `not_ready` is the previous
+window's dispatch+drain (~40 ms per batch at 1,001 batches over a 40 s mapping phase),
+and the "draining" half is the window's own. A producer consumes a window in ~800 ms
+(20 workers × 40 ms); the first ~5% of each window's reads race the ~40 ms round trip.
+Prefetching one window per worker removes the race at the cost of one window's memory
+per worker — that is LAT item 2, now with the mechanism measured rather than guessed.
+
+Against the gates: −12% STAR CPU-s vs stock **met** (−16.7% with the GPU; −12.4% without
+it). The GPU's own increment over the huge-page baseline is −4.9%: past the "<5% honest
+negative" line, short of −8% memo-grade. Recovering the 8M `not_ready` chains is worth at
+most their CPU cost (5% of chains → ≈ 2–3% of mapping user time) — enough to reach −7 to
+−8% if the prefetch is clean. That is the last cheap lever; after it the accounting is
+what it is.
