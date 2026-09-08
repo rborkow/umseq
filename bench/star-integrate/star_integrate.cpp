@@ -201,7 +201,10 @@ void flush_chain() {
   }
 }
 void finish_active_chain() {
-  if (!chain_job || chain_rejected)
+  // Only a chain STAR actually consumed from the device is comparable: a key
+  // miss (or any early return before the first step) leaves chain_job bound
+  // but chain_cursor == 0, and stock then ran the whole chain on the CPU.
+  if (!chain_job || chain_rejected || chain_cursor == 0)
     return;
   const ProbeOutputV3 &o = chain_job->out;
   if (chain_cursor != o.n_steps) {
@@ -964,6 +967,7 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
   }
   if (!jp) {
     ++current_window->misses;
+    chain_rejected = true;
     return false;
   }
   Job &j = *jp;
@@ -997,6 +1001,9 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
       (initial ? !same_call(c, in) : !immutable_match)) {
     ++current_window->misses;
     ++S().visits.positional_misses;
+    // Stock runs this and every later step of the chain on the CPU; nothing
+    // further from this device job is comparable.
+    chain_rejected = true;
     return false;
   }
   uint8_t state = j.state.load(std::memory_order_acquire);
@@ -1031,6 +1038,7 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
       ;
     if (state & (CONSUMED | RETIRED)) {
       ++current_window->misses;
+      chain_rejected = true;
       return false;
     }
     ++current_window->consumed;
