@@ -83,3 +83,9 @@ per-frame 40,000-job consumption scan.
   the full stock outer block as both fallback and strict oracle. Strict checks
   all four outer outputs plus handed-off `Read1` bytes; sidecar reports
   `prefix_only`, `unique`, and `searched` branch counters.
+
+- **P2C-INTEGRATE-V2-T4 (2026-09-07):** PREREQUISITE FAILED: checked-in
+  CHAIN-POSITION producer/evidence has no per-chain step-count distribution;
+  UMPROBE1 also lacks chain identity/lmapped/istart. Stopped per AGENTS.md before
+  choosing an unsupported percentile capacity. No V3 implementation or test-pass
+  claim. Findings and Terra hold/handoff: `bench/PHASE2C-integrate-v2-t4.md`.

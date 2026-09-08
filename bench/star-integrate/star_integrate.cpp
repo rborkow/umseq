@@ -19,6 +19,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -127,6 +128,7 @@ struct Totals {
       cpu_fallback, read1_fallback, coordinator_wakeups, hit_bytes, hit_gathers,
       unused_bytes, unused_gathers;
   std::vector<uint64_t> batch_sizes, fill_wait_us;
+  uint64_t chain_length_hist[64];
   ProbeStats submitted_stats, consumed_stats, suppressed_stats, other_stats,
       rejected_stats;
   Totals()
@@ -135,7 +137,10 @@ struct Totals {
         other_unused(0), rejected(0), faults(0), cpu_fallback(0),
         read1_fallback(0), coordinator_wakeups(0), hit_bytes(0), hit_gathers(0),
         unused_bytes(0), unused_gathers(0), submitted_stats(), consumed_stats(),
-        suppressed_stats(), other_stats(), rejected_stats() {}
+        suppressed_stats(), other_stats(), rejected_stats() {
+    for (size_t i = 0; i < 64; ++i)
+      chain_length_hist[i] = 0;
+  }
 };
 struct State {
   std::mutex mu;
@@ -167,6 +172,21 @@ thread_local std::shared_ptr<Window> current_window;
 thread_local WindowRead *current_frame = nullptr;
 thread_local size_t current_index = 0;
 thread_local ChainContext chain;
+// Per-chain outer-call count (every maxMappableLength2strands call of one
+// (read, piece, dir, istart) chain, including prefix-only/unique steps). A
+// chain starts at lmapped == 0; its length is flushed at the next chain start
+// or at begin_map. Thread-local, merged into totals at finish. Evidence for the
+// V3 per-chain output capacity; no effect on mapping.
+constexpr size_t CHAIN_HIST_BINS = 64;
+thread_local uint64_t chain_steps = 0;
+thread_local uint64_t chain_hist[CHAIN_HIST_BINS] = {};
+void flush_chain() {
+  if (chain_steps) {
+    ++chain_hist[chain_steps < CHAIN_HIST_BINS ? chain_steps
+                                               : CHAIN_HIST_BINS - 1];
+    chain_steps = 0;
+  }
+}
 thread_local SpscQueue *worker_queue = nullptr;
 State &S() {
   static State s;
@@ -504,6 +524,15 @@ void sidecar(const State &s) {
        it != histogram.end(); ++it)
     f << (it == histogram.begin() ? "" : ",") << "\"" << it->first
       << "\":" << it->second;
+  f << "},\"chain_length_histogram\":{";
+  bool first_bin = true;
+  for (size_t i = 1; i < 64; ++i)
+    if (t.chain_length_hist[i]) {
+      f << (first_bin ? "" : ",") << "\""
+        << (i == 63 ? "63+" : std::to_string(i))
+        << "\":" << t.chain_length_hist[i];
+      first_bin = false;
+    }
   f << "},\"submitted_stats\":";
   write_stats(f, t.submitted_stats);
   f << ",\"consumed_stats\":";
@@ -731,6 +760,7 @@ void submit_window(std::vector<WindowRead> &&frames) {
 #endif
 }
 void begin_map(ReadAlign &ra) {
+  flush_chain();
   current_frame = nullptr;
   chain = ChainContext();
   if (!current_window ||
@@ -776,6 +806,9 @@ void set_chain(uint64_t piece, uint64_t fragment, uint64_t istart,
   chain.nstart = nstart;
   chain.lstart = lstart;
   chain.lmapped = lmapped;
+  if (!lmapped)
+    flush_chain();
+  ++chain_steps;
   chain.piece_start = piece_start;
   chain.piece_length = piece_length;
   chain.split_count = split_count;
@@ -790,7 +823,16 @@ void reverse_suppressed(uint64_t piece) {
       retire(j, true);
   }
 }
-void end_chunk() { close_window(); }
+void end_chunk() {
+  close_window();
+  flush_chain();
+  State &s = S();
+  std::lock_guard<std::mutex> lock(s.mu);
+  for (size_t i = 0; i < CHAIN_HIST_BINS; ++i) {
+    s.totals.chain_length_hist[i] += chain_hist[i];
+    chain_hist[i] = 0;
+  }
+}
 bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
             const InnerCall &in, uint64_t out[2], uint64_t &nrep,
             uint64_t &maxL) {
