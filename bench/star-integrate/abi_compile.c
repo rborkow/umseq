@@ -16,10 +16,15 @@ void check_declarations(void) {
                    const ProbeRequest *, uint64_t, ProbeOutput *, ProbeStats *,
                    UsiErrorV1 *) = &usi_search_batch_v1;
   int32_t (*destroy)(UsiContext **, UsiErrorV1 *) = &usi_destroy_v1;
+  int32_t (*borrowed)(const uint8_t *, uint64_t, const uint8_t *, uint64_t,
+                      const uint8_t *, uint64_t, const UsiIdentityV1 *,
+                      const ProbeConfigV2 *, uint64_t, UsiPrefixContext **,
+                      UsiErrorV1 *) = &usi_init_v2_borrowed;
   (void)probe;
   (void)init;
   (void)batch;
   (void)destroy;
+  (void)borrowed;
 }
 #endif
 int main(void) {

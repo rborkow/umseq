@@ -165,6 +165,7 @@ struct State {
   const Genome *index_object;
   const void *index_g, *index_sa, *index_sai;
   uint64_t index_nsa, index_ngenome;
+  uint64_t index_anon_huge_bytes;
   double setup_wall_s;
   bool tried, enabled, stopping, fault;
   Totals totals;
@@ -173,8 +174,8 @@ struct State {
       : ctx(nullptr), pending_bytes(0), epoch(1), next_generation(1),
         live_bytes(0), live_requests(0), index_object(nullptr),
         index_g(nullptr), index_sa(nullptr), index_sai(nullptr), index_nsa(0),
-        index_ngenome(0), setup_wall_s(0), tried(false), enabled(false),
-        stopping(false), fault(false) {}
+        index_ngenome(0), index_anon_huge_bytes(0), setup_wall_s(0),
+        tried(false), enabled(false), stopping(false), fault(false) {}
 };
 thread_local std::shared_ptr<Window> current_window;
 thread_local WindowRead *current_frame = nullptr;
@@ -268,6 +269,37 @@ void write_stats(std::ostream &f, const ProbeStats &s) {
 bool env1(const char *n) {
   const char *v = getenv(n);
   return v && !strcmp(v, "1");
+}
+uint64_t anon_huge_overlapping(const void *ptr, uint64_t length) {
+#if defined(__linux__)
+  if (!ptr || !length)
+    return 0;
+  const uint64_t lo = reinterpret_cast<uintptr_t>(ptr), hi = lo + length;
+  if (hi < lo)
+    return 0;
+  FILE *smaps = fopen("/proc/self/smaps", "r");
+  if (!smaps)
+    return 0;
+  char line[512];
+  bool overlaps_mapping = false;
+  uint64_t total = 0;
+  while (fgets(line, sizeof(line), smaps)) {
+    unsigned long long start = 0, end = 0;
+    if (sscanf(line, "%llx-%llx", &start, &end) == 2) {
+      overlaps_mapping = start < hi && lo < end;
+    } else if (overlaps_mapping && !strncmp(line, "AnonHugePages:", 14)) {
+      unsigned long long kib = 0;
+      if (sscanf(line + 14, "%llu", &kib) == 1)
+        total += kib * 1024;
+    }
+  }
+  fclose(smaps);
+  return total;
+#else
+  (void)ptr;
+  (void)length;
+  return 0;
+#endif
 }
 [[noreturn]] void strict_fail(const char *s) {
   fprintf(stderr, "STAR_INTEGRATE strict failure: %s\n", s);
@@ -613,7 +645,8 @@ void sidecar(const State &s) {
   write_stats(f, t.rejected_stats);
   f << ",\"live_bytes_at_finish\":" << s.live_bytes
     << ",\"live_requests_at_finish\":" << s.live_requests
-    << ",\"setup_wall_s\":" << s.setup_wall_s
+    << ",\"index_mode\":\"borrowed\",\"index_anon_huge_bytes\":"
+    << s.index_anon_huge_bytes << ",\"setup_wall_s\":" << s.setup_wall_s
     << ",\"gpu_inflight_depth\":2,\"gpu_fill_wait_us\":[";
   for (size_t i = 0; i < t.fill_wait_us.size(); ++i)
     f << (i ? "," : "") << t.fill_wait_us[i];
@@ -709,36 +742,40 @@ bool setup(const Parameters &p, const Genome &g) {
   if (!env1("STAR_INTEGRATE"))
     return false;
   UsiIdentityV1 id = {};
-  uint64_t gb = g.nGenome, sab = g.nSAbyte;
-  const uint64_t sai_header_bytes =
-      sizeof(uint) * static_cast<uint64_t>(p.pGe.gSAindexNbases + 2);
-  std::vector<uint8_t> sai_header(static_cast<size_t>(sai_header_bytes));
-  memcpy(sai_header.data(), &p.pGe.gSAindexNbases, sizeof(uint));
-  memcpy(sai_header.data() + sizeof(uint), g.genomeSAindexStart,
-         sai_header_bytes - sizeof(uint));
+  const uint64_t g_extent = g.nGenome + 400;
+  const uint64_t sa_extent = ((g.nSA - 1) * (g.GstrandBit + 1)) / 8 + 8;
+  if (g.SA.lengthByte < sa_extent)
+    return false;
+  uint64_t gb = g.nGenome, sab = sa_extent;
   sampled_hash_parts(nullptr, 0, (const uint8_t *)g.G, gb, id.sha256);
   sampled_hash_parts(nullptr, 0, (const uint8_t *)g.SA.charArray, sab,
                      id.sha256 + 32);
-  sampled_hash_parts(sai_header.data(), sai_header_bytes,
-                     (const uint8_t *)g.SAi.charArray, g.SAi.lengthByte,
-                     id.sha256 + 64);
+  sampled_hash_parts(nullptr, 0, (const uint8_t *)g.SAi.charArray,
+                     g.SAi.lengthByte, id.sha256 + 64);
   id.genome_file_bytes = gb;
   id.sa_file_bytes = sab;
-  id.sai_file_bytes = sai_header_bytes + g.SAi.lengthByte;
+  id.sai_file_bytes = g.SAi.lengthByte;
   id.n_sa = g.nSA;
   id.strand_bit = g.GstrandBit;
   id.sparse = p.pGe.gSAsparseD;
   UsiErrorV1 e = {};
-  ProbeConfigV2 config =
-      probe_config_v2(g, p.seedSearchLmax, id.sai_file_bytes);
+  ProbeConfigV2 config = probe_config_v2(g, p.seedSearchLmax, g.SAi.lengthByte);
+  config.sai_offset = 0;
   if (const char *dump = getenv("STAR_INTEGRATE_CONFIG_DUMP"))
     write_probe_config_v2(dump, config);
-  if (usi_init_v2(p.pGe.gDir.c_str(), &id, &config, s.epoch, &s.ctx, &e) ||
+  if (usi_init_v2_borrowed((const uint8_t *)g.G - 200, g_extent,
+                           (const uint8_t *)g.SA.charArray, sa_extent,
+                           (const uint8_t *)g.SAi.charArray, g.SAi.lengthByte,
+                           &id, &config, s.epoch, &s.ctx, &e) ||
       !s.ctx) {
     s.ctx = nullptr;
     return false;
   }
   s.enabled = true;
+  s.index_anon_huge_bytes =
+      anon_huge_overlapping(g.G - 200, g_extent) +
+      anon_huge_overlapping(g.SA.charArray, sa_extent) +
+      anon_huge_overlapping(g.SAi.charArray, g.SAi.lengthByte);
   fast_enabled = true;
   bind_index(g);
   s.coordinator = std::thread(coordinator_main);

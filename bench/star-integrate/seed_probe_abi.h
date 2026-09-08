@@ -8,6 +8,10 @@ extern "C" {
 typedef struct UsiPrefixContext UsiPrefixContext;
 int32_t usi_init_v2(const char *, const UsiIdentityV1 *, const ProbeConfigV2 *,
                     uint64_t, UsiPrefixContext **, UsiErrorV1 *);
+int32_t usi_init_v2_borrowed(const uint8_t *, uint64_t, const uint8_t *,
+                             uint64_t, const uint8_t *, uint64_t,
+                             const UsiIdentityV1 *, const ProbeConfigV2 *,
+                             uint64_t, UsiPrefixContext **, UsiErrorV1 *);
 int32_t usi_search_batch_v2(UsiPrefixContext *, uint64_t, const uint8_t *,
                             uint64_t, const ProbeRequestV2 *, uint64_t,
                             ProbeOutputV2 *, ProbeStats *, UsiErrorV1 *);

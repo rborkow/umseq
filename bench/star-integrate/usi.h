@@ -66,6 +66,17 @@ int32_t usi_destroy_v1(UsiContext **ctx, UsiErrorV1 *error);
 int32_t usi_init_v2(const char *index_dir, const UsiIdentityV1 *identity,
                     const ProbeConfigV2 *config, uint64_t index_epoch,
                     UsiPrefixContext **out, UsiErrorV1 *error);
+// Borrowed mode retains STAR's G-200/SA/SAindex-payload pointers in the V2
+// context.  g_len is at least nGenome+400; sa_len includes packed tail bytes;
+// SAindex is payload-only and config.sai_offset is zero.  The caller keeps all
+// three allocations immutable and live until destroy (or device teardown after
+// an uncertain completion).
+int32_t usi_init_v2_borrowed(const uint8_t *g_minus_200, uint64_t g_len,
+                             const uint8_t *sa, uint64_t sa_len,
+                             const uint8_t *sai_payload, uint64_t sai_len,
+                             const UsiIdentityV1 *identity,
+                             const ProbeConfigV2 *config, uint64_t index_epoch,
+                             UsiPrefixContext **out, UsiErrorV1 *error);
 int32_t usi_search_batch_v2(UsiPrefixContext *ctx, uint64_t index_epoch,
                             const uint8_t *reads, uint64_t read_bytes,
                             const ProbeRequestV2 *requests, uint64_t n,

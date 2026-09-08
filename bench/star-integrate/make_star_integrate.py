@@ -15,6 +15,15 @@ def oracle(tooling):
     m=importlib.util.module_from_spec(spec); sys.path.insert(0,str(tooling)); spec.loader.exec_module(m); return m
 def once(rio,text,old,new): return rio.replace_once(text,old,new)
 def patch(rio,name,text):
+    if name=='PackedArray.cpp':
+        text=once(rio,text,'# include "PackedArray.h"\n','# include "PackedArray.h"\n#if defined(STAR_INTEGRATE) && defined(__linux__)\n#include <sys/mman.h>\n#include <stdint.h>\nstatic void starIntegrateAdviseHuge(char *p, uint64_t n) {\n    const uintptr_t page=4096, lo=((uintptr_t)p+page-1)&~(page-1), hi=((uintptr_t)p+n)&~(page-1);\n    if (hi>lo) madvise((void *)lo,hi-lo,MADV_HUGEPAGE);\n}\n#endif\n')
+        return once(rio,text,'    charArray=new char[lengthByte];\n','    charArray=new char[lengthByte];\n#if defined(STAR_INTEGRATE) && defined(__linux__)\n    starIntegrateAdviseHuge(charArray,lengthByte);\n#endif\n')
+    if name=='Genome_genomeLoad.cpp':
+        text=once(rio,text,'#include "genomeScanFastaFiles.h"\n','#include "genomeScanFastaFiles.h"\n#if defined(STAR_INTEGRATE) && defined(__linux__)\n#include <fcntl.h>\n#include <unistd.h>\n#include <sys/mman.h>\n#include <stdint.h>\nstatic void starIntegrateAdviseHuge(char *p, uint64_t n) {\n    const uintptr_t page=4096, lo=((uintptr_t)p+page-1)&~(page-1), hi=((uintptr_t)p+n)&~(page-1);\n    if (hi>lo) madvise((void *)lo,hi-lo,MADV_HUGEPAGE);\n}\nstatic void starIntegrateDropFile(const string &p) { int fd=open(p.c_str(),O_RDONLY); if (fd>=0) { posix_fadvise(fd,0,0,POSIX_FADV_DONTNEED); close(fd); } }\n#endif\n')
+        text=once(rio,text,'                G1=new char[nGenomePass2+L+L];\n','                G1=new char[nGenomePass2+L+L];\n#if defined(STAR_INTEGRATE) && defined(__linux__)\n                starIntegrateAdviseHuge(G1,nGenomePass2+L+L);\n#endif\n')
+        text=once(rio,text,'                    G1=new char[nGenome+L+L];\n                    SA.allocateArray();\n','                    G1=new char[nGenome+L+L];\n#if defined(STAR_INTEGRATE) && defined(__linux__)\n                    starIntegrateAdviseHuge(G1,nGenome+L+L);\n#endif\n                    SA.allocateArray();\n')
+        text=once(rio,text,'                    G1=new char[nGenome+L+L+genomeInsertL];\n','                    G1=new char[nGenome+L+L+genomeInsertL];\n#if defined(STAR_INTEGRATE) && defined(__linux__)\n                    starIntegrateAdviseHuge(G1,nGenome+L+L+genomeInsertL);\n#endif\n')
+        return once(rio,text,'    SAiIn.close();\n','    SAiIn.close();\n#if defined(STAR_INTEGRATE) && defined(__linux__)\n    starIntegrateDropFile(pGe.gDir+"/Genome");\n    starIntegrateDropFile(pGe.gDir+"/SA");\n    starIntegrateDropFile(pGe.gDir+"/SAindex");\n#endif\n')
     if name=='STAR.cpp':
         text=once(rio,text,'#include "parametersDefault.xxd"\n','#include "parametersDefault.xxd"\n#include "star_integrate.hpp"\n#include "star_integrate_work.hpp"\n')
         text=once(rio,text,'    genomeMain.genomeLoad();\n','    genomeMain.genomeLoad();\n    star_integrate::setup(P, genomeMain);\n')
@@ -281,7 +290,7 @@ def main(a):
     inv=rio.inventory(source); rio.require(len(inv)==344 and rio.digest(rio.encoded(inv))==rio.FULL_INVENTORY_SHA256,'pinned 344-file source inventory mismatch')
     if root.exists(): raise ValueError('private root already exists; refuse overwrite')
     root.mkdir(mode=0o700); shutil.copytree(source,root/'baseline'); shutil.copytree(source,root/'integrated')
-    changed=('STAR.cpp','ReadAlignChunk_mapChunk.cpp','ReadAlign_mapOneRead.cpp','ReadAlign_oneRead.cpp','ReadAlign_maxMappableLength2strands.cpp','SuffixArrayFuns.cpp','Makefile')
+    changed=('STAR.cpp','ReadAlignChunk_mapChunk.cpp','ReadAlign_mapOneRead.cpp','ReadAlign_oneRead.cpp','ReadAlign_maxMappableLength2strands.cpp','SuffixArrayFuns.cpp','Genome_genomeLoad.cpp','PackedArray.cpp','Makefile')
     for n in changed: (root/'integrated'/n).write_text(patch(rio,n,(source/n).read_text()))
     shutil.copy2(HERE/'star_integrate.hpp',root/'integrated'/'star_integrate.hpp')
     shutil.copy2(HERE/'star_integrate.cpp',root/'integrated'/'star_integrate.cpp')

@@ -68,22 +68,26 @@ fn vm_rss() -> u64 {
         .unwrap_or(0)
         * 1024
 }
-fn anon_huge(ptr: *const u8) -> u64 {
+fn anon_huge(ptr: *const u8, len: usize) -> u64 {
     let Ok(s) = fs::read_to_string("/proc/self/smaps") else {
         return 0;
     };
-    let a = ptr as usize;
+    let lo = ptr as usize;
+    let Some(hi) = lo.checked_add(len) else {
+        return 0;
+    };
     let mut hit = false;
+    let mut total = 0;
     for l in s.lines() {
         if let Some((r, _)) = l.split_once(' ')
             && let Some((x, y)) = r.split_once('-')
             && let (Ok(x), Ok(y)) = (usize::from_str_radix(x, 16), usize::from_str_radix(y, 16))
         {
-            hit = x <= a && a < y;
+            hit = x < hi && lo < y;
             continue;
         }
         if hit && let Some(v) = l.strip_prefix("AnonHugePages:") {
-            return v
+            total += v
                 .split_whitespace()
                 .next()
                 .and_then(|x| x.parse::<u64>().ok())
@@ -91,7 +95,7 @@ fn anon_huge(ptr: *const u8) -> u64 {
                 * 1024;
         }
     }
-    0
+    total
 }
 /// STAR-shaped allocation: glibc mmaps a request this large and populates
 /// nothing until first write, exactly like `new char[]`. With `huge`,
@@ -331,7 +335,9 @@ fn main() -> Result<()> {
         }
         println!(
             "index_anon_huge_bytes\t{}",
-            anon_huge(g.as_ptr()) + anon_huge(sa.as_ptr()) + anon_huge(si.as_ptr())
+            anon_huge(g.as_ptr(), g.len())
+                + anon_huge(sa.as_ptr(), sa.len())
+                + anon_huge(si.as_ptr(), si.len())
         );
     }
     println!(

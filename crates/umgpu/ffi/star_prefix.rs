@@ -10,11 +10,21 @@ pub struct UsiPrefixContext {
 /// Reusable resident prefix runner shared by the C boundary and corpus replay.
 pub struct PrefixSession {
     gpu: umgpu::Context,
-    index: Option<ProbeResident>,
+    index: PrefixIndex,
     config: ProbeConfigV2,
     epoch: u64,
     owned: Owned,
     disabled: bool,
+}
+enum PrefixIndex {
+    Owned(Option<ProbeResident>),
+    /// STAR owns these allocations.  They must outlive this session and every
+    /// successful or quarantined device drain (the C ABI documents that lease).
+    Borrowed {
+        genome: (*const u8, usize),
+        sa: (*const u8, usize),
+        sai: (*const u8, usize),
+    },
 }
 impl PrefixSession {
     pub fn new(index: ProbeResident, config: ProbeConfigV2, epoch: u64) -> Result<Self, String> {
@@ -57,7 +67,35 @@ impl PrefixSession {
             umgpu::Context::new(0, umgpu::ContextOptions::default()).map_err(|e| e.to_string())?;
         Ok(Self {
             gpu,
-            index: Some(index),
+            index: PrefixIndex::Owned(Some(index)),
+            config,
+            epoch,
+            owned: Owned {
+                reads: None,
+                requests: None,
+                output: None,
+                stats: None,
+            },
+            disabled: false,
+        })
+    }
+    /// # Safety
+    /// The three raw index ranges are STAR-owned, immutable, readable, and
+    /// remain live until this session is destroyed (including a quarantined
+    /// device completion).
+    pub unsafe fn new_borrowed(
+        genome: (*const u8, usize),
+        sa: (*const u8, usize),
+        sai: (*const u8, usize),
+        config: ProbeConfigV2,
+        epoch: u64,
+    ) -> Result<Self, String> {
+        validate_borrowed_config(genome, sa, sai, config, epoch)?;
+        let gpu =
+            umgpu::Context::new(0, umgpu::ContextOptions::default()).map_err(|e| e.to_string())?;
+        Ok(Self {
+            gpu,
+            index: PrefixIndex::Borrowed { genome, sa, sai },
             config,
             epoch,
             owned: Owned {
@@ -100,7 +138,13 @@ impl PrefixSession {
         let mut b = self.owned.prepare(reads.len(), n * 88, n * 48, n * 48)?;
         b.reads.as_mut_slice()[..reads.len()].copy_from_slice(reads);
         b.requests.as_pod_mut_slice::<ProbeRequestV2>()[..n].copy_from_slice(requests);
-        let index = self.index.take().ok_or("prefix resident unavailable")?;
+        if let PrefixIndex::Borrowed { genome, sa, sai } = &self.index {
+            return self.search_borrowed_v2(epoch, reads, requests, *genome, *sa, *sai);
+        }
+        let PrefixIndex::Owned(index) = &mut self.index else {
+            unreachable!()
+        };
+        let index = index.take().ok_or("prefix resident unavailable")?;
         let uc = self.gpu.umem_context();
         let g = index.genome.lease(&uc);
         let sa = index.sa.lease(&uc);
@@ -144,7 +188,7 @@ impl PrefixSession {
             AnyBuf::Rw(b) => b,
             _ => unreachable!(),
         };
-        self.index = Some(ProbeResident {
+        self.index = PrefixIndex::Owned(Some(ProbeResident {
             genome: ro(v.next().unwrap()),
             sa: ro(v.next().unwrap()),
             sai: ro(v.next().unwrap()),
@@ -152,7 +196,7 @@ impl PrefixSession {
             config: index.config,
             hashes: index.hashes,
             load_seconds: index.load_seconds,
-        });
+        }));
         let b = BatchBuffers {
             reads: reclaim_writable(ro(v.next().unwrap())),
             requests: reclaim_writable(ro(v.next().unwrap())),
@@ -189,7 +233,13 @@ impl PrefixSession {
         let mut b = self.owned.prepare(reads.len(), n * 88, n * 472, n * 48)?;
         b.reads.as_mut_slice()[..reads.len()].copy_from_slice(reads);
         b.requests.as_pod_mut_slice::<ProbeRequestV3>()[..n].copy_from_slice(requests);
-        let index = self.index.take().ok_or("prefix resident unavailable")?;
+        if let PrefixIndex::Borrowed { genome, sa, sai } = &self.index {
+            return self.search_borrowed_v3(epoch, reads, requests, variant, *genome, *sa, *sai);
+        }
+        let PrefixIndex::Owned(index) = &mut self.index else {
+            unreachable!()
+        };
+        let index = index.take().ok_or("prefix resident unavailable")?;
         let uc = self.gpu.umem_context();
         let g = index.genome.lease(&uc);
         let sa = index.sa.lease(&uc);
@@ -234,7 +284,7 @@ impl PrefixSession {
             AnyBuf::Rw(b) => b,
             _ => unreachable!(),
         };
-        self.index = Some(ProbeResident {
+        self.index = PrefixIndex::Owned(Some(ProbeResident {
             genome: ro(v.next().unwrap()),
             sa: ro(v.next().unwrap()),
             sai: ro(v.next().unwrap()),
@@ -242,7 +292,7 @@ impl PrefixSession {
             config: index.config,
             hashes: index.hashes,
             load_seconds: index.load_seconds,
-        });
+        }));
         let b = BatchBuffers {
             reads: reclaim_writable(ro(v.next().unwrap())),
             requests: reclaim_writable(ro(v.next().unwrap())),
@@ -256,6 +306,169 @@ impl PrefixSession {
         self.disabled = false;
         Ok((outputs, stats, ms))
     }
+    fn search_borrowed_v2(
+        &mut self,
+        _epoch: u64,
+        reads: &[u8],
+        requests: &[ProbeRequestV2],
+        genome: (*const u8, usize),
+        sa: (*const u8, usize),
+        sai: (*const u8, usize),
+    ) -> Result<(Vec<ProbeOutputV2>, Vec<ProbeStats>, f32), String> {
+        let n = requests.len();
+        let mut b = self.owned.prepare(reads.len(), n * 88, n * 48, n * 48)?;
+        b.reads.as_mut_slice()[..reads.len()].copy_from_slice(reads);
+        b.requests.as_pod_mut_slice::<ProbeRequestV2>()[..n].copy_from_slice(requests);
+        let uc = self.gpu.umem_context();
+        let r = b.reads.freeze().lease(&uc);
+        let q = b.requests.freeze().lease(&uc);
+        let o = b.output.lease(&uc);
+        let s = b.stats.lease(&uc);
+        self.disabled = true;
+        // SAFETY: `usi_init_v2_borrowed` requires STAR's G/SA/SAi allocations
+        // to remain immutable and live through this synchronous drain.
+        let result = unsafe {
+            umgpu::seed_probe_v2_raw_host(
+                &self.gpu,
+                genome,
+                sa,
+                sai,
+                &r,
+                reads.len(),
+                &q,
+                &o,
+                &s,
+                self.config,
+                n,
+            )
+        };
+        let recovered =
+            umgpu::seed_probe_reclaim(&self.gpu, vec![r.erase(), q.erase(), o.erase(), s.erase()])?;
+        let mut v = recovered.into_iter();
+        let ro = |v: AnyBuf| match v {
+            AnyBuf::Ro(b) => b,
+            _ => unreachable!(),
+        };
+        let rw = |v: AnyBuf| match v {
+            AnyBuf::Rw(b) => b,
+            _ => unreachable!(),
+        };
+        let b = BatchBuffers {
+            reads: reclaim_writable(ro(v.next().unwrap())),
+            requests: reclaim_writable(ro(v.next().unwrap())),
+            output: rw(v.next().unwrap()),
+            stats: rw(v.next().unwrap()),
+        };
+        let outputs = b.output.as_pod_slice::<ProbeOutputV2>()[..n].to_vec();
+        let stats = b.stats.as_pod_slice::<ProbeStats>()[..n].to_vec();
+        self.owned.restore(b);
+        let ms = result.map_err(|e| e.to_string())?;
+        self.disabled = false;
+        Ok((outputs, stats, ms))
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn search_borrowed_v3(
+        &mut self,
+        _epoch: u64,
+        reads: &[u8],
+        requests: &[ProbeRequestV3],
+        variant: ProbeVariant,
+        genome: (*const u8, usize),
+        sa: (*const u8, usize),
+        sai: (*const u8, usize),
+    ) -> Result<(Vec<ProbeOutputV3>, Vec<ProbeStats>, f32), String> {
+        let n = requests.len();
+        let mut b = self.owned.prepare(reads.len(), n * 88, n * 472, n * 48)?;
+        b.reads.as_mut_slice()[..reads.len()].copy_from_slice(reads);
+        b.requests.as_pod_mut_slice::<ProbeRequestV3>()[..n].copy_from_slice(requests);
+        let uc = self.gpu.umem_context();
+        let r = b.reads.freeze().lease(&uc);
+        let q = b.requests.freeze().lease(&uc);
+        let o = b.output.lease(&uc);
+        let s = b.stats.lease(&uc);
+        self.disabled = true;
+        // SAFETY: the borrowed STAR index allocation outlives the context and drain.
+        let result = unsafe {
+            umgpu::seed_probe_v3_raw_host(
+                &self.gpu,
+                genome,
+                sa,
+                sai,
+                &r,
+                reads.len(),
+                &q,
+                &o,
+                &s,
+                self.config,
+                n,
+                variant,
+            )
+        };
+        let recovered =
+            umgpu::seed_probe_reclaim(&self.gpu, vec![r.erase(), q.erase(), o.erase(), s.erase()])?;
+        let mut v = recovered.into_iter();
+        let ro = |v: AnyBuf| match v {
+            AnyBuf::Ro(b) => b,
+            _ => unreachable!(),
+        };
+        let rw = |v: AnyBuf| match v {
+            AnyBuf::Rw(b) => b,
+            _ => unreachable!(),
+        };
+        let b = BatchBuffers {
+            reads: reclaim_writable(ro(v.next().unwrap())),
+            requests: reclaim_writable(ro(v.next().unwrap())),
+            output: rw(v.next().unwrap()),
+            stats: rw(v.next().unwrap()),
+        };
+        let outputs = b.output.as_pod_slice::<ProbeOutputV3>()[..n].to_vec();
+        let stats = b.stats.as_pod_slice::<ProbeStats>()[..n].to_vec();
+        self.owned.restore(b);
+        let ms = result.map_err(|e| e.to_string())?;
+        self.disabled = false;
+        Ok((outputs, stats, ms))
+    }
+}
+
+fn validate_borrowed_config(
+    genome: (*const u8, usize),
+    sa: (*const u8, usize),
+    sai: (*const u8, usize),
+    config: ProbeConfigV2,
+    epoch: u64,
+) -> Result<(), String> {
+    let c = config.inner;
+    let sa_need = c
+        .n_sa
+        .checked_sub(1)
+        .and_then(|n| n.checked_mul(c.strand_bit + 1))
+        .and_then(|n| n.checked_div(8))
+        .and_then(|n| n.checked_add(8))
+        .ok_or("borrowed SA extent overflow")?;
+    if epoch == 0
+        || c.n_genome == 0
+        || c.n_sa == 0
+        || !(1..=15).contains(&config.index_bases)
+        || config.sai_width != c.strand_bit + 3
+        || config.sai_offset != 0
+        || config.sai_bytes == 0
+        || genome.0.is_null()
+        || sa.0.is_null()
+        || sai.0.is_null()
+        || genome.1 < c.n_genome as usize + 400
+        || sa.1 < sa_need as usize
+        || sai.1 < config.sai_bytes as usize
+    {
+        return Err("invalid borrowed prefix index/configuration".into());
+    }
+    if config.n_mask != !config.n_mask_c
+        || !config.n_mask_c.is_power_of_two()
+        || !config.absent_mask.is_power_of_two()
+        || config.n_mask_c == config.absent_mask
+    {
+        return Err("invalid loaded Genome SAindex masks".into());
+    }
+    Ok(())
 }
 
 #[unsafe(no_mangle)]
@@ -324,6 +537,121 @@ pub unsafe extern "C" fn usi_init_v2(
         }
     })
     .unwrap_or_else(|_| err(error, ALLOC, "panic at prefix init boundary"))
+}
+
+#[unsafe(no_mangle)]
+/// Initializes V2 over STAR's already-loaded index without copying or registering it.
+/// # Safety
+/// `g_minus_200`, `sa`, and `sai_payload` name immutable STAR allocations of the
+/// supplied readable extents. They remain live until `usi_destroy_v2`; on an
+/// uncertain completion the caller must retain them through device teardown.
+pub unsafe extern "C" fn usi_init_v2_borrowed(
+    g_minus_200: *const u8,
+    g_len: u64,
+    sa: *const u8,
+    sa_len: u64,
+    sai_payload: *const u8,
+    sai_len: u64,
+    identity: *const UsiIdentityV1,
+    config: *const ProbeConfigV2,
+    epoch: u64,
+    out: *mut *mut UsiPrefixContext,
+    error: *mut UsiErrorV1,
+) -> i32 {
+    std::panic::catch_unwind(|| unsafe {
+        if !valid_range(error, size_of::<UsiErrorV1>())
+            || !valid_range(out, size_of::<*mut UsiPrefixContext>())
+        {
+            return BAD;
+        }
+        let lens = match (
+            usize::try_from(g_len),
+            usize::try_from(sa_len),
+            usize::try_from(sai_len),
+        ) {
+            (Ok(g), Ok(sa), Ok(sai)) => (g, sa, sai),
+            _ => return err(error, BAD, "borrowed index extent overflow"),
+        };
+        let inputs = [
+            (g_minus_200, lens.0),
+            (sa, lens.1),
+            (sai_payload, lens.2),
+            (identity.cast::<u8>(), size_of::<UsiIdentityV1>()),
+            (config.cast::<u8>(), size_of::<ProbeConfigV2>()),
+        ];
+        if inputs.iter().any(|&(p, n)| !valid_range(p, n))
+            || inputs.iter().any(|&(p, n)| {
+                overlaps(p, n, out.cast(), size_of::<*mut UsiPrefixContext>())
+                    || overlaps(p, n, error.cast(), size_of::<UsiErrorV1>())
+            })
+            || overlaps(
+                out.cast(),
+                size_of::<*mut UsiPrefixContext>(),
+                error.cast(),
+                size_of::<UsiErrorV1>(),
+            )
+        {
+            return BAD;
+        }
+        if !(*out).is_null() {
+            return err(error, BAD, "out must initially be null");
+        }
+        *out = ptr::null_mut();
+        let c = *config;
+        let ranges = ((g_minus_200, lens.0), (sa, lens.1), (sai_payload, lens.2));
+        if let Err(e) = validate_borrowed_config(ranges.0, ranges.1, ranges.2, c, epoch) {
+            return err(error, BAD, &e);
+        }
+        let actual = match borrowed_identity(ranges.0, ranges.1, ranges.2, c) {
+            Ok(x) => x,
+            Err(e) => return err(error, ID, &e),
+        };
+        if !same_identity(&actual, &*identity) {
+            return err(error, ID, "borrowed STAR index identity mismatch");
+        }
+        match PrefixSession::new_borrowed(ranges.0, ranges.1, ranges.2, c, epoch) {
+            Ok(session) => {
+                *out = Box::into_raw(Box::new(UsiPrefixContext {
+                    session: Mutex::new(session),
+                }));
+                err(error, OK, "")
+            }
+            Err(e) => err(error, GPU, &e),
+        }
+    })
+    .unwrap_or_else(|_| err(error, ALLOC, "panic at borrowed prefix init boundary"))
+}
+
+fn borrowed_identity(
+    genome: (*const u8, usize),
+    sa: (*const u8, usize),
+    sai: (*const u8, usize),
+    config: ProbeConfigV2,
+) -> Result<UsiIdentityV1, String> {
+    let logical =
+        usize::try_from(config.inner.n_genome).map_err(|_| "borrowed genome extent overflow")?;
+    // SAFETY: init validated the three readable caller extents; this sampling is
+    // synchronous and does not retain slices or pointers beyond initialization.
+    let (g, sa_bytes, sai_bytes) = unsafe {
+        (
+            std::slice::from_raw_parts(genome.0.add(200), logical),
+            std::slice::from_raw_parts(sa.0, sa.1),
+            std::slice::from_raw_parts(sai.0, sai.1),
+        )
+    };
+    let mut sha = [0; 96];
+    sha[..32].copy_from_slice(&sampled_hash(g));
+    sha[32..64].copy_from_slice(&sampled_hash(sa_bytes));
+    sha[64..].copy_from_slice(&sampled_hash(sai_bytes));
+    Ok(UsiIdentityV1 {
+        genome_file_bytes: logical as u64,
+        sa_file_bytes: sa.1 as u64,
+        sai_file_bytes: sai.1 as u64,
+        n_sa: config.inner.n_sa,
+        strand_bit: config.inner.strand_bit,
+        sparse: 1,
+        sha256: sha,
+    })
 }
 #[unsafe(no_mangle)]
 /// # Safety
@@ -517,6 +845,49 @@ pub unsafe extern "C" fn usi_search_batch_v3(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn borrowed_prefix_stub_is_unsupported() {
+        let genome = [0u8; 401];
+        let sa = [0u8; 8];
+        let sai = [0u8; 8];
+        let config = ProbeConfigV2 {
+            inner: ProbeConfig {
+                n_genome: 1,
+                n_sa: 1,
+                strand_bit: 32,
+            },
+            index_bases: 1,
+            sai_width: 35,
+            absent_mask: 1 << 34,
+            n_mask: !(1 << 33),
+            n_mask_c: 1 << 33,
+            sai_bytes: sai.len() as u64,
+            sai_offset: 0,
+            ..Default::default()
+        };
+        // SAFETY: these synthetic arrays meet the exact raw-host readable
+        // extents and live for the constructor call. Mac's stub must reject
+        // the device, never emulate a prefix result.
+        let result = unsafe {
+            PrefixSession::new_borrowed(
+                (genome.as_ptr(), genome.len()),
+                (sa.as_ptr(), sa.len()),
+                (sai.as_ptr(), sai.len()),
+                config,
+                1,
+            )
+        };
+        #[cfg(not(feature = "cuda"))]
+        match result {
+            Err(_) => assert!(matches!(
+                umgpu::Context::new(0, umgpu::ContextOptions::default()),
+                Err(umgpu::Error::Unsupported)
+            )),
+            Ok(_) => panic!("stub must return Unsupported"),
+        }
+        #[cfg(feature = "cuda")]
+        let _ = result;
+    }
     #[test]
     fn malformed_batch_does_not_write_aliased_error() {
         let mut error = UsiErrorV1 {

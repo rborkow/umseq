@@ -317,6 +317,16 @@ extern "C" int32_t usi_init_v2(const char *, const UsiIdentityV1 *,
   std::memset(e, 0, sizeof(*e));
   return 0;
 }
+extern "C" int32_t usi_init_v2_borrowed(const uint8_t *, uint64_t,
+                                        const uint8_t *, uint64_t,
+                                        const uint8_t *, uint64_t,
+                                        const UsiIdentityV1 *,
+                                        const ProbeConfigV2 *, uint64_t,
+                                        UsiPrefixContext **out, UsiErrorV1 *e) {
+  *out = &fake_context;
+  std::memset(e, 0, sizeof(*e));
+  return 0;
+}
 extern "C" int32_t usi_destroy_v2(UsiPrefixContext **ctx, UsiErrorV1 *e) {
   *ctx = 0;
   std::memset(e, 0, sizeof(*e));

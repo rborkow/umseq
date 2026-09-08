@@ -92,6 +92,20 @@ class PatchGuard(unittest.TestCase):
   cpp=(ROOT/'star_integrate.cpp').read_text()
   self.assertNotIn('ifstream',cpp)
   self.assertNotIn('sampled_file_matches',cpp)
+ def test_loader_hugepage_and_drop_cache_hooks_precede_reads(self):
+  root=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
+  if not root.exists(): self.skipTest('pinned private source unavailable')
+  class R:
+   def replace_once(self,t,o,n):
+    if t.count(o) != 1: raise ValueError('missing or duplicate exact hook')
+    return t.replace(o,n,1)
+  genome=m.patch(R(),'Genome_genomeLoad.cpp',(root/'Genome_genomeLoad.cpp').read_text())
+  packed=m.patch(R(),'PackedArray.cpp',(root/'PackedArray.cpp').read_text())
+  self.assertIn('defined(STAR_INTEGRATE)',genome)
+  self.assertLess(genome.index('starIntegrateAdviseHuge(G1,nGenome+L+L);'),genome.index('fstreamReadBig(GenomeIn,G,nGenome)'))
+  self.assertLess(packed.index('starIntegrateAdviseHuge(charArray,lengthByte);'),packed.index('memset(charArray+lengthByte'))
+  self.assertGreater(genome.index('starIntegrateDropFile(pGe.gDir+"/Genome");'),genome.index('SAiIn.close();'))
+  self.assertIn('POSIX_FADV_DONTNEED',genome)
  def test_real_source_has_chain_suppression_and_retirement_hooks(self):
   root=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
   if not root.exists(): self.skipTest('pinned private source unavailable')
