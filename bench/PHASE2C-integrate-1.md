@@ -324,3 +324,43 @@ and 1.2M unique consumed per run, all strict-verified).
   and the 63–67M `cpu_fallback`), the +1.8% hook floor, and the second index copy (setup
   wall, not mapping CPU — but it is 60+ s per sample of a 55 s run, so it gates any
   wall-time claim).
+
+## Round 6 (INTEGRATE v2 T4 + T4B, `b2dcabe`..`bd925f9`): gate (i) passed with the whole chain on the device; timing invalid — the box is out of memory at setup
+
+Evidence: `integrate-gate-host17/` (gate i), `integrate-timing-host7/` (aborted after r2),
+`bench/evidence/integrate-1-host/v3-kernel-bench.txt`, `v3-perf-4M.txt`, `v3-mem-4M.log`.
+
+**Gate (i): `PARITY_MATCH`** (seventh), strict running stock's full outer body **per step** for
+every consumed chain: 38.8M chains / 53.6M steps consumed, zero shift/flag/step-count
+mismatches, zero rejections, zero overflow (capacity 8 vs measured max 6). Three consumer
+bookkeeping defects were caught by strict before this pass, each a chain-state invariant
+(unconsumed chain not comparable; a chain is all-device or all-CPU; hook must set every key
+field the window sets) — all in `git log`, none in the kernel.
+
+**Timing: not a valid measurement.** GPU arm r1 mapping wall 79 s, user 923, sys 183, RSS 86 GB;
+r2 sys 598 (killed). Diagnosis, in order:
+
+1. *Kernel isolated* (`prefix_replay` bench mode, same 999,914 real requests, identical gather
+   work): V2 thread 10.4 ms / 9.5e8 gathers/s; **V3 thread 18.9 ms / 5.2e8** (1.8× per step —
+   the 472 B output write); V3 warp 146 ms (14×, unusable; coordinator uses thread). At 20M
+   that is ~1–2 s of GPU time. Not the regression.
+2. *Host profile* (4M, enabled): 33.6% `libcuda`, 35% kernel — `queued_spin_lock_slowpath`,
+   `try_to_free_pages`, `swapin_readahead`, `folio_check` **under `compareSeqToGenome`**. Page
+   reclaim during mapping.
+3. *Memory timeline* (4M, 3 s samples): STAR loads its index 0→25 s (RSS → 25 GB); `usi_init`
+   allocates the second copy at 24 s; **`MemFree` 34 → 5 → 0 GB and stays at 0 for 50 s**
+   (27→78 s) while every worker is blocked in reclaim; swap touched at 87–90 s; mapping itself
+   (76→96 s) is a normal 20 s.
+
+**Root cause: two resident copies of a 32 GB index plus ~32 GB of page cache from reading it,
+on a box with ~89 GB after the HugeTLB reserve.** The box is at zero free memory for the
+whole setup phase in *every* round since INTEGRATE-1; V3 is worse only because its host-side
+job records are 50% larger (768 vs 512 B per candidate), tipping reclaim into swap. This is
+what "setup 60–90 s / sys +40" has been all along — not hashing, not file reads, not
+polling. Two of my earlier attributions of it were wrong; this one has the timeline.
+
+**Fix is T5 item B, now unblocked** (Astra exposed the raw-host launch in T4): gather from
+STAR's own arrays, no second copy; drop the index files' page cache after STAR's load
+(`posix_fadvise(DONTNEED)`). Expected: RSS ~66 → ~34 GB, setup → seconds, and the GPU arm's
+mapping-phase number becomes measurable with V3 for the first time. Until then round 6's
+mapping-phase CPU-s cannot be quoted.
