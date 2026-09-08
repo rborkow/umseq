@@ -1,0 +1,5 @@
+default-1        wall/user/sys/maxrss 33.01 235.60 37.41 35141780   consumed 54421013 not_ready 4160526 residue 1537036
+heap-1           wall/user/sys/maxrss 28.38 237.00 32.23 35208936   consumed 55934635 not_ready 2646904 residue 971677
+default-2        wall/user/sys/maxrss 27.31 233.35 32.01 35107796   consumed 56060564 not_ready 2520975 residue 931424
+heap-2           wall/user/sys/maxrss 26.49 234.69 30.48 35142300   consumed 55734906 not_ready 2846633 residue 1051429
+MALLOC-DONE

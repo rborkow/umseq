@@ -29,6 +29,8 @@ def main():
     key=subprocess.run([str(exe),'generated-key-hook'],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,timeout=30)
     wwb=subprocess.run([str(exe),'whole-window-batching'],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,timeout=30)
     assert 'batches=2 consumed=7' in wwb.stdout, wwb.stdout+wwb.stderr
+    pool=subprocess.run([str(exe),'window-pool'],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,timeout=30)
+    assert pool.stdout.strip() == 'window pool: reused=1 reset=1', pool.stdout+pool.stderr
     if key.stdout.strip() != 'generated key hook: consumed=1 key_misses=0':
       raise AssertionError('generated hook key fixture did not consume exactly once:\n'+key.stdout+key.stderr)
     subprocess.run([str(exe),'positional-shuffled'],check=True,timeout=30)

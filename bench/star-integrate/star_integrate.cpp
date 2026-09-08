@@ -110,15 +110,11 @@ struct Window {
   uint64_t miss_reasons[MISS_REASON_COUNT], device_stop_status[256],
       not_ready_where[3];
   ProbeStats consumed_stats, suppressed_stats, other_stats;
-  Window()
-      : next_frame(0), charged_bytes(0), charged_requests(0), consumed(0),
-        steps_consumed(0), prefix_only(0), unique(0), searched(0),
-        suppressed_unused(0), other_unused(0), rejected(0), cpu_fallback(0),
-        read1_fallback(0), hit_bytes(0), hit_gathers(0), unused_bytes(0),
-        unused_gathers(0), miss_reasons(), device_stop_status(),
-        not_ready_where(), consumed_stats(), suppressed_stats(), other_stats() {
+  bool active;
+  Window() : active(true) {
     live_windows.fetch_add(1, std::memory_order_relaxed);
     windows_created.fetch_add(1, std::memory_order_relaxed);
+    reset();
   }
   // The admission charge is released here, by the last owner, not at
   // close_window(): a producer closes (exhausts) a window while the
@@ -126,6 +122,32 @@ struct Window {
   // 146 live windows / 18.8M queued requests against a 0.5 GB charge, RSS +2.7
   // GB per million reads, because the charge was released at close.
   ~Window();
+  // Reuse retains the large Job/range/cursor allocations.  Frame element
+  // buffers are deliberately not retained in 1a: vector::clear destroys the
+  // WindowRead elements; 1b moves those elements through prepare_window.
+  void reset() {
+    frames.clear();
+    jobs.clear();
+    ranges.clear();
+    cursors.clear();
+    next_frame = 0;
+    charged_bytes = charged_requests = 0;
+    consumed = steps_consumed = prefix_only = unique = searched = 0;
+    suppressed_unused = other_unused = rejected = cpu_fallback = 0;
+    read1_fallback = hit_bytes = hit_gathers = unused_bytes = unused_gathers =
+        0;
+    std::memset(miss_reasons, 0, sizeof(miss_reasons));
+    std::memset(device_stop_status, 0, sizeof(device_stop_status));
+    std::memset(not_ready_where, 0, sizeof(not_ready_where));
+    consumed_stats = ProbeStats();
+    suppressed_stats = ProbeStats();
+    other_stats = ProbeStats();
+  }
+  void activate() {
+    active = true;
+    live_windows.fetch_add(1, std::memory_order_relaxed);
+  }
+  void release();
 };
 // One producer (the mapping thread which owns a window) and one consumer
 // (coordinator).  A full ring is a CPU-only admission result, never a wait.
@@ -134,7 +156,33 @@ struct SpscQueue {
   std::atomic<size_t> head, tail;
   // Producer-side admission counter: one notification at each floor crossing.
   std::atomic<uint64_t> requests;
-  SpscQueue() : slots(), head(0), tail(0), requests(0) {}
+  std::mutex pool_mu;
+  std::vector<Window *> free_windows;
+  SpscQueue()
+      : slots(), head(0), tail(0), requests(0), pool_mu(), free_windows() {}
+  ~SpscQueue() {
+    for (size_t i = 0; i < free_windows.size(); ++i)
+      delete free_windows[i];
+  }
+  Window *acquire_window() {
+    std::lock_guard<std::mutex> lock(pool_mu);
+    if (free_windows.empty())
+      return new Window;
+    Window *w = free_windows.back();
+    free_windows.pop_back();
+    w->reset();
+    w->activate();
+    return w;
+  }
+  void recycle_window(Window *w) {
+    std::lock_guard<std::mutex> lock(pool_mu);
+    constexpr size_t pool_limit = 8;
+    if (free_windows.size() < pool_limit) {
+      free_windows.push_back(w);
+      return;
+    }
+    delete w;
+  }
   bool push(const std::shared_ptr<Window> &w) {
     const size_t t = tail.load(std::memory_order_relaxed);
     const size_t next = (t + 1) % queue_slots;
@@ -320,7 +368,11 @@ void note_device_stopped(const Job &j) {
   if (chain_cursor < j.out.n_steps)
     ++current_window->device_stop_status[j.out.steps[chain_cursor].status];
 }
-Window::~Window() {
+Window::~Window() { release(); }
+void Window::release() {
+  if (!active)
+    return;
+  active = false;
   live_windows.fetch_sub(1, std::memory_order_relaxed);
   if (!charged_requests && !charged_bytes)
     return;
@@ -328,6 +380,7 @@ Window::~Window() {
   std::lock_guard<std::mutex> lock(s.mu);
   s.live_bytes -= charged_bytes;
   s.live_requests -= charged_requests;
+  charged_requests = charged_bytes = 0;
   s.cv.notify_one();
 }
 void bind_index(const Genome &g) {
@@ -963,10 +1016,22 @@ void submit_window(std::vector<WindowRead> &&frames) {
   }
   if (bytes > MAX_WINDOW_BYTES || nj > MAX_WINDOW_CANDIDATES)
     return;
-  close_window();
-  std::shared_ptr<Window> w(new Window);
-  w->frames = std::move(frames);
   State &s = S();
+  // Register before acquiring so the per-worker pool is available while the
+  // large jobs vector is rebuilt.  Its custom deleter can run on the
+  // coordinator thread, hence SpscQueue's mutex-protected free list.
+  if (!worker_queue) {
+    std::lock_guard<std::mutex> lock(s.mu);
+    s.queues.emplace_back(new SpscQueue);
+    worker_queue = s.queues.back().get();
+  }
+  close_window();
+  SpscQueue *const owner = worker_queue;
+  std::shared_ptr<Window> w(owner->acquire_window(), [owner](Window *p) {
+    p->release();
+    owner->recycle_window(p);
+  });
+  w->frames = std::move(frames);
   w->charged_requests = nj;
   w->charged_bytes = bytes;
   w->jobs.reserve((size_t)nj);
@@ -982,13 +1047,8 @@ void submit_window(std::vector<WindowRead> &&frames) {
     w->ranges.push_back(Range(first, w->jobs.size()));
     w->cursors.push_back(first);
   }
-  // Register once per mapping thread.  The publish below is a release store
-  // into that thread's SPSC ring; it never takes s.mu or waits for a GPU fence.
-  if (!worker_queue) {
-    std::lock_guard<std::mutex> lock(s.mu);
-    s.queues.emplace_back(new SpscQueue);
-    worker_queue = s.queues.back().get();
-  }
+  // The publish below is a release store into this thread's SPSC ring; it
+  // never waits for a GPU fence.
   bool publish = false, notify = false;
   {
     std::lock_guard<std::mutex> lock(s.mu);

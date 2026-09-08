@@ -327,6 +327,45 @@ void positional_shuffled_completion() {
   }
   star_integrate::close_window();
 }
+// The coordinator is commonly the last owner.  Once it has drained the first
+// window, dropping the producer reference must return it to that producer's
+// pool, with no counters or Job entries carried into the next submission.
+void window_pool_reuse() {
+  prepare_fixture_index();
+  star_integrate::State &s = star_integrate::S();
+  s.ctx = &fake_context;
+  s.enabled = true;
+  s.stopping = false;
+  s.fault = false;
+  s.epoch = 41;
+  s.next_generation = 1;
+  s.coordinator = std::thread(star_integrate::coordinator_main);
+
+  std::vector<star_integrate::WindowRead> first_frames;
+  first_frames.push_back(frame(401));
+  star_integrate::submit_window(std::move(first_frames));
+  star_integrate::settle_for_test();
+  star_integrate::Window *const first = star_integrate::current_window.get();
+  star_integrate::current_window->consumed = 99;
+  star_integrate::current_window->miss_reasons[star_integrate::MISS_NOT_READY] =
+      7;
+
+  std::vector<star_integrate::WindowRead> second_frames;
+  second_frames.push_back(frame(402));
+  star_integrate::submit_window(std::move(second_frames));
+  assert(star_integrate::current_window.get() == first);
+  assert(star_integrate::current_window->next_frame == 0);
+  assert(star_integrate::current_window->consumed == 0);
+  assert(star_integrate::current_window
+             ->miss_reasons[star_integrate::MISS_NOT_READY] == 0);
+  assert(star_integrate::current_window->jobs.size() == 40000);
+  assert(star_integrate::current_window->ranges.size() == 1);
+  assert(star_integrate::current_window->cursors.size() == 1);
+  star_integrate::settle_for_test();
+  star_integrate::close_window();
+  star_integrate::finish();
+  std::puts("window pool: reused=1 reset=1");
+}
 void strict_invalid_success() {
   invalid_success = true;
   setenv("STAR_INTEGRATE_STRICT", "1", 1);
@@ -452,6 +491,8 @@ int main(int argc, char **argv) {
     generated_key_hook();
   else if (argc == 2 && !std::strcmp(argv[1], "positional-shuffled"))
     positional_shuffled_completion();
+  else if (argc == 2 && !std::strcmp(argv[1], "window-pool"))
+    window_pool_reuse();
   else
     normal();
 }
