@@ -131,7 +131,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 dir: q.inner.dir,
                 seed_map_min,
                 max_steps: 1,
-                ..Default::default()
             })
             .collect();
         println!("bench\tarm\tvariant\trepeat\trequests\tevent_ms\tgathers\tgathers_per_s");
