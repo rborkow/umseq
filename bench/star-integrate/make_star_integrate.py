@@ -108,6 +108,8 @@ def patch(rio,name,text):
         star_integrate::InnerCall starIntegrateCall={};
         starIntegrateCall.start=pieceStart; starIntegrateCall.length=pieceLength;
         starIntegrateCall.dir=dirR; starIntegrateCall.distance=iDist;
+        // V3 chain key carries STAR's seedMapMin in the producer's prefix field (see window).
+        starIntegrateCall.prefix=P.seedMapMin;
         // Only the enabled arm reaches this per-candidate frame/key lookup.
         starIntegrateCall=star_integrate::build_current_inner_call(starIntegrateCall);
         uint64_t starIntegrateRange[2]={0,0}, starIntegrateNrep=0, starIntegrateMaxL=0;

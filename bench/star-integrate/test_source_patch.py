@@ -29,6 +29,13 @@ class PatchGuard(unittest.TestCase):
   self.assertNotIn('unordered_multimap',cpp)
   self.assertIn('current_window->cursors[current_index]',cpp)
   self.assertIn('positional_misses',cpp)
+  # Every field the window puts in the chain key must also be set by the
+  # generated hook, or same_call() misses every candidate (round-6 host16:
+  # gpu_consumed == 0 because the window set prefix = seedMapMin and the hook
+  # left it 0). Assert the pair stays in sync.
+  gen=(ROOT/'make_star_integrate.py').read_text()
+  self.assertIn('starIntegrateCall.prefix=P.seedMapMin',gen)
+  self.assertIn('call.prefix = p.seedMapMin',(ROOT/'star_integrate_window.cpp').read_text())
  def test_real_call_patch_has_oracle_and_cpu_fallback(self):
   class R:
    def replace_once(self,t,o,n):
