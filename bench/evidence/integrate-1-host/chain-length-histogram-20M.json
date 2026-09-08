@@ -1,0 +1,16 @@
+{
+ "source": "20M, integrated V2 enabled, chain-hist run; per-chain outer-call count incl. prefix-only/unique",
+ "chains": 146553716,
+ "outer_calls": 201733339,
+ "histogram": {
+  "1": 113648373,
+  "2": 16689937,
+  "3": 11612145,
+  "4": 3154247,
+  "5": 1442415,
+  "6": 6599
+ },
+ "gpu_consumed": 130336476,
+ "cpu_fallback": 71396863,
+ "submitted": 148859184
+}
