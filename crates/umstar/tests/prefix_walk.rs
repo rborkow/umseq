@@ -488,8 +488,16 @@ fn check_chain_device(
         load_seconds: 0.0,
     };
     let mut session = umstar::PrefixSession::new(index, c, 1).unwrap();
+    // The exhaustive grid exceeds the coordinator's 262,144-request batch cap
+    // (a real limit, enforced only by the CUDA session). Submit in cap-sized
+    // slices; every request is still checked, in order.
+    const CAP: usize = 262_144;
     for variant in [umgpu::ProbeVariant::Thread, umgpu::ProbeVariant::Warp] {
-        let (outputs, _, _) = session.search_chains(1, reads, requests, variant).unwrap();
+        let mut outputs = Vec::with_capacity(requests.len());
+        for slice in requests.chunks(CAP) {
+            let (o, _, _) = session.search_chains(1, reads, slice, variant).unwrap();
+            outputs.extend(o);
+        }
         assert_eq!(outputs, expected, "{variant:?}");
     }
     if std::env::var_os("UMSTAR_CHAIN_BENCH").is_some() {
