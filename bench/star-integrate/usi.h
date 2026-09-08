@@ -72,6 +72,12 @@ int32_t usi_search_batch_v2(UsiPrefixContext *ctx, uint64_t index_epoch,
                             ProbeOutputV2 *results, ProbeStats *stats,
                             UsiErrorV1 *error);
 int32_t usi_destroy_v2(UsiPrefixContext **ctx, UsiErrorV1 *error);
+// V3 (whole-chain) reuses the V2 context and resident index.
+int32_t usi_search_batch_v3(UsiPrefixContext *ctx, uint64_t index_epoch,
+                            const uint8_t *reads, uint64_t read_bytes,
+                            const ProbeRequestV3 *requests, uint64_t n,
+                            ProbeOutputV3 *results, ProbeStats *stats,
+                            UsiErrorV1 *error);
 #ifdef __cplusplus
 }
 #endif

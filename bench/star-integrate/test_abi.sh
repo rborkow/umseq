@@ -25,3 +25,9 @@ done
 "$cxx_bin" -x c++ -std=c++17 -Wall -Wextra -Werror -pedantic -fsyntax-only \
   -I../../crates/umgpu/shim ../../crates/umseed-probe/tests/probe_transport.cpp
 printf 'existing probe_transport.cpp: PASS\n'
+# Every symbol the enabled coordinator calls must be declared by the real usi.h
+# (the STAR build uses this header, not the test stubs). Syntax-only against
+# STAR-shaped stubs; catches usi.h/star_integrate.cpp drift before the Spark build.
+"$cxx_bin" -x c++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only \
+  -DSTAR_INTEGRATE=1 -Itest-stubs -I. -I../../crates/umgpu/shim star_integrate.cpp
+printf 'enabled star_integrate.cpp against usi.h: PASS\n'
