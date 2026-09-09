@@ -1,0 +1,34 @@
+[
+  {
+    "label": "on-1",
+    "drop_index_cache": 1,
+    "mode": "enabled",
+    "gpu_consumed": 146501158,
+    "raw_gnu_time": "49.67\t593.25\t28.45\t38617668\t0",
+    "samples": 49
+  },
+  {
+    "label": "on-2",
+    "drop_index_cache": 1,
+    "mode": "enabled",
+    "gpu_consumed": 145567621,
+    "raw_gnu_time": "73.03\t594.91\t35.48\t38806212\t0",
+    "samples": 72
+  },
+  {
+    "label": "off-1",
+    "drop_index_cache": 0,
+    "mode": "enabled",
+    "gpu_consumed": 120316033,
+    "raw_gnu_time": "84.13\t653.48\t65.44\t43350368\t0",
+    "samples": 83
+  },
+  {
+    "label": "off-2",
+    "drop_index_cache": 0,
+    "mode": "enabled",
+    "gpu_consumed": 146477517,
+    "raw_gnu_time": "48.58\t593.68\t27.21\t38632660\t0",
+    "samples": 47
+  }
+]

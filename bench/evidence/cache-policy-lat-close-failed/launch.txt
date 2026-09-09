@@ -1,0 +1,13 @@
+START_CAUSAL_CACHE_SCREEN {"integrated": "/home/rborkows/uni-rnaseq-probe-lab/integrate-gate-lat-close-20260908/private/integrated/STAR", "base_argv": "/home/rborkows/uni-rnaseq-probe-lab/integrate-gate-lat-close-20260908/stages/integrated.argv.json", "mate1": "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_1.fastq.gz", "mate2": "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_2.fastq.gz", "mode": "causal", "repeats": 3, "timeout_s": 1200, "output": "/home/rborkows/uni-rnaseq-probe-lab/cache-policy-lat-close-20260908", "lock": "/home/rborkows/.cache/uni-rnaseq-resource.lock"}
+Traceback (most recent call last):
+  File "/home/rborkows/uni-rnaseq-probe-lab/cache-runner-lat-close-20260908/run_lat_cache.py", line 28, in <module>
+    cache.main(args)
+  File "/home/rborkows/uni-rnaseq-probe-lab/cache-runner-lat-close-20260908/cache_policy_bench.py", line 133, in main
+    execute_arm(
+  File "/home/rborkows/uni-rnaseq-probe-lab/cache-runner-lat-close-20260908/cache_policy_bench.py", line 89, in execute_arm
+    stats = sidecar_stats(sidecar)
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/rborkows/uni-rnaseq-probe-lab/cache-runner-lat-close-20260908/cache_policy_bench.py", line 54, in sidecar_stats
+    raise RuntimeError("cache arm did not positively consume GPU output")
+RuntimeError: cache arm did not positively consume GPU output
+LAT-CACHE-EXIT 1

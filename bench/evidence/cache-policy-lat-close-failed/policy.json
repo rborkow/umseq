@@ -1,0 +1,29 @@
+{
+  "mode": "causal",
+  "warm_before_each_causal_arm": true,
+  "no_global_drop_caches": true,
+  "strict": false,
+  "thp": "1",
+  "arms": [
+    "evict-off",
+    "evict-on"
+  ],
+  "alternating_order": "AB on odd repeats, BA on even repeats",
+  "consecutive_mode": "disabled",
+  "repeats": 3,
+  "integrated": {
+    "path": "/home/rborkows/uni-rnaseq-probe-lab/integrate-gate-lat-close-20260908/private/integrated/STAR",
+    "bytes": 10982648,
+    "sha256": "ef22723c51540aa2a12178da48f5eb0c3df759965ab7e594f7f6257efba38b6b"
+  },
+  "mate1": {
+    "path": "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_1.fastq.gz",
+    "bytes": 1673877067,
+    "sha256": "47ce5be22f6c0d3a6510a821235ad2126dce533d3004f5d01a9f9d69638fd584"
+  },
+  "mate2": {
+    "path": "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_2.fastq.gz",
+    "bytes": 1670072151,
+    "sha256": "2c099629ed89b7669d4c375b7cec92a8af39f53281c807e2282a02de9e3f8567"
+  }
+}

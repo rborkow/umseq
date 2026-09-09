@@ -1,0 +1,42 @@
+[
+  {
+    "arm": "on-1",
+    "min_system_MemAvailable_KiB": 49428640,
+    "max_target_VmSwap_KiB": 0,
+    "system_vmstat_deltas": {
+      "pgmajfault": 1,
+      "pswpin": 1,
+      "pswpout": 0
+    }
+  },
+  {
+    "arm": "on-2",
+    "min_system_MemAvailable_KiB": 50132948,
+    "max_target_VmSwap_KiB": 0,
+    "system_vmstat_deltas": {
+      "pgmajfault": 4,
+      "pswpin": 0,
+      "pswpout": 0
+    }
+  },
+  {
+    "arm": "off-1",
+    "min_system_MemAvailable_KiB": 45142840,
+    "max_target_VmSwap_KiB": 0,
+    "system_vmstat_deltas": {
+      "pgmajfault": 64,
+      "pswpin": 0,
+      "pswpout": 0
+    }
+  },
+  {
+    "arm": "off-2",
+    "min_system_MemAvailable_KiB": 50616164,
+    "max_target_VmSwap_KiB": 0,
+    "system_vmstat_deltas": {
+      "pgmajfault": 49,
+      "pswpin": 0,
+      "pswpout": 2
+    }
+  }
+]

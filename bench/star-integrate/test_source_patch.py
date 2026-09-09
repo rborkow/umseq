@@ -112,6 +112,9 @@ class PatchGuard(unittest.TestCase):
   self.assertLess(packed.index('starIntegrateAdviseHuge(charArray,lengthByte);'),packed.index('memset(charArray+lengthByte'))
   self.assertGreater(genome.index('starIntegrateDropFile(pGe.gDir+"/Genome");'),genome.index('SAiIn.close();'))
   self.assertIn('POSIX_FADV_DONTNEED',genome)
+  self.assertIn('STAR_INTEGRATE_DROP_INDEX_CACHE',genome)
+  self.assertIn("drop[0]=='1'",genome)
+  self.assertIn('int e=posix_fadvise',genome)
  def test_real_source_has_chain_suppression_and_retirement_hooks(self):
   root=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
   if not root.exists(): self.skipTest('pinned private source unavailable')

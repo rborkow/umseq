@@ -1,0 +1,17 @@
+{
+  "question": "Does explicit eviction-on permit repeated GPU startup; does off reproduce fallback?",
+  "not_performance": true,
+  "separate_from_failed_causal_experiment": true,
+  "order": [
+    "on-1",
+    "on-2",
+    "off-1",
+    "off-2"
+  ],
+  "warmups": "none; each invocation observed, prior page cache retained naturally",
+  "strict": false,
+  "thp": true,
+  "global_cache_drop": false,
+  "stop_on_first_failure": true,
+  "start_epoch": 1788886235
+}

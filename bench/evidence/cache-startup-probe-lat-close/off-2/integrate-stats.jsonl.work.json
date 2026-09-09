@@ -1,0 +1,10 @@
+{
+  "inner_calls": 0,
+  "hit_calls": 0,
+  "fallback_calls": 0,
+  "oracle_calls": 0,
+  "fallback_compared_bytes": 0,
+  "fallback_gathers": 0,
+  "oracle_compared_bytes": 0,
+  "oracle_gathers": 0
+}

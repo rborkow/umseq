@@ -9,11 +9,89 @@ from pathlib import Path
 
 HERE=Path(__file__).resolve().parent
 
+COLLAPSE_HELPER='''static bool starIntegrateCollapseRequested() {
+  const char *collapse = getenv("STAR_INTEGRATE_COLLAPSE_INDEX");
+  const char *thp = getenv("STAR_INTEGRATE_THP");
+  return collapse != NULL && collapse[0] == '1' && collapse[1] == '\\0' &&
+         !(thp != NULL && thp[0] == (char)48);
+}
+static unsigned long long starIntegrateElapsedNs(const struct timespec &start,
+                                                 const struct timespec &end) {
+  return (unsigned long long)(end.tv_sec - start.tv_sec) * 1000000000ULL +
+         (unsigned long long)(end.tv_nsec - start.tv_nsec);
+}
+static void starIntegrateCollapseIndex(const char *label, char *base,
+                                       uint64_t extent) {
+  const uintptr_t huge = 2ULL * 1024ULL * 1024ULL, mask = huge - 1;
+  struct timespec start, end;
+  clock_gettime(CLOCK_MONOTONIC, &start);
+  const bool requested = starIntegrateCollapseRequested();
+  const uintptr_t begin = (uintptr_t)base;
+  uint64_t bytes = 0;
+  int result = 0, savedErrno = 0, attempted = 0;
+  const char *state = "skipped-policy";
+  if (requested) {
+    state = "skipped-span";
+    if (base != NULL && extent <= UINTPTR_MAX - begin &&
+        begin <= UINTPTR_MAX - mask) {
+      const uintptr_t endAddress = begin + (uintptr_t)extent;
+      const uintptr_t lo = (begin + mask) & ~mask, hi = endAddress & ~mask;
+      if (hi > lo) {
+        bytes = (uint64_t)(hi - lo);
+        attempted = 1;
+        errno = 0;
+        result = madvise((void *)lo, (size_t)bytes, MADV_COLLAPSE);
+        savedErrno = result == 0 ? 0 : errno;
+        state = result == 0 ? "attempted" : "failed";
+      }
+    }
+  }
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  fprintf(stderr,
+          "STAR_INTEGRATE_COLLAPSE label=%s state=%s attempted=%d result=%d "
+          "errno=%d bytes=%llu elapsed_ns=%llu\\n",
+          label, state, attempted, result, savedErrno,
+          (unsigned long long)bytes, starIntegrateElapsedNs(start, end));
+}
+'''
+
 def oracle(tooling):
     p=tooling/'real_index_oracle.py'; spec=importlib.util.spec_from_file_location('star_integrate_oracle',p)
     if not spec or not spec.loader: raise ValueError('verified real_index_oracle.py is required')
     m=importlib.util.module_from_spec(spec); sys.path.insert(0,str(tooling)); spec.loader.exec_module(m); return m
-def once(rio,text,old,new): return rio.replace_once(text,old,new)
+def once(rio,text,old,new):
+    result=rio.replace_once(text,old,new)
+    if 'static void starIntegrateDropFile' in result:
+        if '#include <errno.h>\n' not in result:
+            result=result.replace(
+                '#include <fcntl.h>\n',
+                '#include <errno.h>\n#include <fcntl.h>\n',1
+            )
+        if '#ifndef MADV_COLLAPSE\n' not in result:
+            result=result.replace(
+                '#include <sys/mman.h>\n',
+                '#include <sys/mman.h>\n#include <time.h>\n#ifndef MADV_COLLAPSE\n#define MADV_COLLAPSE 25\n#endif\n',1
+            )
+        result=result.replace(
+            'static void starIntegrateDropFile(const string &p) { int fd=open(p.c_str(),O_RDONLY); if (fd>=0) { posix_fadvise(fd,0,0,POSIX_FADV_DONTNEED); close(fd); } }',
+            COLLAPSE_HELPER+'''static void starIntegrateDropFile(const string &p) { const char *drop=getenv("STAR_INTEGRATE_DROP_INDEX_CACHE"); if (!(drop && drop[0]=='1' && drop[1]=='\\0')) return; int fd=open(p.c_str(),O_RDONLY); if (fd>=0) { int e=posix_fadvise(fd,0,0,POSIX_FADV_DONTNEED); if (e) fprintf(stderr,"STAR_INTEGRATE posix_fadvise(DONTNEED) %s: %d\\n",p.c_str(),e); close(fd); } }''')
+    collapse_calls='''    starIntegrateDropFile(pGe.gDir+"/Genome");
+    starIntegrateDropFile(pGe.gDir+"/SA");
+    starIntegrateDropFile(pGe.gDir+"/SAindex");
+'''
+    if collapse_calls in result and 'starIntegrateCollapseIndex("Genome"' not in result:
+        result=result.replace(collapse_calls,collapse_calls+'''    // Only private allocations are owned here. G1 includes STAR's sentinel
+    // bytes; SA/SAi use their verified packed payload extents. The helper
+    // rounds inward, so partial endpoint huge pages are never advised.
+    if (pGe.gLoad=="NoSharedMemory") {
+        uint64 starIntegrateG1Extent=nGenome+L+L+genomeInsertL;
+        if (P.sjdbInsert.pass1 || P.sjdbInsert.pass2) starIntegrateG1Extent=nGenomePass2+L+L;
+        starIntegrateCollapseIndex("Genome",G1,starIntegrateG1Extent);
+        starIntegrateCollapseIndex("SA",SA.charArray,SA.lengthByte);
+        starIntegrateCollapseIndex("SAindex",SAi.charArray,SAi.lengthByte);
+    }
+''')
+    return result
 def patch(rio,name,text):
     if name=='PackedArray.cpp':
         text=once(rio,text,'# include "PackedArray.h"\n','# include "PackedArray.h"\n#if defined(STAR_INTEGRATE) && defined(__linux__)\n#include <sys/mman.h>\n#include <stdint.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <unistd.h>\nstatic void starIntegrateAdviseHuge(char *p, uint64_t n) {\n    // STAR_INTEGRATE_THP=0 disables the advice at run time (ablation arm: same binary,\n    // same fadvise, base pages). Page size from the kernel, not a 4096 constant.\n    static const int on = !(getenv(\"STAR_INTEGRATE_THP\") && getenv(\"STAR_INTEGRATE_THP\")[0]==(char)48);\n    if (!on) return;\n    const uintptr_t page=(uintptr_t)sysconf(_SC_PAGESIZE), lo=((uintptr_t)p+page-1)&~(page-1), hi=((uintptr_t)p+n)&~(page-1);\n    if (hi>lo && madvise((void *)lo,hi-lo,MADV_HUGEPAGE)) perror(\"STAR_INTEGRATE madvise(MADV_HUGEPAGE)\");\n}\n#endif\n')
