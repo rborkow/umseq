@@ -1,0 +1,5792 @@
+{
+  "arm": "stock",
+  "cpu_s": 756.4200000000001,
+  "raw_gnu_time": "55.80\t728.70\t27.72\t32684120\t0",
+  "samples": 405919,
+  "kernel_samples": 14602,
+  "attribution": "self-sample CPU-s estimates; one profiled invocation, not repeated timings",
+  "leaf": [
+    {
+      "key": [
+        "STAR",
+        "compareSeqToGenome(Genome&, char**, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, bool&)"
+      ],
+      "samples": 112738,
+      "estimated_cpu_s": 210.08446995582864
+    },
+    {
+      "key": [
+        "gzip",
+        "[unknown]"
+      ],
+      "samples": 25931,
+      "estimated_cpu_s": 48.32177606862454
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::stitchPieces(char**, unsigned long long)"
+      ],
+      "samples": 24808,
+      "estimated_cpu_s": 46.229093390553295
+    },
+    {
+      "key": [
+        "STAR",
+        "extendAlign(char*, char*, unsigned long long, unsigned long long, int, int, unsigned long long, unsigned long long, unsigned long long, unsigned long long, double, bool, Transcript*)"
+      ],
+      "samples": 23414,
+      "estimated_cpu_s": 43.63140892641143
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::maxMappableLength2strands(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long&, unsigned long long)"
+      ],
+      "samples": 22126,
+      "estimated_cpu_s": 41.23125283615697
+    },
+    {
+      "key": [
+        "STAR",
+        "stitchWindowAligns(unsigned long long, unsigned long long, int, bool*, unsigned long long, unsigned long long, Transcript, unsigned long long, unsigned long long (*) [7], char*, Genome&, Parameters&, Transcript**, unsigned long long*, ReadAlign*)"
+      ],
+      "samples": 19727,
+      "estimated_cpu_s": 36.7607757705355
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__memset_zva64"
+      ],
+      "samples": 18826,
+      "estimated_cpu_s": 35.081784592492596
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::assignAlignToWindow(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, unsigned long long)"
+      ],
+      "samples": 18653,
+      "estimated_cpu_s": 34.759403378506555
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__memcpy_sve"
+      ],
+      "samples": 15212,
+      "estimated_cpu_s": 28.347185128067423
+    },
+    {
+      "key": [
+        "STAR",
+        "Transcript::Transcript(Transcript const&)"
+      ],
+      "samples": 14556,
+      "estimated_cpu_s": 27.12474538023596
+    },
+    {
+      "key": [
+        "STAR",
+        "stitchAlignToTranscript(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, Parameters&, char*, Genome&, Transcript*, unsigned long long)"
+      ],
+      "samples": 13043,
+      "estimated_cpu_s": 24.305307364277112
+    },
+    {
+      "key": [
+        "STAR",
+        "convertNucleotidesToNumbers(char const*, char*, unsigned long long)"
+      ],
+      "samples": 6503,
+      "estimated_cpu_s": 12.118179390469528
+    },
+    {
+      "key": [
+        "STAR",
+        "complementSeqNumbers(char*, char*, unsigned long long)"
+      ],
+      "samples": 6492,
+      "estimated_cpu_s": 12.097681162990648
+    },
+    {
+      "key": [
+        "STAR",
+        "Transcript::operator=(Transcript const&) [clone .isra.0]"
+      ],
+      "samples": 5325,
+      "estimated_cpu_s": 9.92300557500388
+    },
+    {
+      "key": [
+        "STAR",
+        "revComplementNucleotides(char*, char*, unsigned long long)"
+      ],
+      "samples": 4433,
+      "estimated_cpu_s": 8.260785673989146
+    },
+    {
+      "key": [
+        "STAR",
+        "sjAlignSplit(unsigned long long, unsigned long long, Genome const&, unsigned long long&, unsigned long long&, unsigned long long&, unsigned long long&, unsigned long long&)"
+      ],
+      "samples": 4367,
+      "estimated_cpu_s": 8.137796309115858
+    },
+    {
+      "key": [
+        "STAR",
+        "binarySearch2(unsigned long long, unsigned long long, unsigned long long*, unsigned long long*, int)"
+      ],
+      "samples": 4070,
+      "estimated_cpu_s": 7.584344167186065
+    },
+    {
+      "key": [
+        "STAR",
+        "maxMappableLength(Genome&, char**, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, unsigned long long&, unsigned long long*)"
+      ],
+      "samples": 3491,
+      "estimated_cpu_s": 6.505392011706769
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*, long)"
+      ],
+      "samples": 3453,
+      "estimated_cpu_s": 6.434579953143362
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::oneRead()"
+      ],
+      "samples": 3127,
+      "estimated_cpu_s": 5.827087029678336
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::createExtendWindowsWithAlign(unsigned long long, unsigned long long)"
+      ],
+      "samples": 2986,
+      "estimated_cpu_s": 5.564337022903585
+    },
+    {
+      "key": [
+        "STAR",
+        "std::vector<int, std::allocator<int> >::operator=(std::vector<int, std::allocator<int> > const&) [clone .isra.0]"
+      ],
+      "samples": 2913,
+      "estimated_cpu_s": 5.4283033314528275
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::outputTranscriptSAM(Transcript const&, unsigned long long, unsigned long long, unsigned long long, unsigned long long, char, int, bool*, std::ostream*)"
+      ],
+      "samples": 2287,
+      "estimated_cpu_s": 4.261767840381949
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__arch_copy_from_user"
+      ],
+      "samples": 2266,
+      "estimated_cpu_s": 4.2226348606495385
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__memcpy_generic"
+      ],
+      "samples": 2115,
+      "estimated_cpu_s": 3.9412501016212595
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "[unknown]"
+      ],
+      "samples": 2024,
+      "estimated_cpu_s": 3.771673856114151
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_raw_spin_unlock_irqrestore"
+      ],
+      "samples": 1931,
+      "estimated_cpu_s": 3.598370660156337
+    },
+    {
+      "key": [
+        "libm.so.6",
+        "log2@@GLIBC_2.29"
+      ],
+      "samples": 1551,
+      "estimated_cpu_s": 2.8902500745222572
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__arch_copy_to_user"
+      ],
+      "samples": 1508,
+      "estimated_cpu_s": 2.810120639832085
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostream& std::ostream::_M_insert<unsigned long long>(unsigned long long)"
+      ],
+      "samples": 1498,
+      "estimated_cpu_s": 2.7914858875785566
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_raw_spin_lock"
+      ],
+      "samples": 1311,
+      "estimated_cpu_s": 2.4430160204375753
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_streambuf<char, std::char_traits<char> >::xsputn(char const*, long)"
+      ],
+      "samples": 1275,
+      "estimated_cpu_s": 2.375930912324873
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__memchr_generic"
+      ],
+      "samples": 1226,
+      "estimated_cpu_s": 2.2846206262825834
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istream::sentry::sentry(std::istream&, bool)"
+      ],
+      "samples": 1216,
+      "estimated_cpu_s": 2.2659858740290555
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostream::sentry::sentry(std::ostream&)"
+      ],
+      "samples": 1186,
+      "estimated_cpu_s": 2.2100816172684703
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::storeAligns(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long*, unsigned long long)"
+      ],
+      "samples": 1181,
+      "estimated_cpu_s": 2.200764241141706
+    },
+    {
+      "key": [
+        "STAR",
+        "Transcript::reset()"
+      ],
+      "samples": 914,
+      "estimated_cpu_s": 1.7032163559724973
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istream::getline(char*, long, char)"
+      ],
+      "samples": 796,
+      "estimated_cpu_s": 1.483326279380862
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_int<unsigned long long>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, unsigned long long) const"
+      ],
+      "samples": 733,
+      "estimated_cpu_s": 1.365927340183633
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::mapOneRead()"
+      ],
+      "samples": 723,
+      "estimated_cpu_s": 1.3472925879301043
+    },
+    {
+      "key": [
+        "STAR",
+        "Transcript::add(Transcript*)"
+      ],
+      "samples": 712,
+      "estimated_cpu_s": 1.3267943604512231
+    },
+    {
+      "key": [
+        "STAR",
+        "Transcript::Transcript()"
+      ],
+      "samples": 679,
+      "estimated_cpu_s": 1.2652996780145793
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlignChunk::processChunks()"
+      ],
+      "samples": 640,
+      "estimated_cpu_s": 1.1926241442258185
+    },
+    {
+      "key": [
+        "STAR",
+        "qualitySplit(char*, unsigned long long, unsigned long long, unsigned long long, unsigned long long**)"
+      ],
+      "samples": 637,
+      "estimated_cpu_s": 1.18703371854976
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::multMapSelect()"
+      ],
+      "samples": 618,
+      "estimated_cpu_s": 1.1516276892680561
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "malloc"
+      ],
+      "samples": 609,
+      "estimated_cpu_s": 1.1348564122398805
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__pi_clear_page"
+      ],
+      "samples": 581,
+      "estimated_cpu_s": 1.082679105930001
+    },
+    {
+      "key": [
+        "STAR",
+        "readLoad(std::istream&, Parameters&, unsigned long long&, unsigned long long&, char*, char*, char*, char*, std::vector<ClipMate, std::allocator<ClipMate> >&, unsigned long long&, unsigned int&, char&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)"
+      ],
+      "samples": 534,
+      "estimated_cpu_s": 0.9950957703384173
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_istream<char, std::char_traits<char> >& std::operator>><char, std::char_traits<char>, std::allocator<char> >(std::basic_istream<char, std::char_traits<char> >&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)"
+      ],
+      "samples": 527,
+      "estimated_cpu_s": 0.9820514437609474
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_replace(unsigned long, unsigned long, char const*, unsigned long)"
+      ],
+      "samples": 475,
+      "estimated_cpu_s": 0.8851507320425998
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "page_counter_cancel"
+      ],
+      "samples": 440,
+      "estimated_cpu_s": 0.8199290991552503
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istreambuf_iterator<char, std::char_traits<char> > std::num_get<char, std::istreambuf_iterator<char, std::char_traits<char> > >::_M_extract_int<unsigned long long>(std::istreambuf_iterator<char, std::char_traits<char> >, std::istreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, std::_Ios_Iostate&, unsigned long long&) const"
+      ],
+      "samples": 429,
+      "estimated_cpu_s": 0.7994308716763691
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::locale::id::_M_id() const"
+      ],
+      "samples": 397,
+      "estimated_cpu_s": 0.7397996644650782
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istream::ignore(long, int)"
+      ],
+      "samples": 373,
+      "estimated_cpu_s": 0.6950762590566099
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__istream_extract(std::istream&, char*, long)"
+      ],
+      "samples": 373,
+      "estimated_cpu_s": 0.6950762590566099
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istream::peek()"
+      ],
+      "samples": 351,
+      "estimated_cpu_s": 0.6540798040988474
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::writeSAM(unsigned long long, Transcript**, Transcript*)"
+      ],
+      "samples": 345,
+      "estimated_cpu_s": 0.6428989527467304
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostream& std::ostream::_M_insert<long>(long)"
+      ],
+      "samples": 342,
+      "estimated_cpu_s": 0.6373085270706718
+    },
+    {
+      "key": [
+        "STAR",
+        "memcpy@plt"
+      ],
+      "samples": 341,
+      "estimated_cpu_s": 0.635445051845319
+    },
+    {
+      "key": [
+        "STAR",
+        "blocksOverlap(Transcript&, Transcript&)"
+      ],
+      "samples": 319,
+      "estimated_cpu_s": 0.5944485968875564
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__strlen_asimd"
+      ],
+      "samples": 315,
+      "estimated_cpu_s": 0.5869946959861451
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_raw_spin_unlock_irq"
+      ],
+      "samples": 311,
+      "estimated_cpu_s": 0.5795407950847337
+    },
+    {
+      "key": [
+        "STAR",
+        "Transcript::variationAdjust(Genome const&, char*)"
+      ],
+      "samples": 309,
+      "estimated_cpu_s": 0.5758138446340281
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "_int_free"
+      ],
+      "samples": 303,
+      "estimated_cpu_s": 0.564632993281911
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__update_cpu_freelist_fast"
+      ],
+      "samples": 264,
+      "estimated_cpu_s": 0.4919574594931501
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::outputAlignments()"
+      ],
+      "samples": 248,
+      "estimated_cpu_s": 0.4621418558875047
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "block_commit_write"
+      ],
+      "samples": 244,
+      "estimated_cpu_s": 0.4546879549860933
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istreambuf_iterator<char, std::char_traits<char> > std::num_get<char, std::istreambuf_iterator<char, std::char_traits<char> > >::_M_extract_int<unsigned int>(std::istreambuf_iterator<char, std::char_traits<char> >, std::istreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, std::_Ios_Iostate&, unsigned int&) const"
+      ],
+      "samples": 233,
+      "estimated_cpu_s": 0.4341897275072121
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "cfree@GLIBC_2.17"
+      ],
+      "samples": 226,
+      "estimated_cpu_s": 0.4211454009297422
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_istream<char, std::char_traits<char> >& std::getline<char, std::char_traits<char>, std::allocator<char> >(std::basic_istream<char, std::char_traits<char> >&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&, char)"
+      ],
+      "samples": 224,
+      "estimated_cpu_s": 0.4174184504790365
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "kmem_cache_alloc_noprof"
+      ],
+      "samples": 212,
+      "estimated_cpu_s": 0.3950567477748024
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_stringbuf<char, std::char_traits<char>, std::allocator<char> >::_M_sync(char*, unsigned long, unsigned long)"
+      ],
+      "samples": 200,
+      "estimated_cpu_s": 0.3726950450705683
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_int<long>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, long) const"
+      ],
+      "samples": 187,
+      "estimated_cpu_s": 0.3484698671409813
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostream::tellp()"
+      ],
+      "samples": 181,
+      "estimated_cpu_s": 0.33728901578886433
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_mutate(unsigned long, unsigned long, char const*, unsigned long)"
+      ],
+      "samples": 177,
+      "estimated_cpu_s": 0.329835114887453
+    },
+    {
+      "key": [
+        "STAR",
+        "void std::_Rb_tree<unsigned int, unsigned int, std::_Identity<unsigned int>, std::less<unsigned int>, std::allocator<unsigned int> >::_M_assign_unique<unsigned int const*>(unsigned int const*, unsigned int const*)"
+      ],
+      "samples": 173,
+      "estimated_cpu_s": 0.3223812139860416
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_ios<char, std::char_traits<char> >::_M_cache_locale(std::locale const&)"
+      ],
+      "samples": 169,
+      "estimated_cpu_s": 0.31492731308463023
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "local_daif_inherit"
+      ],
+      "samples": 168,
+      "estimated_cpu_s": 0.3130638378592774
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::resetN()"
+      ],
+      "samples": 166,
+      "estimated_cpu_s": 0.3093368874085717
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__slab_free"
+      ],
+      "samples": 146,
+      "estimated_cpu_s": 0.27206738290151483
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_raw_read_lock"
+      ],
+      "samples": 138,
+      "estimated_cpu_s": 0.25715958109869214
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "memcpy@plt"
+      ],
+      "samples": 136,
+      "estimated_cpu_s": 0.25343263064798643
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::locale::~locale()"
+      ],
+      "samples": 133,
+      "estimated_cpu_s": 0.24784220497192794
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "up_read"
+      ],
+      "samples": 132,
+      "estimated_cpu_s": 0.24597872974657506
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "el0_svc"
+      ],
+      "samples": 132,
+      "estimated_cpu_s": 0.24597872974657506
+    },
+    {
+      "key": [
+        "STAR",
+        "compareSJ(void const*, void const*)"
+      ],
+      "samples": 126,
+      "estimated_cpu_s": 0.23479787839445804
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_raw_spin_trylock"
+      ],
+      "samples": 123,
+      "estimated_cpu_s": 0.22920745271839948
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_remove_rmap_ptes"
+      ],
+      "samples": 122,
+      "estimated_cpu_s": 0.22734397749304666
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "finish_task_switch.isra.0"
+      ],
+      "samples": 121,
+      "estimated_cpu_s": 0.2254805022676938
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostream::sentry::sentry(std::ostream&)@plt"
+      ],
+      "samples": 117,
+      "estimated_cpu_s": 0.21802660136628246
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__memcpy_chk"
+      ],
+      "samples": 115,
+      "estimated_cpu_s": 0.21429965091557676
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "msort_with_tmp.part.0"
+      ],
+      "samples": 115,
+      "estimated_cpu_s": 0.21429965091557676
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "pthread_once@@GLIBC_2.34"
+      ],
+      "samples": 113,
+      "estimated_cpu_s": 0.2105727004648711
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istream::get(char&)"
+      ],
+      "samples": 112,
+      "estimated_cpu_s": 0.20870922523951824
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::outputTranscriptSJ(Transcript const&, unsigned long long, OutSJ*, unsigned long long)"
+      ],
+      "samples": 112,
+      "estimated_cpu_s": 0.20870922523951824
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::locale::locale()"
+      ],
+      "samples": 111,
+      "estimated_cpu_s": 0.2068457500141654
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_append(char const*, unsigned long)"
+      ],
+      "samples": 109,
+      "estimated_cpu_s": 0.20311879956345974
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ios_base::_M_init()"
+      ],
+      "samples": 108,
+      "estimated_cpu_s": 0.2012553243381069
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istream::ignore()"
+      ],
+      "samples": 106,
+      "estimated_cpu_s": 0.1975283738874012
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "filemap_get_entry"
+      ],
+      "samples": 106,
+      "estimated_cpu_s": 0.1975283738874012
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "percpu_counter_add_batch"
+      ],
+      "samples": 103,
+      "estimated_cpu_s": 0.1919379482113427
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_stringbuf<char, std::char_traits<char>, std::allocator<char> >::seekoff(long, std::_Ios_Seekdir, std::_Ios_Openmode)"
+      ],
+      "samples": 100,
+      "estimated_cpu_s": 0.18634752253528414
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "try_charge_memcg"
+      ],
+      "samples": 97,
+      "estimated_cpu_s": 0.1807570968592256
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_replace_aux(unsigned long, unsigned long, unsigned long, char)"
+      ],
+      "samples": 92,
+      "estimated_cpu_s": 0.17143972073246144
+    },
+    {
+      "key": [
+        "STAR",
+        "std::basic_ostream<char, std::char_traits<char> >& std::__ostream_insert<char, std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*, long)@plt"
+      ],
+      "samples": 89,
+      "estimated_cpu_s": 0.1658492950564029
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istream& std::istream::_M_extract<unsigned int>(unsigned int&)"
+      ],
+      "samples": 86,
+      "estimated_cpu_s": 0.16025886938034437
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostream::put(char)"
+      ],
+      "samples": 86,
+      "estimated_cpu_s": 0.16025886938034437
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__lruvec_stat_mod_folio"
+      ],
+      "samples": 83,
+      "estimated_cpu_s": 0.15466844370428584
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mutex_unlock"
+      ],
+      "samples": 82,
+      "estimated_cpu_s": 0.152804968478933
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_create(unsigned long&, unsigned long)"
+      ],
+      "samples": 81,
+      "estimated_cpu_s": 0.15094149325358017
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "get_mem_cgroup_from_mm"
+      ],
+      "samples": 80,
+      "estimated_cpu_s": 0.14907801802822732
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::locale::operator=(std::locale const&)"
+      ],
+      "samples": 76,
+      "estimated_cpu_s": 0.14162411712681597
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::do_put(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, unsigned long long) const"
+      ],
+      "samples": 75,
+      "estimated_cpu_s": 0.13976064190146312
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "filemap_get_read_batch"
+      ],
+      "samples": 72,
+      "estimated_cpu_s": 0.1341702162254046
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "get_page_from_freelist"
+      ],
+      "samples": 71,
+      "estimated_cpu_s": 0.13230674100005174
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_ios<char, std::char_traits<char> >::clear(std::_Ios_Iostate)"
+      ],
+      "samples": 70,
+      "estimated_cpu_s": 0.13044326577469892
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlignChunk::mapChunk()"
+      ],
+      "samples": 69,
+      "estimated_cpu_s": 0.12857979054934607
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "block_invalidate_folio"
+      ],
+      "samples": 69,
+      "estimated_cpu_s": 0.12857979054934607
+    },
+    {
+      "key": [
+        "STAR",
+        "Stats::transcriptStats(Transcript&, unsigned long long)"
+      ],
+      "samples": 68,
+      "estimated_cpu_s": 0.12671631532399322
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mod_memcg_lruvec_state"
+      ],
+      "samples": 67,
+      "estimated_cpu_s": 0.12485284009864038
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "anon_pipe_read"
+      ],
+      "samples": 67,
+      "estimated_cpu_s": 0.12485284009864038
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::mappedFilter()"
+      ],
+      "samples": 66,
+      "estimated_cpu_s": 0.12298936487328753
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::peOverlapMergeMap()"
+      ],
+      "samples": 64,
+      "estimated_cpu_s": 0.11926241442258186
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ktime_get_coarse_real_ts64_mg"
+      ],
+      "samples": 64,
+      "estimated_cpu_s": 0.11926241442258186
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istream& std::istream::_M_extract<unsigned long long>(unsigned long long&)"
+      ],
+      "samples": 63,
+      "estimated_cpu_s": 0.11739893919722902
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "strchr"
+      ],
+      "samples": 63,
+      "estimated_cpu_s": 0.11739893919722902
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "xas_load"
+      ],
+      "samples": 60,
+      "estimated_cpu_s": 0.1118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "anon_pipe_put_page"
+      ],
+      "samples": 60,
+      "estimated_cpu_s": 0.1118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folios_put_refs"
+      ],
+      "samples": 58,
+      "estimated_cpu_s": 0.10808156307046479
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mt_find"
+      ],
+      "samples": 56,
+      "estimated_cpu_s": 0.10435461261975912
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__get_pfnblock_flags_mask.isra.0"
+      ],
+      "samples": 56,
+      "estimated_cpu_s": 0.10435461261975912
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::locale::id::_M_id() const@plt"
+      ],
+      "samples": 55,
+      "estimated_cpu_s": 0.10249113739440628
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::alignedAnnotation()"
+      ],
+      "samples": 54,
+      "estimated_cpu_s": 0.10062766216905344
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mark_buffer_dirty"
+      ],
+      "samples": 53,
+      "estimated_cpu_s": 0.0987641869437006
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__mem_cgroup_charge"
+      ],
+      "samples": 52,
+      "estimated_cpu_s": 0.09690071171834776
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "memcg_rstat_updated.part.0"
+      ],
+      "samples": 52,
+      "estimated_cpu_s": 0.09690071171834776
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "read"
+      ],
+      "samples": 52,
+      "estimated_cpu_s": 0.09690071171834776
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::recordSJ(unsigned long long, Transcript**, OutSJ*)"
+      ],
+      "samples": 52,
+      "estimated_cpu_s": 0.09690071171834776
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_da_get_block_prep"
+      ],
+      "samples": 52,
+      "estimated_cpu_s": 0.09690071171834776
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "fdget_pos"
+      ],
+      "samples": 49,
+      "estimated_cpu_s": 0.09131028604228923
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istream::sentry::sentry(std::istream&, bool)@plt"
+      ],
+      "samples": 49,
+      "estimated_cpu_s": 0.09131028604228923
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "css_rstat_updated"
+      ],
+      "samples": 48,
+      "estimated_cpu_s": 0.0894468108169364
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rmqueue.isra.0"
+      ],
+      "samples": 48,
+      "estimated_cpu_s": 0.0894468108169364
+    },
+    {
+      "key": [
+        "STAR",
+        "SoloReadBarcode::getCBandUMI(char**, char**, unsigned long long*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, unsigned int const&, char const*)"
+      ],
+      "samples": 48,
+      "estimated_cpu_s": 0.0894468108169364
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ios_base::ios_base()"
+      ],
+      "samples": 47,
+      "estimated_cpu_s": 0.08758333559158356
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__folio_batch_add_and_move"
+      ],
+      "samples": 46,
+      "estimated_cpu_s": 0.08571986036623072
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_da_do_write_end.isra.0"
+      ],
+      "samples": 46,
+      "estimated_cpu_s": 0.08571986036623072
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_stringbuf<char, std::char_traits<char>, std::allocator<char> >::_M_pbump(char*, char*, long)@plt"
+      ],
+      "samples": 45,
+      "estimated_cpu_s": 0.08385638514087786
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__es_insert_extent"
+      ],
+      "samples": 45,
+      "estimated_cpu_s": 0.08385638514087786
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__pi_memset_generic"
+      ],
+      "samples": 44,
+      "estimated_cpu_s": 0.08199290991552502
+    },
+    {
+      "key": [
+        "STAR",
+        "ClipMate::clip(unsigned long long&, char*)"
+      ],
+      "samples": 44,
+      "estimated_cpu_s": 0.08199290991552502
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "copy_folio_from_iter_atomic"
+      ],
+      "samples": 44,
+      "estimated_cpu_s": 0.08199290991552502
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "percpu_ref_get_many"
+      ],
+      "samples": 43,
+      "estimated_cpu_s": 0.08012943469017218
+    },
+    {
+      "key": [
+        "STAR",
+        "std::_Rb_tree<unsigned int, unsigned int, std::_Identity<unsigned int>, std::less<unsigned int>, std::allocator<unsigned int> >::_M_erase(std::_Rb_tree_node<unsigned int>*) [clone .isra.0]"
+      ],
+      "samples": 43,
+      "estimated_cpu_s": 0.08012943469017218
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "get_random_u16"
+      ],
+      "samples": 41,
+      "estimated_cpu_s": 0.0764024842394665
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "operator new(unsigned long)"
+      ],
+      "samples": 41,
+      "estimated_cpu_s": 0.0764024842394665
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_block_write_begin"
+      ],
+      "samples": 41,
+      "estimated_cpu_s": 0.0764024842394665
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "uncharge_folio"
+      ],
+      "samples": 41,
+      "estimated_cpu_s": 0.0764024842394665
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "zap_present_ptes"
+      ],
+      "samples": 41,
+      "estimated_cpu_s": 0.0764024842394665
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "el0_da"
+      ],
+      "samples": 40,
+      "estimated_cpu_s": 0.07453900901411366
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__memmove_sve"
+      ],
+      "samples": 40,
+      "estimated_cpu_s": 0.07453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_copy_to_iter"
+      ],
+      "samples": 38,
+      "estimated_cpu_s": 0.07081205856340798
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__alloc_frozen_pages_noprof"
+      ],
+      "samples": 38,
+      "estimated_cpu_s": 0.07081205856340798
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "percpu_ref_put_many.constprop.0"
+      ],
+      "samples": 38,
+      "estimated_cpu_s": 0.07081205856340798
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__rcu_read_unlock"
+      ],
+      "samples": 37,
+      "estimated_cpu_s": 0.06894858333805513
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "free_unref_folios"
+      ],
+      "samples": 37,
+      "estimated_cpu_s": 0.06894858333805513
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "___slab_alloc"
+      ],
+      "samples": 36,
+      "estimated_cpu_s": 0.0670851081127023
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__memcg_slab_post_alloc_hook"
+      ],
+      "samples": 36,
+      "estimated_cpu_s": 0.0670851081127023
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::transformGenome()"
+      ],
+      "samples": 35,
+      "estimated_cpu_s": 0.06522163288734946
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__handle_mm_fault"
+      ],
+      "samples": 34,
+      "estimated_cpu_s": 0.06335815766199661
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_mutate(unsigned long, unsigned long, char const*, unsigned long)@plt"
+      ],
+      "samples": 34,
+      "estimated_cpu_s": 0.06335815766199661
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_int<unsigned long long>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, unsigned long long) const@plt"
+      ],
+      "samples": 34,
+      "estimated_cpu_s": 0.06335815766199661
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostream::operator<<(int)"
+      ],
+      "samples": 34,
+      "estimated_cpu_s": 0.06335815766199661
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_stringbuf<char, std::char_traits<char>, std::allocator<char> >::_M_pbump(char*, char*, long)"
+      ],
+      "samples": 34,
+      "estimated_cpu_s": 0.06335815766199661
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_ios<char, std::char_traits<char> >::init(std::basic_streambuf<char, std::char_traits<char> >*)"
+      ],
+      "samples": 33,
+      "estimated_cpu_s": 0.061494682436643765
+    },
+    {
+      "key": [
+        "STAR",
+        "std::istream::get(char&)@plt"
+      ],
+      "samples": 33,
+      "estimated_cpu_s": 0.061494682436643765
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_raw_read_unlock"
+      ],
+      "samples": 33,
+      "estimated_cpu_s": 0.061494682436643765
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct(unsigned long, char)"
+      ],
+      "samples": 33,
+      "estimated_cpu_s": 0.061494682436643765
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__next_zones_zonelist"
+      ],
+      "samples": 32,
+      "estimated_cpu_s": 0.05963120721129093
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__rmqueue_pcplist"
+      ],
+      "samples": 32,
+      "estimated_cpu_s": 0.05963120721129093
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "do_page_fault"
+      ],
+      "samples": 31,
+      "estimated_cpu_s": 0.05776773198593809
+    },
+    {
+      "key": [
+        "STAR",
+        "log2@plt"
+      ],
+      "samples": 31,
+      "estimated_cpu_s": 0.05776773198593809
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "up_write"
+      ],
+      "samples": 31,
+      "estimated_cpu_s": 0.05776773198593809
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "down_write"
+      ],
+      "samples": 30,
+      "estimated_cpu_s": 0.05590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "free_frozen_page_commit"
+      ],
+      "samples": 30,
+      "estimated_cpu_s": 0.05590425676058525
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ios_base::~ios_base()"
+      ],
+      "samples": 29,
+      "estimated_cpu_s": 0.054040781535232396
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_istream<char, std::char_traits<char> >& std::operator>><char, std::char_traits<char> >(std::basic_istream<char, std::char_traits<char> >&, char&)"
+      ],
+      "samples": 29,
+      "estimated_cpu_s": 0.054040781535232396
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "post_alloc_hook"
+      ],
+      "samples": 28,
+      "estimated_cpu_s": 0.05217730630987956
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ios_base::_M_dispose_callbacks()"
+      ],
+      "samples": 28,
+      "estimated_cpu_s": 0.05217730630987956
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mutex_lock"
+      ],
+      "samples": 28,
+      "estimated_cpu_s": 0.05217730630987956
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ios_base::_M_call_callbacks(std::ios_base::event)"
+      ],
+      "samples": 28,
+      "estimated_cpu_s": 0.05217730630987956
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "common_file_perm"
+      ],
+      "samples": 28,
+      "estimated_cpu_s": 0.05217730630987956
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "down_read_trylock"
+      ],
+      "samples": 27,
+      "estimated_cpu_s": 0.05031383108452672
+    },
+    {
+      "key": [
+        "STAR",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_replace(unsigned long, unsigned long, char const*, unsigned long)@plt"
+      ],
+      "samples": 27,
+      "estimated_cpu_s": 0.05031383108452672
+    },
+    {
+      "key": [
+        "STAR",
+        "memset@plt"
+      ],
+      "samples": 27,
+      "estimated_cpu_s": 0.05031383108452672
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___writev"
+      ],
+      "samples": 27,
+      "estimated_cpu_s": 0.05031383108452672
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__rcu_read_lock"
+      ],
+      "samples": 26,
+      "estimated_cpu_s": 0.04845035585917388
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_fill_raw_inode"
+      ],
+      "samples": 26,
+      "estimated_cpu_s": 0.04845035585917388
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::waspMap()"
+      ],
+      "samples": 26,
+      "estimated_cpu_s": 0.04845035585917388
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "percpu_ref_tryget_many.constprop.0"
+      ],
+      "samples": 26,
+      "estimated_cpu_s": 0.04845035585917388
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_stringbuf<char, std::char_traits<char>, std::allocator<char> >::underflow()"
+      ],
+      "samples": 25,
+      "estimated_cpu_s": 0.046586880633821035
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "count_memcg_events"
+      ],
+      "samples": 24,
+      "estimated_cpu_s": 0.0447234054084682
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_raw_write_lock"
+      ],
+      "samples": 24,
+      "estimated_cpu_s": 0.0447234054084682
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "malloc@plt"
+      ],
+      "samples": 24,
+      "estimated_cpu_s": 0.0447234054084682
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "free@plt"
+      ],
+      "samples": 24,
+      "estimated_cpu_s": 0.0447234054084682
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "blk_cgroup_congested"
+      ],
+      "samples": 23,
+      "estimated_cpu_s": 0.04285993018311536
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mas_walk"
+      ],
+      "samples": 23,
+      "estimated_cpu_s": 0.04285993018311536
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__pi_copy_page"
+      ],
+      "samples": 23,
+      "estimated_cpu_s": 0.04285993018311536
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_filebuf<char, std::char_traits<char> >::underflow()"
+      ],
+      "samples": 22,
+      "estimated_cpu_s": 0.04099645495776251
+    },
+    {
+      "key": [
+        "STAR",
+        "std::ostream& std::ostream::_M_insert<unsigned long long>(unsigned long long)@plt"
+      ],
+      "samples": 22,
+      "estimated_cpu_s": 0.04099645495776251
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "page_counter_try_charge"
+      ],
+      "samples": 21,
+      "estimated_cpu_s": 0.03913297973240967
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "memchr@plt"
+      ],
+      "samples": 21,
+      "estimated_cpu_s": 0.03913297973240967
+    },
+    {
+      "key": [
+        "STAR",
+        "std::istream& std::istream::_M_extract<unsigned int>(unsigned int&)@plt"
+      ],
+      "samples": 21,
+      "estimated_cpu_s": 0.03913297973240967
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__aarch64_cas4_acq"
+      ],
+      "samples": 21,
+      "estimated_cpu_s": 0.03913297973240967
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_da_write_end"
+      ],
+      "samples": 21,
+      "estimated_cpu_s": 0.03913297973240967
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_raw_spin_unlock"
+      ],
+      "samples": 20,
+      "estimated_cpu_s": 0.03726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "zone_statistics"
+      ],
+      "samples": 20,
+      "estimated_cpu_s": 0.03726950450705683
+    },
+    {
+      "key": [
+        "STAR",
+        "strlen@plt"
+      ],
+      "samples": 20,
+      "estimated_cpu_s": 0.03726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__mark_inode_dirty"
+      ],
+      "samples": 20,
+      "estimated_cpu_s": 0.03726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "node_page_state"
+      ],
+      "samples": 20,
+      "estimated_cpu_s": 0.03726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "alloc_pages_mpol"
+      ],
+      "samples": 19,
+      "estimated_cpu_s": 0.03540602928170399
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mod_memcg_state"
+      ],
+      "samples": 19,
+      "estimated_cpu_s": 0.03540602928170399
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_es_insert_delayed_extent"
+      ],
+      "samples": 19,
+      "estimated_cpu_s": 0.03540602928170399
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__radix_tree_lookup"
+      ],
+      "samples": 19,
+      "estimated_cpu_s": 0.03540602928170399
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "jbd2_journal_grab_journal_head"
+      ],
+      "samples": 19,
+      "estimated_cpu_s": 0.03540602928170399
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "el0_svc_common.constprop.0"
+      ],
+      "samples": 18,
+      "estimated_cpu_s": 0.03354255405635115
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::copy(char*, unsigned long, unsigned long) const"
+      ],
+      "samples": 18,
+      "estimated_cpu_s": 0.03354255405635115
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::locale::locale(std::locale const&)"
+      ],
+      "samples": 18,
+      "estimated_cpu_s": 0.03354255405635115
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_es_lookup_extent"
+      ],
+      "samples": 18,
+      "estimated_cpu_s": 0.03354255405635115
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "shuffle_freelist"
+      ],
+      "samples": 18,
+      "estimated_cpu_s": 0.03354255405635115
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "invoke_syscall"
+      ],
+      "samples": 18,
+      "estimated_cpu_s": 0.03354255405635115
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "anon_pipe_write"
+      ],
+      "samples": 18,
+      "estimated_cpu_s": 0.03354255405635115
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "balance_dirty_pages_ratelimited_flags"
+      ],
+      "samples": 18,
+      "estimated_cpu_s": 0.03354255405635115
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_unlock"
+      ],
+      "samples": 18,
+      "estimated_cpu_s": 0.03354255405635115
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "fput"
+      ],
+      "samples": 17,
+      "estimated_cpu_s": 0.031679078830998304
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_create(unsigned long&, unsigned long)@plt"
+      ],
+      "samples": 17,
+      "estimated_cpu_s": 0.031679078830998304
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__memcg_slab_free_hook"
+      ],
+      "samples": 17,
+      "estimated_cpu_s": 0.031679078830998304
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___pthread_disable_asynccancel"
+      ],
+      "samples": 16,
+      "estimated_cpu_s": 0.029815603605645464
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "operator new(unsigned long)@plt"
+      ],
+      "samples": 16,
+      "estimated_cpu_s": 0.029815603605645464
+    },
+    {
+      "key": [
+        "STAR",
+        "operator delete(void*)@plt"
+      ],
+      "samples": 16,
+      "estimated_cpu_s": 0.029815603605645464
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "vfs_read"
+      ],
+      "samples": 16,
+      "estimated_cpu_s": 0.029815603605645464
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "node_dirty_ok"
+      ],
+      "samples": 16,
+      "estimated_cpu_s": 0.029815603605645464
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "aa_file_perm"
+      ],
+      "samples": 15,
+      "estimated_cpu_s": 0.027952128380292623
+    },
+    {
+      "key": [
+        "STAR",
+        "std::ios_base::ios_base()@plt"
+      ],
+      "samples": 15,
+      "estimated_cpu_s": 0.027952128380292623
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istreambuf_iterator<char, std::char_traits<char> > std::num_get<char, std::istreambuf_iterator<char, std::char_traits<char> > >::_M_extract_int<unsigned long long>(std::istreambuf_iterator<char, std::char_traits<char> >, std::istreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, std::_Ios_Iostate&, unsigned long long&) const@plt"
+      ],
+      "samples": 15,
+      "estimated_cpu_s": 0.027952128380292623
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "block_write_end"
+      ],
+      "samples": 15,
+      "estimated_cpu_s": 0.027952128380292623
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__mod_node_page_state"
+      ],
+      "samples": 14,
+      "estimated_cpu_s": 0.02608865315493978
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "do_anonymous_page"
+      ],
+      "samples": 14,
+      "estimated_cpu_s": 0.02608865315493978
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "vma_start_read"
+      ],
+      "samples": 14,
+      "estimated_cpu_s": 0.02608865315493978
+    },
+    {
+      "key": [
+        "STAR",
+        "std::istream::getline(char*, long, char)@plt"
+      ],
+      "samples": 14,
+      "estimated_cpu_s": 0.02608865315493978
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "unlock_buffer"
+      ],
+      "samples": 14,
+      "estimated_cpu_s": 0.02608865315493978
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_da_write_begin"
+      ],
+      "samples": 14,
+      "estimated_cpu_s": 0.02608865315493978
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "el0_sve_acc"
+      ],
+      "samples": 14,
+      "estimated_cpu_s": 0.02608865315493978
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_istream<char, std::char_traits<char> >& std::ws<char, std::char_traits<char> >(std::basic_istream<char, std::char_traits<char> >&)"
+      ],
+      "samples": 14,
+      "estimated_cpu_s": 0.02608865315493978
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::locale::locale()@plt"
+      ],
+      "samples": 14,
+      "estimated_cpu_s": 0.02608865315493978
+    },
+    {
+      "key": [
+        "STAR",
+        "OutSJ::collapseSJ()"
+      ],
+      "samples": 14,
+      "estimated_cpu_s": 0.02608865315493978
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "atime_needs_update"
+      ],
+      "samples": 13,
+      "estimated_cpu_s": 0.02422517792958694
+    },
+    {
+      "key": [
+        "STAR",
+        "std::ostream::tellp()@plt"
+      ],
+      "samples": 13,
+      "estimated_cpu_s": 0.02422517792958694
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::locale::~locale()@plt"
+      ],
+      "samples": 13,
+      "estimated_cpu_s": 0.02422517792958694
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_ios<char, std::char_traits<char> >::clear(std::_Ios_Iostate)@plt"
+      ],
+      "samples": 13,
+      "estimated_cpu_s": 0.02422517792958694
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___libc_write"
+      ],
+      "samples": 13,
+      "estimated_cpu_s": 0.02422517792958694
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "handle_pte_fault"
+      ],
+      "samples": 12,
+      "estimated_cpu_s": 0.0223617027042341
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "charge_memcg"
+      ],
+      "samples": 12,
+      "estimated_cpu_s": 0.0223617027042341
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__xas_next"
+      ],
+      "samples": 12,
+      "estimated_cpu_s": 0.0223617027042341
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "do_notify_resume"
+      ],
+      "samples": 12,
+      "estimated_cpu_s": 0.0223617027042341
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostream& std::ostream::_M_insert<long>(long)@plt"
+      ],
+      "samples": 12,
+      "estimated_cpu_s": 0.0223617027042341
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "kmem_cache_free"
+      ],
+      "samples": 12,
+      "estimated_cpu_s": 0.0223617027042341
+    },
+    {
+      "key": [
+        "STAR",
+        "std::ostream::operator<<(int)@plt"
+      ],
+      "samples": 12,
+      "estimated_cpu_s": 0.0223617027042341
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__filemap_get_folio"
+      ],
+      "samples": 12,
+      "estimated_cpu_s": 0.0223617027042341
+    },
+    {
+      "key": [
+        "STAR",
+        "std::basic_istream<char, std::char_traits<char> >& std::operator>><char, std::char_traits<char> >(std::basic_istream<char, std::char_traits<char> >&, char&)@plt"
+      ],
+      "samples": 12,
+      "estimated_cpu_s": 0.0223617027042341
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__free_frozen_pages"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "security_file_permission"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istreambuf_iterator<char, std::char_traits<char> > std::num_get<char, std::istreambuf_iterator<char, std::char_traits<char> > >::_M_extract_int<unsigned int>(std::istreambuf_iterator<char, std::char_traits<char> >, std::istreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, std::_Ios_Iostate&, unsigned int&) const@plt"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "STAR",
+        "Junction::junctionPointer(char*, unsigned long long)"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "pthread_once@plt"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "alloc_buffer_head"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rq_unlock_irqrestore"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "STAR",
+        "std::__cxx11::basic_stringbuf<char, std::char_traits<char>, std::allocator<char> >::_M_sync(char*, unsigned long, unsigned long)@plt"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "copy_page_to_iter"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::chimericDetection()"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mutex_spin_on_owner"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "filemap_read"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "STAR",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_create(unsigned long&, unsigned long)@plt"
+      ],
+      "samples": 11,
+      "estimated_cpu_s": 0.020498227478881255
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_add_lru"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_mark_accessed"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "STAR",
+        "std::ostream::put(char)@plt"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "touch_atime"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ios_base::_M_init()@plt"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "STAR",
+        "std::istream::peek()@plt"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__arm64_sys_read"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "STAR",
+        "std::basic_ios<char, std::char_traits<char> >::init(std::basic_streambuf<char, std::char_traits<char> >*)@plt"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::do_put(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, long) const"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "alloc_frozen_pages_noprof"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "alloc_slab_obj_exts"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_append(char const*, unsigned long)@plt"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "alloc_anon_folio"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "policy_nodemask"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__brelse"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostream& std::ostream::_M_insert<unsigned long>(unsigned long)"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "operator delete(void*)"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "stop_this_handle"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "STAR",
+        "SoloRead::record(unsigned long long, Transcript**, unsigned long long, ReadAnnotations&)"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "do_writev"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ksys_read"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "prep_compound_page"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_int<long>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, long) const@plt"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "setup_object"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "STAR",
+        "Junction::collapseOneSJ(char*, char*, Parameters&)"
+      ],
+      "samples": 9,
+      "estimated_cpu_s": 0.016771277028175574
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "lock_mm_and_find_vma"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "___pte_offset_map"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "_int_malloc"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "jbd2_write_access_granted"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "STAR",
+        "memmove@plt"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::locale::operator=(std::locale const&)@plt"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::outReadsUnmapped()"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__es_tree_search.isra.0"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_es_can_be_merged.isra.0"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_da_map_blocks.constprop.0"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "wake_up_bit"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__fsnotify_parent"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_inode_journal_mode"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "current_time"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__filemap_add_folio"
+      ],
+      "samples": 8,
+      "estimated_cpu_s": 0.014907801802822732
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__set_ptes_anysz.constprop.0"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "handle_mm_fault"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "xas_start"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_alloc_mpol_noprof"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "get_task_policy.part.0"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "memset@plt"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::num_get<char, std::istreambuf_iterator<char, std::char_traits<char> > >::do_get(std::istreambuf_iterator<char, std::char_traits<char> >, std::istreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, std::_Ios_Iostate&, unsigned int&) const"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__ext4_get_inode_loc"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "obj_cgroup_charge_account"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "crc32c_le_arm64"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "finish_wait"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "add_transaction_credits"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::num_get<char, std::istreambuf_iterator<char, std::char_traits<char> > >::do_get(std::istreambuf_iterator<char, std::char_traits<char> >, std::istreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, std::_Ios_Iostate&, unsigned long long&) const"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "percpu_down_read_internal.constprop.0"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_copy_from_iter"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mnt_get_write_access"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_do_update_inode.isra.0"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "map_id_range_up"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "fpsimd_load_state"
+      ],
+      "samples": 7,
+      "estimated_cpu_s": 0.01304432657746989
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "get_vma_policy"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "page_counter_uncharge"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "inode_set_ctime_current"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "fifo_pipe_read"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___fileno"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_ios<char, std::char_traits<char> >::_M_cache_locale(std::locale const&)@plt"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__schedule"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::basic_filebuf<char, std::char_traits<char> >::xsputn(char const*, long)"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "flush_dcache_page"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "isolate_freepages_block"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "generic_perform_write"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "fifo_pipe_write"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__es_remove_extent"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "vm_normal_page"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "STAR",
+        "outputSJ(ReadAlignChunk**, Parameters&)"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_add_lru_vma"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_add_new_anon_rmap"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "anon_pipe_buf_release"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "do_sve_acc"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__memcg_kmem_charge_page"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__ext4_mark_inode_dirty"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ostreambuf_iterator<char, std::char_traits<char> > std::num_put<char, std::ostreambuf_iterator<char, std::char_traits<char> > >::_M_insert_int<unsigned long>(std::ostreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, char, unsigned long) const"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "STAR",
+        "std::locale::locale()@plt"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "STAR",
+        "strchr@plt"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "flush_dcache_folio"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__account_obj_stock"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "STAR",
+        "std::locale::~locale()@plt"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__folio_put"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "memmove@plt"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "timestamp_truncate"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_migrate_flags"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "sched_balance_domains"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "propagate_protected_usage"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "STAR",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct(unsigned long, char)@plt"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "find_get_block_common"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__dquot_alloc_space"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_set_bh"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ios_base::_M_call_callbacks(std::ios_base::event)@plt"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "inode_needs_update_time.part.0"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::ios_base::_M_dispose_callbacks()@plt"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "uncharge_batch"
+      ],
+      "samples": 5,
+      "estimated_cpu_s": 0.009317376126764207
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "vma_alloc_folio_noprof"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__vmf_anon_prepare"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "kthread_blkcg"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__pte_offset_map_lock"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "count_vm_event"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istreambuf_iterator<char, std::char_traits<char> > std::num_get<char, std::istreambuf_iterator<char, std::char_traits<char> > >::_M_extract_int<unsigned short>(std::istreambuf_iterator<char, std::char_traits<char> >, std::istreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, std::_Ios_Iostate&, unsigned short&) const"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "uaccess_ttbr0_enable.isra.0"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__basic_file<char>::fd()@plt"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "STAR",
+        "std::basic_istream<char, std::char_traits<char> >& std::ws<char, std::char_traits<char> >(std::basic_istream<char, std::char_traits<char> >&)@plt"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_inode_table"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rseq_get_rseq_cs_ptr_val"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "zero_user_segments"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_insert_delayed_blocks"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "drop_buffers.constprop.0"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "kill_fasync"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_alloc_buffers"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "do_el0_svc"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___pthread_enable_asynccancel"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ksys_write"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "STAR",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_replace_aux(unsigned long, unsigned long, unsigned long, char)@plt"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "copy_page_from_iter"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "inode_maybe_inc_iversion"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::codecvt<char, char, __mbstate_t>::do_always_noconv() const"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_nonda_switch"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "STAR",
+        "std::basic_istream<char, std::char_traits<char> >& std::operator>><char, std::char_traits<char>, std::allocator<char> >(std::basic_istream<char, std::char_traits<char> >&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)@plt"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "create_empty_buffers"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_da_reserve_space"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_inode_csum"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__kmalloc_node_noprof"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__local_bh_enable_ip"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__mutex_lock.constprop.0"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "STAR",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_append(char const*, unsigned long)@plt"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "apparmor_file_permission"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_has_free_clusters"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rb_next"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_buffered_write_iter"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rseq_update_cpu_node_id"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "zap_pte_range"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__tlb_remove_folio_pages_size.isra.0"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mem_cgroup_from_task"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "do_mem_abort"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "vmf_pte_changed"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "dynamic_might_resched"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__folio_throttle_swaprate"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "STAR",
+        "std::istream::ignore(long, int)@plt"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::locale::locale(std::locale const&)@plt"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "file_update_time"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "filemap_add_folio"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__ext4_journal_get_write_access"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "vfs_writev"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "task_fpsimd_load"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "_int_free_merge_chunk"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "filemap_get_pages"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "start_this_handle"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "percpu_up_read"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__folio_migrate_mapping"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "queued_spin_lock_slowpath"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_add_anon_rmap_ptes"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__mem_cgroup_uncharge"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__arm64_sys_writev"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "refill_obj_stock"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "do_iter_readv_writev"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_generic_write_checks"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "uaccess_ttbr0_disable.isra.0"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_dirty_inode"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__ext4_handle_dirty_metadata"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "STAR",
+        "std::ios_base::~ios_base()@plt"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "schedule_debug.isra.0"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "free_swap_cache"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "free_pages_and_swap_cache"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_raw_spin_lock_irqsave"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "pte_offset_map_rw_nolock"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "vma_alloc_zeroed_movable_folio"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "sanitize_fault_flags"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "find_vma"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "pmd_install"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mod_mthp_stat.constprop.0"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__pte_alloc"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "refill_stock"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__arm64_sys_write"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "generic_update_time"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_sb_block_valid"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "operator delete(void*)@plt"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "sve_alloc"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_find_first_bit"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "STAR",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::copy(char*, unsigned long, unsigned long) const@plt"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "recalc_bh_state.part.0"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "jbd2__journal_start"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_journal_check_start"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__basic_file<char>::xsgetn(char*, long)"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__migrate_folio.isra.0"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "alloc_perturb"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_get_anon_vma"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "io_schedule"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "check_irqs_on"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_inode_csum_set"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "try_to_migrate_one"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "migrate_folio_unmap"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_file_write_iter"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__import_iovec"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rw_verify_area"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_file_read_iter"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "STAR",
+        "std::basic_istream<char, std::char_traits<char> >& std::getline<char, std::char_traits<char>, std::allocator<char> >(std::basic_istream<char, std::char_traits<char> >&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&, char)@plt"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "STAR",
+        "std::__istream_extract(std::istream&, char*, long)@plt"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "file_remove_privs_flags"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "long std::__copy_streambufs_eof<char, std::char_traits<char> >(std::basic_streambuf<char, std::char_traits<char> >*, std::basic_streambuf<char, std::char_traits<char> >*, bool&)"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "STAR",
+        "std::istream& std::istream::_M_extract<unsigned long long>(unsigned long long&)@plt"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "generic_write_checks"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "task_mm_cid_work"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "update_sd_lb_stats.constprop.0"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "group_balance_cpu"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "vfs_write"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_get_group_desc"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "jbd2_journal_stop"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "free_frozen_pages"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "fileno@plt"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rseq_ip_fixup"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "domain_dirty_limits"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "___free_pages"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "lookup_dcache"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__folio_mod_stat"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_batch_move_lru"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "do_translation_fault"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__alloc_pages_slowpath.constprop.0"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istream& std::istream::_M_extract<unsigned short>(unsigned short&)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mas_wr_store_type"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "down_write_killable"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "lock_vma_under_rcu"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "init_wait_entry"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "folio_referenced"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "isolate_migratepages"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rcu_work_rcufn"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__mutex_lock_slowpath"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "fscrypt_setup_filename"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "domain_dirty_avail"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__ext4_journal_stop"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "fpsimd_bind_task_to_cpu"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "jbd2_journal_dirty_metadata"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "strncpy_from_user"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "handle_softirqs"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[nf_tables]",
+        "nft_do_chain"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "locks_free_lock_context"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "do_nocb_deferred_wakeup.isra.0"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rb_erase"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "sock_def_readable"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "sched_balance_rq"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__alloc_skb"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "should_we_balance"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "isolate_migratepages_block"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mem_cgroup_handle_over_high"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "set_tlb_ubc_flush_pending"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "make_vfsgid"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_remove_blocks"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rcu_core"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "kfree"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "jbd2_journal_get_write_access"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__ext4_journal_start_sb"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_fc_track_inode"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "fsnotify"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_lock_group"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "putname"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__arm64_sys_futex"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "blkcg_maybe_throttle_current"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "security_inode_permission"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "kmem_cache_size"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "_raw_write_unlock"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_invalidate_folio"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__basic_file<char>::fd()"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "futex_wait"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rseq_get_rseq_cs.isra.0"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "sched_balance_find_src_group"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "read@plt"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mnt_put_write_access_file"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "packet_rcv"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__check_heap_object"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__zone_watermark_ok"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "suitable_migration_target"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "page_vma_mapped_walk"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "migrate_pages_batch"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "arch_counter_get_cntpct"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rwsem_spin_on_owner"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "inode_reserved_space"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "clear_rseq_cs"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "inode_to_bdi"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__legitimize_mnt"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__d_lookup_rcu"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "get_cached_acl"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "sve_load_state"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ip_finish_output2"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "mod_node_state"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rcu_cblist_dequeue"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "std::istream::ignore()@plt"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "rcu_nocb_unlock_irqrestore"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "security_file_free"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "bpf_prog_run_clear_cb"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "inode_update_timestamps"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "sched_update_worker"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_mark_iloc_dirty"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "crc32c"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "dynamic_cond_resched"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "free_tail_page_prepare"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "balance_dirty_pages"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "filemap_alloc_folio_noprof"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "update_sg_lb_stats"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "xas_find"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "arch_local_irq_save"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[r8127]",
+        "rtl8127_rx_interrupt"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__jbd2_journal_file_buffer"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "iovec_from_user"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "inode_permission"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "_int_free_create_chunk"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "ext4_reserve_inode_write"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__f_unlock_pos"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "find_lock_entries"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "sve_flush_live"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "security_sock_rcv_skb"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "eth_type_trans"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "security_inode_create"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "make_vfsuid"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__slab_alloc.isra.0"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "balance_dirty_pages_ratelimited"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "copy_iovec_from_user"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__vm_munmap"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "[kernel.kallsyms]",
+        "__tlb_remove_folio_pages"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "Junction::outputStream(std::ostream&)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    }
+  ],
+  "kernel_caller": [
+    {
+      "key": [
+        "libc.so.6",
+        "read"
+      ],
+      "samples": 6283,
+      "estimated_cpu_s": 11.708214840891904
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___writev"
+      ],
+      "samples": 5453,
+      "estimated_cpu_s": 10.161530403849044
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__munmap"
+      ],
+      "samples": 1082,
+      "estimated_cpu_s": 2.0162801938317743
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___libc_write"
+      ],
+      "samples": 803,
+      "estimated_cpu_s": 1.4963706059583317
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__unlink"
+      ],
+      "samples": 307,
+      "estimated_cpu_s": 0.5720868941833224
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__memcpy_sve"
+      ],
+      "samples": 283,
+      "estimated_cpu_s": 0.5273634887748542
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__memset_zva64"
+      ],
+      "samples": 142,
+      "estimated_cpu_s": 0.2646134820001035
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "_int_malloc"
+      ],
+      "samples": 68,
+      "estimated_cpu_s": 0.12671631532399322
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__memcpy_generic"
+      ],
+      "samples": 42,
+      "estimated_cpu_s": 0.07826595946481935
+    },
+    {
+      "key": [
+        "STAR",
+        "Transcript::Transcript()"
+      ],
+      "samples": 39,
+      "estimated_cpu_s": 0.07267553378876082
+    },
+    {
+      "key": [
+        "gzip",
+        "[unknown]"
+      ],
+      "samples": 19,
+      "estimated_cpu_s": 0.03540602928170399
+    },
+    {
+      "key": [
+        "STAR",
+        "compareSeqToGenome(Genome&, char**, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, bool&)"
+      ],
+      "samples": 13,
+      "estimated_cpu_s": 0.02422517792958694
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___libc_open"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "rename"
+      ],
+      "samples": 10,
+      "estimated_cpu_s": 0.018634752253528414
+    },
+    {
+      "key": [
+        "STAR",
+        "stitchAlignToTranscript(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, Parameters&, char*, Genome&, Transcript*, unsigned long long)"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "sysmalloc"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::maxMappableLength2strands(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long&, unsigned long long)"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[r8127]",
+        "rtl8127_poll_msix_rx"
+      ],
+      "samples": 4,
+      "estimated_cpu_s": 0.007453900901411366
+    },
+    {
+      "key": [
+        "[r8127]",
+        "rtl8127_rx_interrupt"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "STAR",
+        "sjAlignSplit(unsigned long long, unsigned long long, Genome const&, unsigned long long&, unsigned long long&, unsigned long long&, unsigned long long&, unsigned long long&)"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__brk"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__mmap"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::stitchPieces(char**, unsigned long long)"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___lll_lock_wait"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::assignAlignToWindow(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, unsigned long long)"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___mkdir"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::istreambuf_iterator<char, std::char_traits<char> > std::num_get<char, std::istreambuf_iterator<char, std::char_traits<char> > >::_M_extract_int<unsigned long long>(std::istreambuf_iterator<char, std::char_traits<char> >, std::istreambuf_iterator<char, std::char_traits<char> >, std::ios_base&, std::_Ios_Iostate&, unsigned long long&) const"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "Genome::loadSJDB(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::ReadAlign(Parameters&, Genome&, Transcriptome*, int)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "stitchWindowAligns(unsigned long long, unsigned long long, int, bool*, unsigned long long, unsigned long long, Transcript, unsigned long long, unsigned long long (*) [7], char*, Genome&, Parameters&, Transcript**, unsigned long long*, ReadAlign*)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "convertNucleotidesToNumbers(char const*, char*, unsigned long long)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::oneRead()"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "readLoad(std::istream&, Parameters&, unsigned long long&, unsigned long long&, char*, char*, char*, char*, std::vector<ClipMate, std::allocator<ClipMate> >&, unsigned long long&, unsigned int&, char&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "libstdc++.so.6.0.33",
+        "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_mutate(unsigned long, unsigned long, char const*, unsigned long)@plt"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__close_nocancel"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___pthread_disable_asynccancel"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "libc.so.6",
+        "__GI___lll_lock_wake"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "complementSeqNumbers(char*, char*, unsigned long long)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "compareSJ(void const*, void const*)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    }
+  ],
+  "kernel_application": [
+    {
+      "key": [
+        "STAR",
+        "fstreamReadBig(std::basic_ifstream<char, std::char_traits<char> >&, char*, unsigned long long)"
+      ],
+      "samples": 4282,
+      "estimated_cpu_s": 7.979400914960868
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlignChunk::chunkFilesCat(std::ostream*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, unsigned long long&)"
+      ],
+      "samples": 3728,
+      "estimated_cpu_s": 6.947035640115393
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlignChunk::mapChunk()"
+      ],
+      "samples": 2512,
+      "estimated_cpu_s": 4.681049766086338
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlignChunk::processChunks()"
+      ],
+      "samples": 1352,
+      "estimated_cpu_s": 2.519418504677042
+    },
+    {
+      "key": [
+        "[unresolved]",
+        "[unresolved]"
+      ],
+      "samples": 1002,
+      "estimated_cpu_s": 1.8672021758035473
+    },
+    {
+      "key": [
+        "STAR",
+        "PackedArray::deallocateArray()"
+      ],
+      "samples": 842,
+      "estimated_cpu_s": 1.5690461397470925
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::outputTranscriptSAM(Transcript const&, unsigned long long, unsigned long long, unsigned long long, unsigned long long, char, int, bool*, std::ostream*)"
+      ],
+      "samples": 257,
+      "estimated_cpu_s": 0.4789131329156803
+    },
+    {
+      "key": [
+        "STAR",
+        "Genome::freeMemory()"
+      ],
+      "samples": 232,
+      "estimated_cpu_s": 0.43232625228185917
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::ReadAlign(Parameters&, Genome&, Transcriptome*, int)"
+      ],
+      "samples": 75,
+      "estimated_cpu_s": 0.13976064190146312
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlignChunk::ReadAlignChunk(Parameters&, Genome&, Transcriptome*, int)"
+      ],
+      "samples": 74,
+      "estimated_cpu_s": 0.13789716667611027
+    },
+    {
+      "key": [
+        "STAR",
+        "std::vector<char, std::allocator<char> >::_M_default_append(unsigned long)"
+      ],
+      "samples": 69,
+      "estimated_cpu_s": 0.12857979054934607
+    },
+    {
+      "key": [
+        "STAR",
+        "OutSJ::collapseSJ()"
+      ],
+      "samples": 45,
+      "estimated_cpu_s": 0.08385638514087786
+    },
+    {
+      "key": [
+        "STAR",
+        "outputSJ(ReadAlignChunk**, Parameters&)"
+      ],
+      "samples": 42,
+      "estimated_cpu_s": 0.07826595946481935
+    },
+    {
+      "key": [
+        "STAR",
+        "Transcript::Transcript()"
+      ],
+      "samples": 39,
+      "estimated_cpu_s": 0.07267553378876082
+    },
+    {
+      "key": [
+        "STAR",
+        "compareSeqToGenome(Genome&, char**, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, bool&)"
+      ],
+      "samples": 15,
+      "estimated_cpu_s": 0.027952128380292623
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::maxMappableLength2strands(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long&, unsigned long long)"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "STAR",
+        "stitchAlignToTranscript(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, Parameters&, char*, Genome&, Transcript*, unsigned long long)"
+      ],
+      "samples": 6,
+      "estimated_cpu_s": 0.01118085135211705
+    },
+    {
+      "key": [
+        "STAR",
+        "Genome::loadSJDB(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "STAR",
+        "stitchWindowAligns(unsigned long long, unsigned long long, int, bool*, unsigned long long, unsigned long long, Transcript, unsigned long long, unsigned long long (*) [7], char*, Genome&, Parameters&, Transcript**, unsigned long long*, ReadAlign*)"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::stitchPieces(char**, unsigned long long)"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "STAR",
+        "sjAlignSplit(unsigned long long, unsigned long long, Genome const&, unsigned long long&, unsigned long long&, unsigned long long&, unsigned long long&, unsigned long long&)"
+      ],
+      "samples": 3,
+      "estimated_cpu_s": 0.005590425676058525
+    },
+    {
+      "key": [
+        "STAR",
+        "readLoad(std::istream&, Parameters&, unsigned long long&, unsigned long long&, char*, char*, char*, char*, std::vector<ClipMate, std::allocator<ClipMate> >&, unsigned long long&, unsigned int&, char&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::assignAlignToWindow(unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, unsigned long long, bool, unsigned long long)"
+      ],
+      "samples": 2,
+      "estimated_cpu_s": 0.003726950450705683
+    },
+    {
+      "key": [
+        "STAR",
+        "createDirectory(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, unsigned int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, Parameters&)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "convertNucleotidesToNumbers(char const*, char*, unsigned long long)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "ReadAlign::oneRead()"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "Transcript::Transcript(Transcript const&)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "complementSeqNumbers(char*, char*, unsigned long long)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "compareSJ(void const*, void const*)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "mapThreadsSpawn(Parameters&, ReadAlignChunk**)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    },
+    {
+      "key": [
+        "STAR",
+        "removeFileOrDir(char const*, stat const*, int, FTW*)"
+      ],
+      "samples": 1,
+      "estimated_cpu_s": 0.0018634752253528415
+    }
+  ],
+  "per_tid": [
+    {
+      "key": [
+        747711,
+        "user"
+      ],
+      "samples": 19135,
+      "estimated_cpu_s": 35.65759843712662
+    },
+    {
+      "key": [
+        747709,
+        "user"
+      ],
+      "samples": 19092,
+      "estimated_cpu_s": 35.577469002436445
+    },
+    {
+      "key": [
+        747717,
+        "user"
+      ],
+      "samples": 19032,
+      "estimated_cpu_s": 35.465660488915276
+    },
+    {
+      "key": [
+        747722,
+        "user"
+      ],
+      "samples": 18935,
+      "estimated_cpu_s": 35.28490339205605
+    },
+    {
+      "key": [
+        747714,
+        "user"
+      ],
+      "samples": 18847,
+      "estimated_cpu_s": 35.120917572225004
+    },
+    {
+      "key": [
+        747724,
+        "user"
+      ],
+      "samples": 18680,
+      "estimated_cpu_s": 34.80971720959108
+    },
+    {
+      "key": [
+        747710,
+        "user"
+      ],
+      "samples": 18449,
+      "estimated_cpu_s": 34.37925443253457
+    },
+    {
+      "key": [
+        747723,
+        "user"
+      ],
+      "samples": 18363,
+      "estimated_cpu_s": 34.21899556315423
+    },
+    {
+      "key": [
+        747716,
+        "user"
+      ],
+      "samples": 18290,
+      "estimated_cpu_s": 34.08296187170347
+    },
+    {
+      "key": [
+        747715,
+        "user"
+      ],
+      "samples": 18209,
+      "estimated_cpu_s": 33.93202037844989
+    },
+    {
+      "key": [
+        747720,
+        "user"
+      ],
+      "samples": 18094,
+      "estimated_cpu_s": 33.717720727534314
+    },
+    {
+      "key": [
+        747721,
+        "user"
+      ],
+      "samples": 18065,
+      "estimated_cpu_s": 33.66367994599908
+    },
+    {
+      "key": [
+        747708,
+        "user"
+      ],
+      "samples": 18051,
+      "estimated_cpu_s": 33.63759129284414
+    },
+    {
+      "key": [
+        747719,
+        "user"
+      ],
+      "samples": 17992,
+      "estimated_cpu_s": 33.52764625454832
+    },
+    {
+      "key": [
+        747712,
+        "user"
+      ],
+      "samples": 17750,
+      "estimated_cpu_s": 33.076685250012936
+    },
+    {
+      "key": [
+        747713,
+        "user"
+      ],
+      "samples": 17680,
+      "estimated_cpu_s": 32.94624198423824
+    },
+    {
+      "key": [
+        747725,
+        "user"
+      ],
+      "samples": 17577,
+      "estimated_cpu_s": 32.754304036026895
+    },
+    {
+      "key": [
+        747726,
+        "user"
+      ],
+      "samples": 17484,
+      "estimated_cpu_s": 32.58100084006908
+    },
+    {
+      "key": [
+        747718,
+        "user"
+      ],
+      "samples": 17475,
+      "estimated_cpu_s": 32.564229563040904
+    },
+    {
+      "key": [
+        747697,
+        "user"
+      ],
+      "samples": 16074,
+      "estimated_cpu_s": 29.953500772321576
+    },
+    {
+      "key": [
+        747701,
+        "user"
+      ],
+      "samples": 14046,
+      "estimated_cpu_s": 26.17437301530601
+    },
+    {
+      "key": [
+        747705,
+        "user"
+      ],
+      "samples": 13997,
+      "estimated_cpu_s": 26.08306272926372
+    },
+    {
+      "key": [
+        747697,
+        "kernel"
+      ],
+      "samples": 9613,
+      "estimated_cpu_s": 17.913587341316866
+    },
+    {
+      "key": [
+        747705,
+        "kernel"
+      ],
+      "samples": 532,
+      "estimated_cpu_s": 0.9913688198877117
+    },
+    {
+      "key": [
+        747701,
+        "kernel"
+      ],
+      "samples": 470,
+      "estimated_cpu_s": 0.8758333559158354
+    },
+    {
+      "key": [
+        747708,
+        "kernel"
+      ],
+      "samples": 231,
+      "estimated_cpu_s": 0.4304627770565064
+    },
+    {
+      "key": [
+        747714,
+        "kernel"
+      ],
+      "samples": 225,
+      "estimated_cpu_s": 0.4192819257043894
+    },
+    {
+      "key": [
+        747717,
+        "kernel"
+      ],
+      "samples": 224,
+      "estimated_cpu_s": 0.4174184504790365
+    },
+    {
+      "key": [
+        747712,
+        "kernel"
+      ],
+      "samples": 224,
+      "estimated_cpu_s": 0.4174184504790365
+    },
+    {
+      "key": [
+        747726,
+        "kernel"
+      ],
+      "samples": 223,
+      "estimated_cpu_s": 0.4155549752536836
+    },
+    {
+      "key": [
+        747725,
+        "kernel"
+      ],
+      "samples": 217,
+      "estimated_cpu_s": 0.40437412390156663
+    },
+    {
+      "key": [
+        747723,
+        "kernel"
+      ],
+      "samples": 214,
+      "estimated_cpu_s": 0.3987836982255081
+    },
+    {
+      "key": [
+        747711,
+        "kernel"
+      ],
+      "samples": 211,
+      "estimated_cpu_s": 0.3931932725494496
+    },
+    {
+      "key": [
+        747710,
+        "kernel"
+      ],
+      "samples": 210,
+      "estimated_cpu_s": 0.39132979732409673
+    },
+    {
+      "key": [
+        747718,
+        "kernel"
+      ],
+      "samples": 210,
+      "estimated_cpu_s": 0.39132979732409673
+    },
+    {
+      "key": [
+        747716,
+        "kernel"
+      ],
+      "samples": 206,
+      "estimated_cpu_s": 0.3838758964226854
+    },
+    {
+      "key": [
+        747721,
+        "kernel"
+      ],
+      "samples": 204,
+      "estimated_cpu_s": 0.3801489459719797
+    },
+    {
+      "key": [
+        747724,
+        "kernel"
+      ],
+      "samples": 204,
+      "estimated_cpu_s": 0.3801489459719797
+    },
+    {
+      "key": [
+        747722,
+        "kernel"
+      ],
+      "samples": 203,
+      "estimated_cpu_s": 0.37828547074662683
+    },
+    {
+      "key": [
+        747709,
+        "kernel"
+      ],
+      "samples": 199,
+      "estimated_cpu_s": 0.3708315698452155
+    },
+    {
+      "key": [
+        747715,
+        "kernel"
+      ],
+      "samples": 199,
+      "estimated_cpu_s": 0.3708315698452155
+    },
+    {
+      "key": [
+        747713,
+        "kernel"
+      ],
+      "samples": 198,
+      "estimated_cpu_s": 0.3689680946198626
+    },
+    {
+      "key": [
+        747720,
+        "kernel"
+      ],
+      "samples": 196,
+      "estimated_cpu_s": 0.36524114416915693
+    },
+    {
+      "key": [
+        747719,
+        "kernel"
+      ],
+      "samples": 189,
+      "estimated_cpu_s": 0.35219681759168703
+    }
+  ]
+}

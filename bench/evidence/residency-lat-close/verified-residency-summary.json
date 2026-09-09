@@ -1,0 +1,112 @@
+[
+  {
+    "arm": "bypass",
+    "fully_resident_samples": 39,
+    "first_full": {
+      "timestamp": 1788889037.3789096,
+      "huge_kib": 29177856,
+      "size_kib": 29474124,
+      "mappings": [
+        {
+          "AnonHugePages": 1421312,
+          "KernelPageSize": 4,
+          "MMUPageSize": 4,
+          "Rss": 1529168,
+          "Size": 1529168,
+          "THPeligible": 1,
+          "VmFlags": "rd wr mr mw me ac hg",
+          "extent_bytes": 1565868032,
+          "field_units": "kB except THPeligible",
+          "name": "",
+          "permissions": "rw-p",
+          "range": "f02a47248000-f02aa479c000"
+        },
+        {
+          "AnonHugePages": 24571904,
+          "KernelPageSize": 4,
+          "MMUPageSize": 4,
+          "Rss": 24758064,
+          "Size": 24758064,
+          "THPeligible": 1,
+          "VmFlags": "rd wr mr mw me ac hg",
+          "extent_bytes": 25352257536,
+          "field_units": "kB except THPeligible",
+          "name": "",
+          "permissions": "rw-p",
+          "range": "f02aa479e000-f0308b96a000"
+        },
+        {
+          "AnonHugePages": 3184640,
+          "KernelPageSize": 4,
+          "MMUPageSize": 4,
+          "Rss": 3186892,
+          "Size": 3186892,
+          "THPeligible": 1,
+          "VmFlags": "rd wr mr mw me ac hg",
+          "extent_bytes": 3263377408,
+          "field_units": "kB except THPeligible",
+          "name": "",
+          "permissions": "rw-p",
+          "range": "f0308b96c000-f0314e19f000"
+        }
+      ]
+    },
+    "coverage_min_pct": 98.9948199987216,
+    "coverage_max_pct": 98.9948199987216
+  },
+  {
+    "arm": "gpu",
+    "fully_resident_samples": 35,
+    "first_full": {
+      "timestamp": 1788889107.622834,
+      "huge_kib": 27918336,
+      "size_kib": 29474124,
+      "mappings": [
+        {
+          "AnonHugePages": 733184,
+          "KernelPageSize": 4,
+          "MMUPageSize": 4,
+          "Rss": 1529168,
+          "Size": 1529168,
+          "THPeligible": 1,
+          "VmFlags": "rd wr mr mw me ac hg",
+          "extent_bytes": 1565868032,
+          "field_units": "kB except THPeligible",
+          "name": "",
+          "permissions": "rw-p",
+          "range": "ff92a7f68000-ff93054bc000"
+        },
+        {
+          "AnonHugePages": 24000512,
+          "KernelPageSize": 4,
+          "MMUPageSize": 4,
+          "Rss": 24758064,
+          "Size": 24758064,
+          "THPeligible": 1,
+          "VmFlags": "rd wr mr mw me ac hg",
+          "extent_bytes": 25352257536,
+          "field_units": "kB except THPeligible",
+          "name": "",
+          "permissions": "rw-p",
+          "range": "ff93054be000-ff98ec68a000"
+        },
+        {
+          "AnonHugePages": 3184640,
+          "KernelPageSize": 4,
+          "MMUPageSize": 4,
+          "Rss": 3186892,
+          "Size": 3186892,
+          "THPeligible": 1,
+          "VmFlags": "rd wr mr mw me ac hg",
+          "extent_bytes": 3263377408,
+          "field_units": "kB except THPeligible",
+          "name": "",
+          "permissions": "rw-p",
+          "range": "ff98ec68c000-ff99aeebf000"
+        }
+      ]
+    },
+    "coverage_min_pct": 94.72151233400524,
+    "coverage_max_pct": 94.77710007598529
+  }
+]

@@ -1,0 +1,52 @@
+{
+  "stock": {
+    "path": "/home/rborkows/uni-rnaseq-seed-lab/seed-split-private-v2/baseline/STAR",
+    "bytes": 2930208,
+    "sha256": "f84493ef8c9a6d39e60264c0c9e0c6da388e8a455e6c21c1a1b9a61f52662a29"
+  },
+  "integrated": {
+    "path": "/home/rborkows/uni-rnaseq-probe-lab/integrate-gate-lat-close-20260908/private/integrated/STAR",
+    "bytes": 10982648,
+    "sha256": "ef22723c51540aa2a12178da48f5eb0c3df759965ab7e594f7f6257efba38b6b"
+  },
+  "base_argv": [
+    "/home/rborkows/uni-rnaseq-probe-lab/integrate-gate-lat-close-20260908/private/integrated/STAR",
+    "--runMode",
+    "alignReads",
+    "--runThreadN",
+    "20",
+    "--runRNGseed",
+    "777",
+    "--genomeDir",
+    "/home/rborkows/uni-rnaseq/data/index/star_full",
+    "--genomeLoad",
+    "NoSharedMemory",
+    "--readFilesIn",
+    "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_1.fastq.gz",
+    "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_2.fastq.gz",
+    "--readFilesCommand",
+    "zcat",
+    "--twopassMode",
+    "None",
+    "--genomeType",
+    "Full",
+    "--genomeTransformType",
+    "None",
+    "--outSAMtype",
+    "SAM",
+    "--outSAMorder",
+    "PairedKeepInputOrder",
+    "--outSAMunmapped",
+    "Within",
+    "--outFileNamePrefix",
+    "/home/rborkows/uni-rnaseq-probe-lab/integrate-gate-lat-close-20260908/integrated/"
+  ],
+  "repeats": 1,
+  "profile_event": "cpu-clock",
+  "profile_read_limit": 20000000,
+  "strict": 0,
+  "thp": 1,
+  "drop_index_cache": "1",
+  "index_precondition": "full untimed read of Genome/SA/SAindex before every invocation",
+  "warmup": "same-policy workload, followed by index precondition again"
+}

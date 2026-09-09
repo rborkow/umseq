@@ -1,0 +1,125 @@
+{
+  "status": "VERIFIED_NINE_ROWS_AND_GPU_SIDECARS",
+  "rows": [
+    {
+      "repeat": 1,
+      "arm": "stock",
+      "wall_s": 56.91,
+      "user_s": 727.76,
+      "system_s": 29.72,
+      "cpu_s": 757.48,
+      "max_rss_kib": 32711616
+    },
+    {
+      "repeat": 1,
+      "arm": "bypass",
+      "wall_s": 52.84,
+      "user_s": 655.12,
+      "system_s": 28.58,
+      "cpu_s": 683.7,
+      "max_rss_kib": 32686260
+    },
+    {
+      "repeat": 1,
+      "arm": "gpu",
+      "wall_s": 56.87,
+      "user_s": 592.16,
+      "system_s": 40.55,
+      "cpu_s": 632.7099999999999,
+      "max_rss_kib": 38786660,
+      "gpu_consumed": 145048935,
+      "chains_submitted": 159509872,
+      "index_anon_huge_bytes": 24385683456,
+      "key_misses": 2052687
+    },
+    {
+      "repeat": 2,
+      "arm": "gpu",
+      "wall_s": 60.24,
+      "user_s": 611.9,
+      "system_s": 42.73,
+      "cpu_s": 654.63,
+      "max_rss_kib": 39376936,
+      "gpu_consumed": 139702348,
+      "chains_submitted": 159509868,
+      "index_anon_huge_bytes": 24117248000,
+      "key_misses": 9444193
+    },
+    {
+      "repeat": 2,
+      "arm": "stock",
+      "wall_s": 56.43,
+      "user_s": 727.92,
+      "system_s": 28.74,
+      "cpu_s": 756.66,
+      "max_rss_kib": 32657028
+    },
+    {
+      "repeat": 2,
+      "arm": "bypass",
+      "wall_s": 52.26,
+      "user_s": 651.99,
+      "system_s": 27.53,
+      "cpu_s": 679.52,
+      "max_rss_kib": 32674484
+    },
+    {
+      "repeat": 3,
+      "arm": "bypass",
+      "wall_s": 57.48,
+      "user_s": 654.54,
+      "system_s": 32.62,
+      "cpu_s": 687.16,
+      "max_rss_kib": 32712540
+    },
+    {
+      "repeat": 3,
+      "arm": "gpu",
+      "wall_s": 55.29,
+      "user_s": 609.44,
+      "system_s": 38.46,
+      "cpu_s": 647.9000000000001,
+      "max_rss_kib": 39530276,
+      "gpu_consumed": 140192652,
+      "chains_submitted": 159829348,
+      "index_anon_huge_bytes": 24580718592,
+      "key_misses": 8700012
+    },
+    {
+      "repeat": 3,
+      "arm": "stock",
+      "wall_s": 56.91,
+      "user_s": 726.3,
+      "system_s": 28.9,
+      "cpu_s": 755.1999999999999,
+      "max_rss_kib": 32739080
+    }
+  ],
+  "means": {
+    "stock": {
+      "wall_s": 56.75,
+      "cpu_s": 756.4466666666666,
+      "user_s": 727.3266666666666,
+      "system_s": 29.119999999999997
+    },
+    "bypass": {
+      "wall_s": 54.193333333333335,
+      "cpu_s": 683.46,
+      "user_s": 653.8833333333333,
+      "system_s": 29.576666666666664
+    },
+    "gpu": {
+      "wall_s": 57.46666666666667,
+      "cpu_s": 645.08,
+      "user_s": 604.5,
+      "system_s": 40.58
+    }
+  },
+  "deltas": {
+    "gpu_vs_bypass_cpu_pct": -5.615544435665587,
+    "gpu_vs_stock_cpu_pct": -14.722342178783244,
+    "gpu_vs_bypass_wall_pct": 6.040103333743385,
+    "bypass_vs_stock_cpu_pct": -9.648620303700628
+  },
+  "cpu_s_to_save_for_eight_percent": 16.296799999999962
+}
