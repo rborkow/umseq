@@ -43,3 +43,11 @@ class PatchTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FrozenHookTests(unittest.TestCase):
+    def test_frozen_hook_matches_generator(self):
+        self.assertEqual(mod.FROZEN_HOOK.read_text(), mod.stock_hook_from_generator())
+
+    def test_frozen_hook_used_without_generator(self):
+        self.assertEqual(mod.stock_hook(generator=mod.HERE / "does-not-exist.py"), mod.FROZEN_HOOK.read_text())

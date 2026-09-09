@@ -46,11 +46,29 @@ def extract_generator_hook(generator: Path = GENERATOR) -> str:
     return candidates[0][: candidates[0].index("static void starIntegrateAdviseHuge")] + function + "#endif\n"
 
 
-def stock_hook(generator: Path = GENERATOR) -> str:
+def stock_hook_from_generator(generator: Path = GENERATOR) -> str:
     """Adapt only names that are private to the integrated build."""
     raw = extract_generator_hook(generator)
     return (raw.replace("STAR_INTEGRATE", "STAR_THP")
                .replace("#if defined(STAR_THP) &&", "#if defined(STAR_THP_PATCH) &&"))
+
+
+FROZEN_HOOK = HERE / "star_thp_hook.frozen.h"
+
+
+def stock_hook(generator: Path = GENERATOR) -> str:
+    """The frozen hook shipped with the bundle (self-contained on a Batch box).
+
+    When the generator is present (in-repo), it must agree byte-for-byte with the frozen
+    copy; test_patch_stock_star.py pins this so the bundle cannot drift from the source of
+    truth silently.  On a box without the repo, the frozen copy is used alone.
+    """
+    frozen = FROZEN_HOOK.read_text()
+    if generator.is_file():
+        live = stock_hook_from_generator(generator)
+        if live != frozen:
+            raise RuntimeError("star_thp_hook.frozen.h no longer matches the generator; regenerate it")
+    return frozen
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
