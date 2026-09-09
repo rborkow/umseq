@@ -1,0 +1,15 @@
+    74.63%  salmon               
+    15.94%  libgcc_s.so.1        
+     5.15%  libm.so.6            
+     1.92%  libc.so.6            
+     1.46%  [kernel.kallsyms]    
+     0.46%  libjemalloc.so.2     
+     0.24%  libtbb.so.12.13      
+     0.11%  [vdso]               
+     0.05%  libtbbmalloc.so.2.13 
+     0.02%  libstdc++.so.6.0.33  
+     0.01%  ld-linux-aarch64.so.1
+     0.00%  [nvme]               
+     0.00%  [r8127]              
+     0.00%  [nf_conntrack]       
+     0.00%  [nf_tables]          

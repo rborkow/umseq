@@ -1,0 +1,30 @@
+{
+  "image": "community.wave.seqera.io/library/salmon@sha256:878e1fb2cdfc25144d17aeebd033a193a3515674557e72d9b9b8c393b29ecd61",
+  "image_id": "sha256:878e1fb2cdfc25144d17aeebd033a193a3515674557e72d9b9b8c393b29ecd61",
+  "uid": 1000,
+  "gid": 1000,
+  "inputs": {
+    "NA12716_full.Aligned.toTranscriptome.out.bam": {
+      "path": "/home/rborkows/uni-rnaseq/runs/tier1-full/work/d4/03324a5759b9c724530c12ab4d0efc/NA12716_full.Aligned.toTranscriptome.out.bam",
+      "bytes": 38804841527,
+      "sha256": "a2e788737f30221de8b5b809f0d5648076605ddbcd0916f7683f343e3e27ca5f"
+    },
+    "genome.transcripts.fa": {
+      "path": "/home/rborkows/uni-rnaseq/runs/tier1-full/work/8b/ca04bcd0afc478697cd94de0f591ae/genome.transcripts.fa",
+      "bytes": 922198580,
+      "sha256": "8b35182dfeb14aa1dacda53651e055ea715fcb85c9a2b686e694719ec3f734ff"
+    },
+    "gencode.v49.primary_assembly.annotation.filtered.gtf": {
+      "path": "/home/rborkows/uni-rnaseq/runs/tier1-full/work/73/514e12d4643c95e65a62c68a927f7b/gencode.v49.primary_assembly.annotation.filtered.gtf",
+      "bytes": 3313195627,
+      "sha256": "86cebbb2d6b7ea2e12055a68fd6366aa9eeff54c6d2d785b38a84dc2658e984e"
+    }
+  },
+  "target_script_sha256": "776c4f836c00d6ec52d82c050396605222e4c94d5616d91e3c7613253f422a05",
+  "threads": 16,
+  "mode": "alignment quantification, original nf-core argv except input/output path prefixes",
+  "timing": "Bash time inside container around salmon only; one profiled diagnostic invocation",
+  "precondition": "input hashes read before invocation; no cold-cache claim",
+  "profile": "host perf attaches after target PID discovery; initial startup excluded from samples, included in target timing",
+  "allocator_environment": []
+}

@@ -1,0 +1,13 @@
+[
+  "perf",
+  "record",
+  "-e",
+  "cpu-clock",
+  "-F",
+  "199",
+  "-g",
+  "-p",
+  "848286",
+  "-o",
+  "/home/rborkows/uni-rnaseq-probe-lab/salmon-alignment-screen-20260908/perf.data"
+]
