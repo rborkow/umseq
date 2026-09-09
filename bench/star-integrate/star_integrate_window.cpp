@@ -134,7 +134,12 @@ void prepare_window(ReadAlignChunk &chunk) {
       if (!save_seekable(*ra.readInStream[mate], saved[mate]))
         return;
     WindowEnd peek_end;
+    WindowEnd end;
     const bool after_window = current && lookahead_start(peek_end);
+    // A live terminal window still owns all remaining prefetched records.
+    // Falling back to the real cursor here would publish duplicate lookahead.
+    if (current && !after_window)
+      return;
     if (after_window) {
       if (peek_end.stream_pos.size() != ends)
         return;
@@ -143,7 +148,8 @@ void prepare_window(ReadAlignChunk &chunk) {
         stream.clear();
         stream.seekg(peek_end.stream_pos[mate]);
         if (stream.fail()) {
-          restore_streams(ra, ends, saved);
+          if (!restore_streams(ra, ends, saved))
+            fatal_restore();
           return;
         }
       }
@@ -153,6 +159,7 @@ void prepare_window(ReadAlignChunk &chunk) {
     std::vector<uint> split(3 * chunk.P.maxNsplit);
     std::array<std::vector<ClipMate>, MAX_N_MATES> clips;
     std::array<std::string, MAX_N_MATES> extra;
+    bool terminal_tail = false;
     for (uint32_t rec = 0; rec < window_limit(); ++rec) {
       // readLoad writes the complete live extents (including its terminators).
       // These scratch buffers need no per-record zero fill.
@@ -177,8 +184,10 @@ void prepare_window(ReadAlignChunk &chunk) {
         else if (status != status0)
           consistent = false;
       }
-      if (!consistent || status0 == -1)
+      if (!consistent || status0 == -1) {
+        terminal_tail = true;
         break;
+      }
       uint length = len[0];
       if (chunk.P.readNmates == 2) {
         length = len[0] + len[1] + 1;
@@ -272,15 +281,30 @@ void prepare_window(ReadAlignChunk &chunk) {
       frame_bytes += read_charge + candidate_bound * CANDIDATE_BUDGET_BYTES;
       frame_candidates += candidate_bound;
       frames.push_back(std::move(frame));
-    }
-    WindowEnd end;
-    end.stream_pos.resize(ends);
-    for (uint32_t mate = 0; mate < ends; ++mate)
-      end.stream_pos[mate] = ra.readInStream[mate]->tellg();
-    if (!frames.empty())
+      // This is the only valid boundary for the following peek: it is after
+      // the last admitted record, before any later rejected record.
       end.ordinal = frames.back().ordinal + 1;
+      end.stream_pos.resize(ends);
+      end.has_successor = true;
+      for (uint32_t mate = 0; mate < ends; ++mate) {
+        end.stream_pos[mate] = ra.readInStream[mate]->tellg();
+        if (end.stream_pos[mate] == std::streampos(-1)) {
+          end.has_successor = false;
+          end.stream_pos.clear();
+          break;
+        }
+      }
+    }
+    if (terminal_tail) {
+      end.has_successor = false;
+      end.stream_pos.clear();
+    }
     if (!restore_streams(ra, ends, saved))
       fatal_restore();
+    // An empty peek cannot publish its terminal endpoint in a new window.
+    // Remember it on the live predecessor, after successful stream rollback.
+    if (current && terminal_tail && frames.empty())
+      mark_lookahead_exhausted();
     submit_window(std::move(frames), std::move(end));
     return;
   } // restoration is verified before stock consumes any published frame

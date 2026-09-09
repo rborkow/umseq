@@ -1,7 +1,6 @@
-// Compile and run this with STAR's pinned source directory as the include path.
-// It includes the producer TU so the exercised routine is the actual producer,
-// then compares its tuple to the prefix oracle transcribed from STAR 2.7.11b
-// ReadAlign_maxMappableLength2strands.cpp lines 22-96.
+// Helper-only prefix/orientation checks against pinned STAR's C++11 ABI.
+// This file does not call prepare_window; test_window_contract executes the
+// real producer with generated pre-oneRead and readLoad/handoff semantics.
 #define STAR_INTEGRATE 1
 #include "star_integrate_window.cpp"
 
@@ -15,6 +14,7 @@ namespace star_integrate {
 bool window_remaining(uint64_t) { return false; }
 bool next_window_pending() { return false; }
 bool lookahead_start(WindowEnd &) { return false; }
+void mark_lookahead_exhausted() {}
 bool setup(const Parameters &, const Genome &) { return false; }
 bool submit_window(std::vector<WindowRead> &&, WindowEnd &&) { return false; }
 } // namespace star_integrate

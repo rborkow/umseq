@@ -1,0 +1,21 @@
+In file included from /var/folders/26/rpv6m28d2_g1xf44f1f58h5r0000gp/T/star-window-contract-b6l4qzn3/test_window_contract.cpp:130:
+/var/folders/26/rpv6m28d2_g1xf44f1f58h5r0000gp/T/star-window-contract-b6l4qzn3/generated_oneRead.inc:12:20: warning: variable length arrays in C++ are a Clang extension [-Wvla-cxx-extension]
+   12 |     int readStatus[P.readNends];
+      |                    ^~~~~~~~~~~
+/var/folders/26/rpv6m28d2_g1xf44f1f58h5r0000gp/T/star-window-contract-b6l4qzn3/generated_oneRead.inc:12:20: note: implicit use of 'this' pointer is only allowed within the evaluation of a call to a 'constexpr' member function
+1 warning generated.
+budget window: frames=831 first=1 last=831 end=832
+budget window: frames=831 first=832 last=1662 end=1663
+budget: PASS
+tail: PASS
+empty-successor: PASS
+gap: PASS
+overshoot: PASS
+refusal: PASS
+eof0: PASS
+eof1: PASS
+fail0: PASS
+fail1: PASS
+mismatch0: PASS
+mismatch1: PASS
+rollback: PASS

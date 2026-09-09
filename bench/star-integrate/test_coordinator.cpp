@@ -14,6 +14,8 @@ namespace {
 UsiPrefixContext fake_context = {1};
 bool invalid_success = false;
 uint64_t backend_calls = 0;
+std::atomic<bool> backend_wait(false), backend_entered(false),
+    backend_release(false);
 Parameters fixture_p;
 Genome fixture_g;
 char fixture_genome = 0, fixture_sa = 0, fixture_sai = 0;
@@ -330,7 +332,7 @@ void positional_shuffled_completion() {
 // The coordinator is commonly the last owner.  Once it has drained the first
 // window, dropping the producer reference must return it to that producer's
 // pool, with no counters or Job entries carried into the next submission.
-void window_pool_reuse() {
+void window_rotation() {
   prepare_fixture_index();
   star_integrate::State &s = star_integrate::S();
   s.ctx = &fake_context;
@@ -358,7 +360,7 @@ void window_pool_reuse() {
   assert(star_integrate::next_window->jobs.size() == 40000);
   star_integrate::current_window->next_frame =
       star_integrate::current_window->frames.size();
-  assert(star_integrate::window_remaining(402));
+  assert(star_integrate::window_remaining(401));
   assert(star_integrate::current_window->frames[0].ordinal == 402);
   assert(s.totals.prefetch_windows == 1);
   star_integrate::settle_for_test();
@@ -425,6 +427,242 @@ void prefetch_refusal() {
   star_integrate::finish();
   std::puts("prefetch refusal: refused=1 fallback=1");
 }
+// B1: all seven producers have closed their worker windows before a delayed
+// coordinator is allowed to stop.  Six 40k windows fit the cap and the
+// seventh is the whole-window exclusion which used to survive finish().
+// Normal process teardown after this test is intentional: it exercises the
+// queue-slot deleter rather than masking it with _Exit.
+void shutdown_drains_queued_windows(bool delayed = false) {
+  prepare_fixture_index();
+  star_integrate::State &s = star_integrate::S();
+  s.ctx = &fake_context;
+  s.enabled = true;
+  s.stopping = false;
+  s.fault = false;
+  s.epoch = 41;
+  s.next_generation = 1;
+  std::atomic<int> closed(0);
+  std::vector<std::thread> producers;
+  for (uint64_t k = 0; k < 7; ++k)
+    producers.emplace_back([&, k] {
+      std::vector<star_integrate::WindowRead> v;
+      v.push_back(frame(700 + k));
+      assert(star_integrate::submit_window(std::move(v)));
+      star_integrate::end_chunk();
+      closed.fetch_add(1, std::memory_order_release);
+    });
+  for (size_t k = 0; k < producers.size(); ++k)
+    producers[k].join();
+  assert(closed.load(std::memory_order_acquire) == 7);
+  backend_wait.store(delayed);
+  s.stopping = !delayed; // deterministic final-fill exclusion in the CPU case
+  s.coordinator = std::thread(star_integrate::coordinator_main);
+  std::thread release;
+  if (delayed) {
+    while (!backend_entered.load())
+      std::this_thread::yield();
+    release = std::thread([&] {
+      for (;;) {
+        {
+          std::lock_guard<std::mutex> lock(s.mu);
+          if (s.stopping)
+            break;
+        }
+        std::this_thread::yield();
+      }
+      backend_release.store(true);
+    });
+  }
+  star_integrate::finish();
+  if (release.joinable())
+    release.join();
+  {
+    std::lock_guard<std::mutex> lock(s.mu);
+    assert(s.live_bytes == 0 && s.live_requests == 0);
+    for (size_t qi = 0; qi < s.queues.size(); ++qi) {
+      assert(s.queues[qi]->requests.load(std::memory_order_acquire) == 0);
+      std::shared_ptr<star_integrate::Window> none;
+      assert(!s.queues[qi]->pop(none));
+    }
+    assert(s.totals.cpu_tails == (delayed ? 40000 : 280000));
+  }
+  std::puts(delayed ? "shutdown delayed: queued=0 live_requests=0 tails=40000"
+                    : "shutdown drain: queued=0 live_requests=0 tails=280000");
+}
+// B2 remains fixed: refusal of the initial/current window must never release
+// an admission charge it did not acquire.
+void current_window_refusal() {
+  prepare_fixture_index();
+  star_integrate::State &s = star_integrate::S();
+  s.ctx = &fake_context;
+  s.enabled = true;
+  s.stopping = false;
+  s.fault = false;
+  s.live_requests = star_integrate::MAX_INFLIGHT_REQUESTS;
+  std::vector<star_integrate::WindowRead> v;
+  v.push_back(frame(800));
+  // Initial refusal is retained as a CPU-resolved current window so stock can
+  // consume it; unlike a prefetch refusal, this API path still returns true.
+  assert(star_integrate::submit_window(std::move(v)));
+  assert(star_integrate::current_window);
+  assert(star_integrate::current_window->charged_bytes == 0);
+  assert(star_integrate::current_window->charged_requests == 0);
+  star_integrate::close_window();
+  assert(s.live_bytes == 0 &&
+         s.live_requests == star_integrate::MAX_INFLIGHT_REQUESTS);
+  s.live_requests = 0;
+  star_integrate::finish();
+  std::puts("current refusal: charge=0");
+}
+
+// Separate from rotation: ownership in the actual SPSC slot and a retained
+// shared_ptr must both end before the exact allocation can be reacquired.
+void pool_reuse() {
+  using namespace star_integrate;
+  prepare_fixture_index();
+  State &s = S();
+  s.enabled = true;
+  std::vector<WindowRead> first_frames;
+  first_frames.push_back(frame(901));
+  assert(submit_window(std::move(first_frames)));
+  auto retained = current_window;
+  Window *first = retained.get();
+  first->consumed = 99;
+  first->consumed_stats.bytes = 123;
+  first->other_unused = 8;
+  first->prefetch_refused = true;
+  first->peek_end.ordinal = 902;
+  first->peek_end.has_successor = true;
+  first->peek_end.stream_pos.push_back(std::streampos(100));
+  first->miss_reasons[MISS_NOT_READY] = 7;
+  first->device_stop_status[4] = 5;
+  first->not_ready_where[DRAINING] = 6;
+  end_chunk();
+  // Explicitly retain the actual coordinator queue owner as well.
+  std::shared_ptr<Window> queued;
+  assert(worker_queue->pop(queued) && queued.get() == first);
+  worker_queue->requests.fetch_sub(queued->jobs.size());
+  std::vector<WindowRead> second_frames;
+  second_frames.push_back(frame(902));
+  assert(submit_window(std::move(second_frames)));
+  assert(current_window.get() != first);
+  end_chunk();
+  std::shared_ptr<Window> second;
+  assert(worker_queue->pop(second));
+  worker_queue->requests.fetch_sub(second->jobs.size());
+  second.reset();
+  assert(s.live_requests == 40000);
+  queued.reset();
+  assert(s.live_requests == 40000 && retained.get() == first);
+  retained.reset();
+  assert(s.live_requests == 0 && s.live_bytes == 0);
+  std::vector<WindowRead> third_frames;
+  auto fresh = frame(903);
+  fresh.candidates.resize(2);
+  third_frames.push_back(std::move(fresh));
+  assert(submit_window(std::move(third_frames)));
+  assert(current_window.get() == first);
+  assert(first->active && first->next_frame == 0 && !first->prefetch_refused);
+  assert(first->peek_end.ordinal == 0 && !first->peek_end.has_successor &&
+         first->peek_end.stream_pos.empty());
+  assert(first->consumed == 0 && first->other_unused == 0 &&
+         first->consumed_stats.bytes == 0 && first->hit_bytes == 0);
+  for (auto n : first->miss_reasons)
+    assert(n == 0);
+  for (auto n : first->device_stop_status)
+    assert(n == 0);
+  for (auto n : first->not_ready_where)
+    assert(n == 0);
+  assert(first->frames.size() == 1 && first->frames[0].ordinal == 903);
+  assert(first->jobs.size() == 2 && first->ranges.size() == 1 &&
+         first->ranges[0].first == 0 && first->ranges[0].last == 2 &&
+         first->cursors.size() == 1 && first->cursors[0] == 0);
+  for (size_t i = 0; i < 2; ++i) {
+    const auto &j = first->jobs[i];
+    assert(j.frame == &first->frames[0] &&
+           j.call == &first->frames[0].candidates[i]);
+    assert(j.state.load() == 0 && j.phase.load() == QUEUED &&
+           j.out.n_steps == 0 && j.stats.bytes == 0);
+  }
+  assert(first->charged_requests == 2 && s.live_requests == 2 &&
+         first->charged_bytes > 0 && s.live_bytes == first->charged_bytes);
+  end_chunk();
+  s.stopping = true;
+  s.coordinator = std::thread(coordinator_main);
+  finish();
+  assert(s.live_requests == 0 && s.live_bytes == 0);
+  std::puts("pool reuse: retained owner blocks reuse; third reacquires exact "
+            "pointer");
+}
+
+void chain_accounting() {
+  using namespace star_integrate;
+  prepare_fixture_index();
+  State &s = S();
+  // Admission-refused windows are real submit_window products. Replace only
+  // the fake transport output for one job to exercise a two-step hit chain.
+  s.enabled = true;
+  s.live_requests = MAX_INFLIGHT_REQUESTS;
+  std::vector<WindowRead> v;
+  auto f = frame(3);
+  f.candidates.erase(f.candidates.begin());
+  f.candidates.resize(1);
+  v.push_back(std::move(f));
+  assert(submit_window(std::move(v)));
+  auto &w = *current_window;
+  auto &j = w.jobs[0];
+  ReadAlign ra(3);
+  char a[4] = {3, 3, 3, 3}, b[4] = {4, 4, 4, 4};
+  char *reads[] = {a, b};
+  uint64_t range[2] = {}, nrep = 0, maxl = 0;
+  begin_map(ra);
+  set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
+  InnerCall probe = build_current_inner_call(call(3, 1, false));
+  assert(!lookup(fixture_p, fixture_g, reads, 4, 0, probe, range, nrep, maxl));
+  assert(w.miss_reasons[MISS_CPU_ADMISSION] == 1 &&
+         w.miss_reasons[MISS_DEVICE_STOPPED] == 0 &&
+         w.device_stop_status[0] == 0);
+  // An actual completed-invalid transport result remains a device stop.
+  j.state.store(COMPLETE);
+  w.cursors[0] = 0;
+  set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
+  assert(!lookup(fixture_p, fixture_g, reads, 4, 0, probe, range, nrep, maxl));
+  assert(w.miss_reasons[MISS_DEVICE_STOPPED] == 1 &&
+         w.device_stop_status[0] == 1);
+  j.out.n_steps = 2;
+  for (size_t i = 0; i < 2; ++i) {
+    j.out.steps[i].shift = i;
+    j.out.steps[i].max_l = 1;
+    j.out.steps[i].branch = 3;
+  }
+  j.stats.bytes = 123;
+  j.stats.gathers = 17;
+  j.state.store(COMPLETE | VALID);
+  w.cursors[0] = 0;
+  set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
+  assert(lookup(fixture_p, fixture_g, reads, 4, 0, probe, range, nrep, maxl));
+  set_chain(7, 3, 1, 2, 5, 1, 0, 4, 1);
+  assert(lookup(fixture_p, fixture_g, reads, 4, 1, probe, range, nrep, maxl));
+  assert(w.consumed == 1 && w.steps_consumed == 2 && w.hit_bytes == 123 &&
+         w.hit_gathers == 17 && w.consumed_stats.bytes == 123 &&
+         w.consumed_stats.gathers == 17);
+  // Completed, unused next-window work belongs to the next window even when
+  // current has already been closed. No publication/retirement partition claim.
+  next_window.reset(new Window);
+  next_window->jobs.emplace_back();
+  next_window->jobs[0].state.store(COMPLETE | VALID);
+  next_window->jobs[0].stats.bytes = 77;
+  next_window->jobs[0].stats.gathers = 9;
+  end_chunk();
+  assert(s.totals.other_unused == 1 && s.totals.unused_bytes == 77 &&
+         s.totals.other_stats.bytes == 77 && s.totals.unused_gathers == 9);
+  assert(s.totals.consumed_stats.bytes == 123 && s.totals.steps_consumed == 2);
+  s.live_requests = 0;
+  finish();
+  std::puts(
+      "chain accounting: two steps, one stats charge; CPU admission separate");
+}
+
 void strict_invalid_success() {
   invalid_success = true;
   setenv("STAR_INTEGRATE_STRICT", "1", 1);
@@ -470,6 +708,11 @@ extern "C" int32_t usi_search_batch_v3(UsiPrefixContext *, uint64_t,
                                        ProbeOutputV3 *out, ProbeStats *stats,
                                        UsiErrorV1 *e) {
   ++backend_calls;
+  if (backend_wait.load()) {
+    backend_entered.store(true);
+    while (!backend_release.load())
+      std::this_thread::yield();
+  }
   std::memset(e, 0, sizeof(*e));
   for (uint64_t i = 0; i < n; ++i) {
     out[i].n_steps = invalid_success ? PROBE_CHAIN_CAPACITY + 1 : 1;
@@ -551,11 +794,21 @@ int main(int argc, char **argv) {
   else if (argc == 2 && !std::strcmp(argv[1], "positional-shuffled"))
     positional_shuffled_completion();
   else if (argc == 2 && !std::strcmp(argv[1], "window-pool"))
-    window_pool_reuse();
+    window_rotation();
   else if (argc == 2 && !std::strcmp(argv[1], "chunk-boundary"))
     chunk_boundary_drops_next();
   else if (argc == 2 && !std::strcmp(argv[1], "prefetch-refusal"))
     prefetch_refusal();
+  else if (argc == 2 && !std::strcmp(argv[1], "shutdown-drain"))
+    shutdown_drains_queued_windows();
+  else if (argc == 2 && !std::strcmp(argv[1], "shutdown-delayed"))
+    shutdown_drains_queued_windows(true);
+  else if (argc == 2 && !std::strcmp(argv[1], "pool-reuse"))
+    pool_reuse();
+  else if (argc == 2 && !std::strcmp(argv[1], "chain-accounting"))
+    chain_accounting();
+  else if (argc == 2 && !std::strcmp(argv[1], "current-refusal"))
+    current_window_refusal();
   else
     normal();
 }

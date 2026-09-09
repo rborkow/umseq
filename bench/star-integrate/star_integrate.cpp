@@ -40,7 +40,14 @@ constexpr uint64_t FILL_MAX_US = 2000;
 static_assert(submit_floor < target && target < cap,
               "v2 admission bounds must preserve the v1 transport floor");
 constexpr size_t queue_slots = 64;
-enum JobState : uint8_t { COMPLETE = 1, VALID = 2, CONSUMED = 4, RETIRED = 8 };
+enum JobState : uint8_t {
+  COMPLETE = 1,
+  VALID = 2,
+  CONSUMED = 4,
+  RETIRED = 8,
+  CPU_RESOLVED = 16,
+  CPU_ADMISSION = 32
+};
 enum JobPhase : uint8_t { QUEUED, FILLING, DRAINING };
 enum MissReason : size_t {
   MISS_READ_BYTES,
@@ -50,6 +57,8 @@ enum MissReason : size_t {
   MISS_KEY_MISMATCH,
   MISS_NOT_READY,
   MISS_DEVICE_STOPPED,
+  MISS_CPU_ADMISSION,
+  MISS_CPU_RESOLVED,
   MISS_SHIFT,
   MISS_CAS_LOST,
   MISS_NO_WINDOW,
@@ -507,31 +516,33 @@ bool admitted(const Parameters &p, const Genome &g) {
          p.seedSearchLmax == 0 && g.GstrandBit == 32 && p.pGe.gSAsparseD == 1 &&
          g.G && g.SA.charArray && g.SAi.charArray;
 }
-void resolve_cpu(Job &j) {
+void resolve_cpu(Job &j, bool admission = false) {
   uint8_t state = j.state.load(std::memory_order_relaxed);
-  while (!(state & COMPLETE) && !j.state.compare_exchange_weak(
-                                    state, COMPLETE, std::memory_order_release,
-                                    std::memory_order_relaxed))
+  while (!(state & COMPLETE) &&
+         !j.state.compare_exchange_weak(
+             state,
+             state | COMPLETE | CPU_RESOLVED | (admission ? CPU_ADMISSION : 0),
+             std::memory_order_release, std::memory_order_relaxed))
     ;
 }
 bool valid_result(const Job &j) {
   const ProbeOutputV3 &o = j.out;
   return o.status == 0 && o.n_steps <= PROBE_CHAIN_CAPACITY;
 }
-void retire(Job &j, bool suppressed) {
+void retire(Window &window, Job &j, bool suppressed) {
   const uint8_t before = j.state.fetch_or(RETIRED, std::memory_order_acq_rel);
   if (before & (RETIRED | CONSUMED))
     return;
-  if (!current_window || !(before & COMPLETE) || !(before & VALID))
+  if (!(before & COMPLETE) || !(before & VALID))
     return;
-  current_window->unused_bytes += j.stats.bytes;
-  current_window->unused_gathers += j.stats.gathers;
+  window.unused_bytes += j.stats.bytes;
+  window.unused_gathers += j.stats.gathers;
   if (suppressed) {
-    ++current_window->suppressed_unused;
-    add_stats(current_window->suppressed_stats, j.stats);
+    ++window.suppressed_unused;
+    add_stats(window.suppressed_stats, j.stats);
   } else {
-    ++current_window->other_unused;
-    add_stats(current_window->other_stats, j.stats);
+    ++window.other_unused;
+    add_stats(window.other_stats, j.stats);
   }
 }
 // Coordinator-thread scratch, reused across batches. Fresh per-batch vectors
@@ -709,9 +720,34 @@ void coordinator_main() {
     if (stopping) {
       for (size_t i = 0; i < fill.size(); ++i)
         resolve_cpu(*fill[i]);
-      if (!fill.empty()) {
+      uint64_t tails = fill.size();
+      fill.clear();
+      owners.clear();
+      // Whole-window batching can leave a head which does not fit the final
+      // fill.  Shutdown owns the obligation to resolve and *remove* every
+      // such slot before SpscQueue (and its pool mutex) can be destroyed.
+      // Do not hold State::mu while dropping these final owners: Window's
+      // release path takes that mutex for its admission charge.
+      std::vector<std::shared_ptr<Window>> abandoned;
+      {
         std::lock_guard<std::mutex> lock(s.mu);
-        s.totals.cpu_tails += fill.size();
+        for (size_t qi = 0; qi < s.queues.size(); ++qi) {
+          std::shared_ptr<Window> w;
+          while (s.queues[qi]->pop(w)) {
+            s.queues[qi]->requests.fetch_sub(w->jobs.size(),
+                                             std::memory_order_acq_rel);
+            tails += w->jobs.size();
+            abandoned.push_back(std::move(w));
+          }
+        }
+      }
+      for (size_t wi = 0; wi < abandoned.size(); ++wi)
+        for (size_t ji = 0; ji < abandoned[wi]->jobs.size(); ++ji)
+          resolve_cpu(abandoned[wi]->jobs[ji]);
+      abandoned.clear();
+      if (tails) {
+        std::lock_guard<std::mutex> lock(s.mu);
+        s.totals.cpu_tails += tails;
       }
       break;
     }
@@ -760,7 +796,7 @@ void close_one_window(std::shared_ptr<Window> &window) {
     return;
   finish_active_chain();
   for (size_t i = 0; i < window->jobs.size(); ++i)
-    retire(window->jobs[i], false);
+    retire(*window, window->jobs[i], false);
   merge_window(*window);
   window.reset();
 }
@@ -807,6 +843,8 @@ void sidecar(const State &s) {
     << ",\"key_mismatch\":" << t.miss_reasons[MISS_KEY_MISMATCH]
     << ",\"not_ready\":" << t.miss_reasons[MISS_NOT_READY]
     << ",\"device_stopped\":" << t.miss_reasons[MISS_DEVICE_STOPPED]
+    << ",\"cpu_admission\":" << t.miss_reasons[MISS_CPU_ADMISSION]
+    << ",\"cpu_resolved\":" << t.miss_reasons[MISS_CPU_RESOLVED]
     << ",\"shift\":" << t.miss_reasons[MISS_SHIFT]
     << ",\"cas_lost\":" << t.miss_reasons[MISS_CAS_LOST]
     << ",\"no_window\":" << t.miss_reasons[MISS_NO_WINDOW] << "}"
@@ -1009,6 +1047,12 @@ bool enabled() { return S().enabled; }
 bool window_remaining(uint64_t ordinal) {
   if (!current_window)
     return false;
+  // The hook supplies the ordinal before its following oneRead.  If stock has
+  // advanced beyond a prefetched frame, retire that stale handoff cursor now;
+  // retaining it would make every later exact lookup miss until end_chunk.
+  while (current_window->next_frame < current_window->frames.size() &&
+         current_window->frames[current_window->next_frame].ordinal <= ordinal)
+    ++current_window->next_frame;
   if (current_window->next_frame < current_window->frames.size()) {
     current_frame = nullptr;
     return true;
@@ -1018,8 +1062,15 @@ bool window_remaining(uint64_t ordinal) {
     current_window = std::move(next_window);
     current_frame = nullptr;
     current_index = 0;
-    if (!current_window->frames.empty() &&
-        current_window->frames.front().ordinal >= ordinal) {
+    // The generated hook calls this before oneRead, so `ordinal` is the
+    // previous stock ordinal.  Drop frames at or before that previous ordinal;
+    // a forward gap remains available for its exact later handoff rather than
+    // being handed to the wrong read or stranding the cursor forever.
+    while (current_window->next_frame < current_window->frames.size() &&
+           current_window->frames[current_window->next_frame].ordinal <=
+               ordinal)
+      ++current_window->next_frame;
+    if (current_window->next_frame < current_window->frames.size()) {
       std::lock_guard<std::mutex> lock(S().mu);
       ++S().totals.prefetch_windows;
       return true;
@@ -1031,13 +1082,21 @@ bool window_remaining(uint64_t ordinal) {
 bool lookahead_start(WindowEnd &end) {
   const std::shared_ptr<Window> &window =
       next_window ? next_window : current_window;
-  if (!window || window->peek_end.stream_pos.empty())
+  if (!window || !window->peek_end.has_successor ||
+      window->peek_end.stream_pos.empty())
     return false;
   end = window->peek_end;
   return true;
 }
 bool next_window_pending() {
   return next_window || (current_window && current_window->prefetch_refused);
+}
+void mark_lookahead_exhausted() {
+  const auto &window = next_window ? next_window : current_window;
+  if (window) {
+    window->peek_end.has_successor = false;
+    window->peek_end.stream_pos.clear();
+  }
 }
 bool submit_window(std::vector<WindowRead> &&frames, WindowEnd &&peek_end) {
 #if STAR_INTEGRATE
@@ -1108,7 +1167,7 @@ bool submit_window(std::vector<WindowRead> &&frames, WindowEnd &&peek_end) {
   if (!publish) {
     // Bounded admission is an immediate CPU fallback, never producer wait.
     for (size_t i = 0; i < w->jobs.size(); ++i)
-      resolve_cpu(w->jobs[i]);
+      resolve_cpu(w->jobs[i], true);
     // This window never acquired an admission charge; do not let its custom
     // deleter release somebody else's live-byte accounting.
     w->charged_bytes = w->charged_requests = 0;
@@ -1210,7 +1269,7 @@ void reverse_suppressed(uint64_t piece) {
   for (size_t i = r.first; i < r.last; ++i) {
     Job &j = current_window->jobs[i];
     if (j.call->piece == piece && j.call->dir == 0 && j.call->istart == 0)
-      retire(j, true);
+      retire(*current_window, j, true);
   }
 }
 void end_chunk() {
@@ -1324,11 +1383,17 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
   }
   uint8_t state = j.state.load(std::memory_order_acquire);
   if ((state & RETIRED) || !(state & COMPLETE) || !(state & VALID)) {
-    // A completed but invalid result is a device stop, not a producer-ahead
-    // timing miss. This preserves the original CPU fallback condition.
+    // CPU publication is not a device stop. Admission is distinguished from
+    // other CPU resolution (tail, shutdown, disabled/faulted dispatch). These
+    // counters describe lookup fallback events, not a partition of jobs.
     if (!(state & RETIRED) && (state & COMPLETE) && !(state & VALID)) {
-      note_miss(MISS_DEVICE_STOPPED);
-      note_device_stopped(j);
+      if (state & CPU_RESOLVED) {
+        note_miss(state & CPU_ADMISSION ? MISS_CPU_ADMISSION
+                                        : MISS_CPU_RESOLVED);
+      } else {
+        note_miss(MISS_DEVICE_STOPPED);
+        note_device_stopped(j);
+      }
     } else {
       note_miss(MISS_NOT_READY);
       note_not_ready(j);
@@ -1368,6 +1433,10 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
       return false;
     }
     ++current_window->consumed;
+    // ProbeStats describe the whole device chain, not one STAR continuation.
+    current_window->hit_bytes += j.stats.bytes;
+    current_window->hit_gathers += j.stats.gathers;
+    add_stats(current_window->consumed_stats, j.stats);
   }
   ++current_window->steps_consumed;
   if (step.branch == 1)
@@ -1376,9 +1445,6 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
     ++current_window->unique;
   else if (step.branch == 3)
     ++current_window->searched;
-  current_window->hit_bytes += j.stats.bytes;
-  current_window->hit_gathers += j.stats.gathers;
-  add_stats(current_window->consumed_stats, j.stats);
   return true;
 #endif
 }

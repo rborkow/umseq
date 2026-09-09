@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Build and run the pinned STAR producer prefix test with STAR's C++11 ABI."""
+
 import shutil
 import subprocess
 import tempfile
@@ -24,19 +25,34 @@ def main():
         shutil.copy2(SOURCE / "Parameters.cpp", parameters_cpp)
         with (root / "parametersDefault.xxd").open("wb") as generated:
             subprocess.run(
-                ["xxd", "-i", "-n", "parametersDefault", str(SOURCE / "parametersDefault")],
+                [
+                    "xxd",
+                    "-i",
+                    "-n",
+                    "parametersDefault",
+                    str(SOURCE / "parametersDefault"),
+                ],
                 check=True,
                 stdout=generated,
             )
         exe = root / "test_window_prefix"
         command = [
-            compiler, "-std=c++11", "-fopenmp", '-DCOMPILATION_TIME_PLACE="test"',
-            '-DGIT_BRANCH_COMMIT_DIFF="test"', "-I" + str(SOURCE),
-            "-I" + str(HERE), str(HERE / "test_window_prefix.cpp"),
-            str(parameters_cpp), str(SOURCE / "Genome.cpp"),
-            str(SOURCE / "PackedArray.cpp"), str(SOURCE / "InOutStreams.cpp"),
+            compiler,
+            "-std=c++11",
+            "-fopenmp",
+            '-DCOMPILATION_TIME_PLACE="test"',
+            '-DGIT_BRANCH_COMMIT_DIFF="test"',
+            "-I" + str(SOURCE),
+            "-I" + str(HERE),
+            str(HERE / "test_window_prefix.cpp"),
+            str(parameters_cpp),
+            str(SOURCE / "Genome.cpp"),
+            str(SOURCE / "PackedArray.cpp"),
+            str(SOURCE / "InOutStreams.cpp"),
             str(SOURCE / "SequenceFuns.cpp"),
-            "-Wl,-dead_strip", "-o", str(exe),
+            "-Wl,-dead_strip",
+            "-o",
+            str(exe),
         ]
         subprocess.run(command, check=True)
         subprocess.run([str(exe)], check=True)

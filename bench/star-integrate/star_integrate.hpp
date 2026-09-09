@@ -37,9 +37,14 @@ struct WindowRead {
 // window so the following peek can begin after it while STAR remains at its
 // real (current-window) input position.
 struct WindowEnd {
+  // Diagnostic next ordinal (last admitted + 1). Stream positions drive the
+  // next peek; readLoad remains authoritative for each frame's identity.
   uint64_t ordinal;
   std::vector<std::streampos> stream_pos;
-  WindowEnd() : ordinal(0) {}
+  // A tail at EOF has no seekable successor.  In particular, `tellg() == -1`
+  // is never a position which a later private peek may attempt to restore.
+  bool has_successor;
+  WindowEnd() : ordinal(0), has_successor(false) {}
 };
 constexpr uint64_t INITIAL_KIND = 1;
 constexpr uint64_t MAX_WINDOW_READS = 32768;
@@ -55,6 +60,7 @@ constexpr uint64_t MAX_PENDING_BYTES = MAX_WINDOW_BYTES;
 bool window_remaining(uint64_t ordinal);
 bool next_window_pending();
 bool lookahead_start(WindowEnd &);
+void mark_lookahead_exhausted();
 bool submit_window(std::vector<WindowRead> &&, WindowEnd && = WindowEnd());
 // `read_id` is STAR's iReadAll; readLoad returns that same global ordinal.
 void assign_frame_identity(WindowRead &, uint64_t read_id, uint64_t worker,

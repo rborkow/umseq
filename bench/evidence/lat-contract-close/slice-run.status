@@ -1,0 +1,16 @@
+GATE_I_ONLY strict_oracle=1 cutoff=4102444800; times diagnostic NOT performance
+RUNNING abi
+abi exit=0
+RUNNING prepare
+prepare exit=0
+RUNNING backend-build
+backend-build exit=0
+RUNNING backend-tests
+backend-tests exit=0
+RUNNING build
+build exit=0
+RUNNING integrated
+integrated exit=0
+RUNNING parity
+parity exit=0
+COMPLETE_GATE_I_STOP_BEFORE_PAIRED_TIMINGS

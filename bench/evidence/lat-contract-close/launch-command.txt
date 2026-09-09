@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Frozen candidate correctness gate only; no performance claim.
+set -u
+lab="$HOME/uni-rnaseq-probe-lab"
+source_root="$lab/integrate-source-lat-close-20260908"
+output="$lab/integrate-gate-lat-close-20260908"
+exec 9>"$HOME/.cache/uni-rnaseq-resource.lock"
+if ! flock -n 9; then
+  printf 'FAILED_RESOURCE_LOCK\n' > "$lab/lat-close-gate.exit"
+  exit 1
+fi
+for name in ${!STAR_INTEGRATE@}; do unset "$name"; done
+export INTEGRATE_LOCKED=1
+# Preserve historical eviction for the correctness comparison. The paired
+# cache-policy screen is a separate task, not an implicit default change here.
+export STAR_INTEGRATE_DROP_INDEX_CACHE=1 STAR_INTEGRATE_THP=1
+printf 'CACHE_POLICY drop_index_cache=1 thp=1; strict correctness only\n'
+timeout --signal=TERM --kill-after=30s 5400s python3 -B \
+  "$source_root/bench/star-integrate/run_host.py" \
+  --source-root "$source_root" --output "$output"
+rc=$?
+printf '%s\n' "$rc" > "$lab/lat-close-gate.exit"
+printf 'LAT-CLOSE-GATE-EXIT %s\n' "$rc"
+exit "$rc"

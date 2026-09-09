@@ -1,0 +1,212 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s
+     Running unittests src/lib.rs (target/debug/deps/umbam-0e006ec85109e25c)
+
+running 5 tests
+test tests::direct_bai_spans_unmapped_and_empty_references ... ignored, requires samtools
+test tests::tier0_markdup_reference_equivalence ... ignored, requires ~/uni-rnaseq-data/tier0/MANIFEST.tsv
+test tests::record_header_is_48_bytes ... ok
+test tests::markdup_edge_cases_and_hash_collisions ... ok
+test tests::block_reuse_preserves_bytes_and_cross_block_records ... ok
+
+test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target/debug/deps/umbam-7e0d109505971109)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/gpu.rs (target/debug/deps/gpu-45f19c5409912997)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/tier0.rs (target/debug/deps/tier0-3c246153d186d67c)
+
+running 6 tests
+test featurecounts_gate ... ignored, requires ~/uni-rnaseq-data/tier0/MANIFEST.tsv
+test flagstat_and_idxstats_gate ... ignored, requires ~/uni-rnaseq-data/tier0/MANIFEST.tsv
+test genomecov_gate ... ignored, requires ~/uni-rnaseq-data/tier0/MANIFEST.tsv
+test markdup_and_metrics_gate ... ignored, requires ~/uni-rnaseq-data/tier0/MANIFEST.tsv
+test sorted_bam_gate ... ignored, requires ~/uni-rnaseq-data/tier0/MANIFEST.tsv
+test timing_gate ... ignored, requires ~/uni-rnaseq-data/tier0/MANIFEST.tsv
+
+test result: ok. 0 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/tier0_qc.rs (target/debug/deps/tier0_qc-401499096bf0d16a)
+
+running 9 tests
+test dupradar_matrix_integer_gate ... ignored, requires ~/uni-rnaseq-data/tier0/qc
+test rseqc_bam_stat_gate ... ignored, requires ~/uni-rnaseq-data/tier0/qc
+test rseqc_infer_experiment_gate ... ignored, requires ~/uni-rnaseq-data/tier0/qc
+test rseqc_inner_distance_gate ... ignored, requires ~/uni-rnaseq-data/tier0/qc
+test rseqc_junction_annotation_log_gate ... ignored, requires ~/uni-rnaseq-data/tier0/qc
+test rseqc_junction_saturation_100_percent_gate ... ignored, requires ~/uni-rnaseq-data/tier0/qc
+test rseqc_position_duplication_gate ... ignored, requires ~/uni-rnaseq-data/tier0/qc
+test rseqc_read_distribution_gate ... ignored, requires ~/uni-rnaseq-data/tier0/qc
+test rseqc_sequence_duplication_gate ... ignored, requires ~/uni-rnaseq-data/tier0/qc
+
+test result: ok. 0 passed; 0 failed; 9 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/umem-aa4a135bb10ee5f6)
+
+running 9 tests
+test tests::modes_have_required_thread_traits ... ok
+test tests::forgotten_submission_keeps_its_backing_alive ... ok
+test tests::failed_drop_quarantines_storage ... ok
+test tests::context_mismatch_is_rejected_and_leases_returned ... ok
+test tests::pending_poll_hands_submission_back ... ok
+test tests::successful_wait_returns_every_buffer_with_mode ... ok
+test tests::terminal_error_is_reported_not_panicked ... ok
+test tests::panic_in_fence_destructor_after_failure_still_quarantines ... ok
+test tests::panic_in_fence_wait_during_drop_quarantines_not_frees ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ownership.rs (target/debug/deps/ownership-4f57e06183695781)
+
+running 1 test
+    Checking umem-tests v0.0.0 (/Users/rborkows/projects/uni-rnaseq/target/tests/trybuild/umem)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.22s
+
+
+test tests/ui/slice_after_lease.rs ... ok
+
+
+test compile_fail_ownership_cases ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+
+     Running tests/round_trip.rs (target/debug/deps/round_trip-f69a7b474e383f9a)
+
+running 2 tests
+test pod_view_and_arena ... ok
+test cpu_visibility_round_trip ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/thp.rs (target/debug/deps/thp-bae44e18bc01e1e9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/umgpu-8ebc1bc90e8a937c)
+
+running 3 tests
+test stub::tests::context_is_unsupported_without_cuda ... ok
+test seed_probe::tests::probe_abi_roundtrip ... ok
+test packing_tests::fragment_packing_preserves_tuple_order ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/sort.rs (target/debug/deps/sort-b9f31f2457d98f57)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/umseed_probe-a9e28797f7463611)
+
+running 2 tests
+test requests::tests::probe_request_wire_roundtrip ... ok
+test requests::tests::real_tuple_sidecar_requires_exact_count ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/probe_borrowed.rs (target/debug/deps/probe_borrowed-6ed4f116de019b9e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/umseed_probe-80206337de4dc356)
+
+running 2 tests
+test tests::captured_star_tuple_mismatch_is_fatal ... ok
+test tests::probe_cli_variant_protocol ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/probe_loader.rs (target/debug/deps/probe_loader-9a594f677548f9c0)
+
+running 1 test
+test probe_loader_and_deterministic_requests ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/probe_search.rs (target/debug/deps/probe_search-14148691f42ef2b0)
+
+running 7 tests
+test probe_zero_match_tie_retains_full_range ... ok
+test probe_exact_prefix_does_not_form_genome_pointer ... ok
+test probe_packed_unaligned_final_word ... ok
+test probe_fully_known_reverse_prefix_can_exhaust_read ... ok
+test probe_four_directions_and_status ... ok
+test probe_warp_collectives_and_tail_protocol ... ok
+test probe_host_kernel_transport_matches_cpu ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.41s
+
+     Running unittests src/lib.rs (target/debug/deps/umstar-29bbeb9e7cd63c64)
+
+running 12 tests
+test implementation::prefix::tests::malformed_batch_does_not_write_aliased_error ... ok
+test implementation::grown_tests::reuse_when_large_enough ... ok
+test implementation::tests::identity_comparison_is_complete ... ok
+test implementation::tests::successful_tuple_stays_in_its_request_interval ... ok
+test implementation::tests::ffi_overlap_is_rejected_without_mutating_either_writable_range ... ok
+test implementation::tests::ranges_do_not_wrap ... ok
+test implementation::grown_tests::growth_is_geometric_not_exact_fit ... ok
+test implementation::grown_tests::first_allocation_has_headroom ... ok
+test implementation::tests::ffi_rejects_null_context_before_touching_batch_arrays ... ok
+test implementation::tests::ffi_init_without_cuda_publishes_no_context ... ok
+test implementation::prefix::tests::borrowed_prefix_stub_is_unsupported ... ok
+test implementation::tests::identity_preserves_file_padding_not_reconstructed_sa_bits ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/prefix_replay.rs (target/debug/deps/prefix_replay-b5b6328cfefc4c90)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/prefix_walk.rs (target/debug/deps/prefix_walk-b0ff71110aba047b)
+
+running 1 test
+test every_prefix_branch_matches_independent_star_transcription ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.56s
+
+   Doc-tests umbam
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests umem
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests umgpu
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests umseed_probe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests umstar
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
