@@ -1,0 +1,19 @@
+[
+  "{STAR}",
+  "--genomeDir", "{GENOME_DIR}",
+  "--readFilesIn", "{R1}", "{R2}",
+  "--runThreadN", "16",
+  "--outFileNamePrefix", "{OUT}",
+  "--sjdbGTFfile", "{GTF}",
+  "--quantMode", "TranscriptomeSAM",
+  "--outSAMtype", "BAM", "Unsorted",
+  "--outSAMattributes", "NH", "HI", "AS", "NM", "MD",
+  "--readFilesCommand", "zcat",
+  "--twopassMode", "Basic",
+  "--runRNGseed", "0",
+  "--outFilterMultimapNmax", "20",
+  "--alignSJDBoverhangMin", "1",
+  "--outSAMstrandField", "intronMotif",
+  "--quantTranscriptomeSAMoutput", "BanSingleEnd",
+  "--outSAMattrRGline", "ID:ERR188140_20M", "SM:ERR188140_20M"
+]
