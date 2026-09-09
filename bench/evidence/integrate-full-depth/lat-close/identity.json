@@ -1,0 +1,29 @@
+{
+  "stock": {
+    "path": "/home/rborkows/uni-rnaseq-seed-lab/seed-split-private-v2/baseline/STAR",
+    "bytes": 2930208,
+    "sha256": "f84493ef8c9a6d39e60264c0c9e0c6da388e8a455e6c21c1a1b9a61f52662a29"
+  },
+  "integrated": {
+    "path": "/home/rborkows/uni-rnaseq-probe-lab/integrate-gate-lat-close-20260908/private/integrated/STAR",
+    "bytes": 10982648,
+    "sha256": "ef22723c51540aa2a12178da48f5eb0c3df759965ab7e594f7f6257efba38b6b"
+  },
+  "mate1": {
+    "path": "/home/rborkows/uni-rnaseq/data/samples/ERR188140/ERR188140_1.fastq.gz",
+    "bytes": 5083939399,
+    "sha256": "6f4d834bfed22cae8728acd7946f2f0ad34ab312986fbb6f4183fd42304e0969"
+  },
+  "mate2": {
+    "path": "/home/rborkows/uni-rnaseq/data/samples/ERR188140/ERR188140_2.fastq.gz",
+    "bytes": 5110202120,
+    "sha256": "013de2ccf9aa9c847081bfed3e53e8139eeb41ac79a34d08ef73f717e0465bc5"
+  },
+  "checker": {
+    "path": "/home/rborkows/uni-rnaseq-probe-lab/integrate-source-lat-close-20260908/tooling/replay/seed_split_parity.py",
+    "bytes": 4425,
+    "sha256": "37a4b369c44e9c3eb3be64d66a564a9e6f1abb40c0b19c112bd11fa893d792a6"
+  },
+  "base_argv": "/home/rborkows/uni-rnaseq-probe-lab/full-depth-stock-20260908/argv.json",
+  "expected_pairs": 78619701
+}

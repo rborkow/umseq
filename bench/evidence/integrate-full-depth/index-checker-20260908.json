@@ -1,0 +1,209 @@
+{
+  "status": "PASS_INDEX_AND_CHECKER_ONLY",
+  "files": [
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/Genome",
+      "observed": {
+        "bytes": 3263383838,
+        "sha256": "44c54824a99ddcde29eee65ed77e1896adc2a75ecc4979a2096f3beb6040b0f6"
+      },
+      "expected": {
+        "bytes": 3263383838,
+        "sha256": "44c54824a99ddcde29eee65ed77e1896adc2a75ecc4979a2096f3beb6040b0f6"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/Log.out",
+      "observed": {
+        "bytes": 36870,
+        "sha256": "ca7bd26e7c7510e7869b29e2af48af1a4f728776b4fe24fc8fcbadb46b264d2a"
+      },
+      "expected": {
+        "bytes": 36870,
+        "sha256": "ca7bd26e7c7510e7869b29e2af48af1a4f728776b4fe24fc8fcbadb46b264d2a"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/SA",
+      "observed": {
+        "bytes": 25352264482,
+        "sha256": "dc08616e0b01a8c1f9713e71a4eaf8d2354e559a4e1146aa294b3fbc507663d5"
+      },
+      "expected": {
+        "bytes": 25352264482,
+        "sha256": "dc08616e0b01a8c1f9713e71a4eaf8d2354e559a4e1146aa294b3fbc507663d5"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/SAindex",
+      "observed": {
+        "bytes": 1565873619,
+        "sha256": "975941953bc1348047b81799ca639ccb5e880faf0a04a3c640d065bdad1c620e"
+      },
+      "expected": {
+        "bytes": 1565873619,
+        "sha256": "975941953bc1348047b81799ca639ccb5e880faf0a04a3c640d065bdad1c620e"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/chrLength.txt",
+      "observed": {
+        "bytes": 1200,
+        "sha256": "d658af0c38effb24ff025667596d331fbd92cf2706bd8824840b54f727a6ea6c"
+      },
+      "expected": {
+        "bytes": 1200,
+        "sha256": "d658af0c38effb24ff025667596d331fbd92cf2706bd8824840b54f727a6ea6c"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/chrName.txt",
+      "observed": {
+        "bytes": 1997,
+        "sha256": "2a6ad41315a63770960b8d52773ce6067bbde58388bed67462354a18dc736333"
+      },
+      "expected": {
+        "bytes": 1997,
+        "sha256": "2a6ad41315a63770960b8d52773ce6067bbde58388bed67462354a18dc736333"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/chrNameLength.txt",
+      "observed": {
+        "bytes": 3197,
+        "sha256": "2d8b1126abff7210cdcbeb1076d962d4e28113bea82b9a5ab6181e80b25de74b"
+      },
+      "expected": {
+        "bytes": 3197,
+        "sha256": "2d8b1126abff7210cdcbeb1076d962d4e28113bea82b9a5ab6181e80b25de74b"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/chrStart.txt",
+      "observed": {
+        "bytes": 2132,
+        "sha256": "f61aef4f45ee4f41768bfce5c9879305326b86b342faef778d7670442ed4e853"
+      },
+      "expected": {
+        "bytes": 2132,
+        "sha256": "f61aef4f45ee4f41768bfce5c9879305326b86b342faef778d7670442ed4e853"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/exonGeTrInfo.tab",
+      "observed": {
+        "bytes": 132162968,
+        "sha256": "612ab6e5917940cc879abe493e981b824cd61402c192af96848a9dde01ca20e3"
+      },
+      "expected": {
+        "bytes": 132162968,
+        "sha256": "612ab6e5917940cc879abe493e981b824cd61402c192af96848a9dde01ca20e3"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/exonInfo.tab",
+      "observed": {
+        "bytes": 54609931,
+        "sha256": "81fe5cd4529b4053738bc650a4ff61f1a176cddc2072a42841457a455ebac39c"
+      },
+      "expected": {
+        "bytes": 54609931,
+        "sha256": "81fe5cd4529b4053738bc650a4ff61f1a176cddc2072a42841457a455ebac39c"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/geneInfo.tab",
+      "observed": {
+        "bytes": 3305840,
+        "sha256": "e5a291d11c484ef625cbd9f2e9cd42ae5516da00e791b3d531d66218f0b1cc06"
+      },
+      "expected": {
+        "bytes": 3305840,
+        "sha256": "e5a291d11c484ef625cbd9f2e9cd42ae5516da00e791b3d531d66218f0b1cc06"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/genomeParameters.txt",
+      "observed": {
+        "bytes": 876,
+        "sha256": "20d334fccd47efc59fbe3667d0cd69f5171e0e2fc7b16a2a57ca11370643d246"
+      },
+      "expected": {
+        "bytes": 876,
+        "sha256": "20d334fccd47efc59fbe3667d0cd69f5171e0e2fc7b16a2a57ca11370643d246"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/sjdbInfo.txt",
+      "observed": {
+        "bytes": 18215828,
+        "sha256": "47b5b072d8d91160a493d341d2f074f144d0fb3deed5589dbd453118e2602588"
+      },
+      "expected": {
+        "bytes": 18215828,
+        "sha256": "47b5b072d8d91160a493d341d2f074f144d0fb3deed5589dbd453118e2602588"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/sjdbList.fromGTF.out.tab",
+      "observed": {
+        "bytes": 19789359,
+        "sha256": "230495ce6e7a09c09bd6fc04388403c67d3531b8b39f00d7e3c6982bf83d809d"
+      },
+      "expected": {
+        "bytes": 19789359,
+        "sha256": "230495ce6e7a09c09bd6fc04388403c67d3531b8b39f00d7e3c6982bf83d809d"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/sjdbList.out.tab",
+      "observed": {
+        "bytes": 16075878,
+        "sha256": "c3c2dbb385c0b31a84cc40e10ff4440a0a9da6e6d49e3020015a55659233eb11"
+      },
+      "expected": {
+        "bytes": 16075878,
+        "sha256": "c3c2dbb385c0b31a84cc40e10ff4440a0a9da6e6d49e3020015a55659233eb11"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq/data/index/star_full/transcriptInfo.tab",
+      "observed": {
+        "bytes": 34527519,
+        "sha256": "ccddce75d45294faccf603b9caa9c800443198a1c5d33e2565f89cefe5874882"
+      },
+      "expected": {
+        "bytes": 34527519,
+        "sha256": "ccddce75d45294faccf603b9caa9c800443198a1c5d33e2565f89cefe5874882"
+      },
+      "match": true
+    },
+    {
+      "path": "/home/rborkows/uni-rnaseq-probe-lab/integrate-source-v1/tooling/replay/seed_split_parity.py",
+      "observed": {
+        "bytes": 4425,
+        "sha256": "37a4b369c44e9c3eb3be64d66a564a9e6f1abb40c0b19c112bd11fa893d792a6"
+      },
+      "expected": {
+        "bytes": 4425,
+        "sha256": "37a4b369c44e9c3eb3be64d66a564a9e6f1abb40c0b19c112bd11fa893d792a6"
+      },
+      "match": true
+    }
+  ]
+}

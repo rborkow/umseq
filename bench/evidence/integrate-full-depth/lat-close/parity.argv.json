@@ -1,0 +1,17 @@
+[
+  "python3",
+  "-B",
+  "/home/rborkows/uni-rnaseq-probe-lab/integrate-source-lat-close-20260908/tooling/replay/seed_split_parity.py",
+  "--stock",
+  "/home/rborkows/uni-rnaseq-probe-lab/full-depth-lat-close-20260908/stock",
+  "--counters",
+  "/home/rborkows/uni-rnaseq-probe-lab/full-depth-lat-close-20260908/strict",
+  "--stock-command",
+  "/home/rborkows/uni-rnaseq-seed-lab/seed-split-private-v2/baseline/STAR --runMode alignReads --runThreadN 20 --runRNGseed 777 --genomeDir /home/rborkows/uni-rnaseq/data/index/star_full --genomeLoad NoSharedMemory --readFilesIn /home/rborkows/uni-rnaseq/data/samples/ERR188140/ERR188140_1.fastq.gz /home/rborkows/uni-rnaseq/data/samples/ERR188140/ERR188140_2.fastq.gz --readFilesCommand zcat --twopassMode None --genomeType Full --genomeTransformType None --outSAMtype SAM --outSAMorder PairedKeepInputOrder --outSAMunmapped Within --outFileNamePrefix /home/rborkows/uni-rnaseq-probe-lab/full-depth-stock-20260908/",
+  "--counter-command",
+  "/home/rborkows/uni-rnaseq-probe-lab/integrate-gate-lat-close-20260908/private/integrated/STAR --runMode alignReads --runThreadN 20 --runRNGseed 777 --genomeDir /home/rborkows/uni-rnaseq/data/index/star_full --genomeLoad NoSharedMemory --readFilesIn /home/rborkows/uni-rnaseq/data/samples/ERR188140/ERR188140_1.fastq.gz /home/rborkows/uni-rnaseq/data/samples/ERR188140/ERR188140_2.fastq.gz --readFilesCommand zcat --twopassMode None --genomeType Full --genomeTransformType None --outSAMtype SAM --outSAMorder PairedKeepInputOrder --outSAMunmapped Within --outFileNamePrefix /home/rborkows/uni-rnaseq-probe-lab/full-depth-lat-close-20260908/strict/",
+  "--expected-pairs",
+  "78619701",
+  "--out",
+  "/home/rborkows/uni-rnaseq-probe-lab/full-depth-lat-close-20260908/parity"
+]
