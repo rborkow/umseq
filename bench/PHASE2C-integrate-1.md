@@ -642,6 +642,19 @@ what it is.
 
 ## Round 9 (PREFETCH, `837c2a3`): −6.5% vs the huge-page baseline, −17.9% vs stock; misses 8.0M → 0.2M
 
+> **2026-09-08 independent-review qualification:** The raw timing rows and accepted
+> ordered-output comparison below remain historical evidence, not a lifecycle approval.
+> `docs/review-integrate-lat-prefetch.md` finds a shutdown case leaving queued windows
+> alive past pool destruction; the orchestrator independently reproduced 40,000 queued
+> requests after `finish()` and a destroyed-mutex SIGABRT at ordinary process exit.
+> Full-depth acceptance of the final candidate waits for the repair. The review also
+> identifies post-budget-break lookahead gaps and overlapping/misattributed counters.
+> Withdraw the claim below that all `other_unused` chains were never requested by STAR:
+> timing fallback can overlap later unused retirement, and whole-chain gather/byte stats
+> are currently added per consumed step. These are not a disjoint work partition.
+> The asserted remaining optimization ceilings of ≤1–2% were not measured; the new
+> controlled differential, not those estimates, will choose the next performance change.
+
 Evidence: `integrate-gate-host24/` (gate i, eleventh `PARITY_MATCH`; strict per-step oracle,
 0/0/0 shift/flag/step-count mismatches), `integrate-timing-host12/`,
 `bench/evidence/integrate-1-host/{timing-round9-raw.tsv,timing-round9-r1-gpu-stats.jsonl,gate-round9-host24.json}`.
