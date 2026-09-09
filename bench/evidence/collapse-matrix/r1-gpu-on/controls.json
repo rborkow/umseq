@@ -1,0 +1,8 @@
+{
+  "STAR_INTEGRATE_STRICT": "0",
+  "STAR_INTEGRATE_THP": "1",
+  "STAR_INTEGRATE_DROP_INDEX_CACHE": "1",
+  "STAR_INTEGRATE": "1",
+  "STAR_INTEGRATE_SIDECAR": "/home/rborkows/uni-rnaseq-probe-lab/collapse-matrix-20260908/r1-gpu-on/integrate-stats.jsonl",
+  "STAR_INTEGRATE_COLLAPSE_INDEX": "1"
+}

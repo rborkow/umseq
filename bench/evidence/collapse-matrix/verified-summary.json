@@ -1,0 +1,124 @@
+{
+  "arms": {
+    "bypass-off": {
+      "n": 3,
+      "cpu_mean_s": 693.5233333333333,
+      "cpu_sd_s": 2.0386842161877494,
+      "cpu_range_s": [
+        691.19,
+        694.9599999999999
+      ],
+      "wall_mean_s": 59.70666666666667,
+      "wall_range_s": [
+        59.1,
+        60.68
+      ],
+      "collapse_wall_mean_s": 1.056e-06,
+      "huge_fraction_range": [
+        0.6619805223049208,
+        0.7850378861132565
+      ]
+    },
+    "gpu-off": {
+      "n": 3,
+      "cpu_mean_s": 637.66,
+      "cpu_sd_s": 28.66894312666584,
+      "cpu_range_s": [
+        617.05,
+        670.4
+      ],
+      "wall_mean_s": 55.28666666666667,
+      "wall_range_s": [
+        48.1,
+        62.59
+      ],
+      "collapse_wall_mean_s": 1.168e-06,
+      "huge_fraction_range": [
+        0.7641924828707377,
+        0.9226870321913554
+      ]
+    },
+    "bypass-on": {
+      "n": 3,
+      "cpu_mean_s": 679.5266666666666,
+      "cpu_sd_s": 7.8619675230397945,
+      "cpu_range_s": [
+        672.5400000000001,
+        688.04
+      ],
+      "wall_mean_s": 61.57,
+      "wall_range_s": [
+        55.9,
+        68.83
+      ],
+      "collapse_wall_mean_s": 3.6276267586666666,
+      "huge_fraction_range": [
+        0.9997455395111997,
+        0.9998150241886747
+      ]
+    },
+    "gpu-on": {
+      "n": 3,
+      "cpu_mean_s": 624.6,
+      "cpu_sd_s": 6.497991997532749,
+      "cpu_range_s": [
+        619.1,
+        631.77
+      ],
+      "wall_mean_s": 53.46666666666667,
+      "wall_range_s": [
+        49.47,
+        57.83
+      ],
+      "collapse_wall_mean_s": 2.3141420343333334,
+      "huge_fraction_range": [
+        0.9997455395111997,
+        0.9998150241886747
+      ]
+    }
+  },
+  "comparisons": {
+    "gpu_increment_collapse_on": {
+      "target": "gpu-on",
+      "baseline": "bypass-on",
+      "cpu_reduction_pct": 8.083077436254637,
+      "cpu_saved_s": 54.92666666666662,
+      "wall_change_pct": -13.161171566238972
+    },
+    "gpu_increment_collapse_off": {
+      "target": "gpu-off",
+      "baseline": "bypass-off",
+      "cpu_reduction_pct": 8.055004157514533,
+      "cpu_saved_s": 55.863333333333344,
+      "wall_change_pct": -7.402858418937031
+    },
+    "collapse_effect_gpu": {
+      "target": "gpu-on",
+      "baseline": "gpu-off",
+      "cpu_reduction_pct": 2.0481134146723923,
+      "cpu_saved_s": 13.059999999999945,
+      "wall_change_pct": -3.2919329555046395
+    },
+    "collapse_effect_cpu": {
+      "target": "bypass-on",
+      "baseline": "bypass-off",
+      "cpu_reduction_pct": 2.018196936416461,
+      "cpu_saved_s": 13.99666666666667,
+      "wall_change_pct": 3.120812862885214
+    }
+  },
+  "within_repeat_on_pairs": [
+    {
+      "repeat": 1,
+      "gpu_on_vs_cpu_on_cpu_reduction_pct": 10.019766292657394
+    },
+    {
+      "repeat": 2,
+      "gpu_on_vs_cpu_on_cpu_reduction_pct": 8.122418879056037
+    },
+    {
+      "repeat": 3,
+      "gpu_on_vs_cpu_on_cpu_reduction_pct": 6.062092961013487
+    }
+  ]
+}

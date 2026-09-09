@@ -1,0 +1,29 @@
+[
+  {
+    "label": "Genome",
+    "state": "attempted",
+    "attempted": "1",
+    "result": "0",
+    "errno": "0",
+    "bytes": "3261071360",
+    "elapsed_ns": "761893"
+  },
+  {
+    "label": "SA",
+    "state": "attempted",
+    "attempted": "1",
+    "result": "0",
+    "errno": "0",
+    "bytes": "25350373376",
+    "elapsed_ns": "2787495796"
+  },
+  {
+    "label": "SAindex",
+    "state": "attempted",
+    "attempted": "1",
+    "result": "0",
+    "errno": "0",
+    "bytes": "1564475392",
+    "elapsed_ns": "77131719"
+  }
+]

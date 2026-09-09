@@ -1,0 +1,17 @@
+[
+  {
+    "path": "/home/rborkows/uni-rnaseq/data/index/star_full/Genome",
+    "bytes_read": 3263383838,
+    "mtime_ns": 1788576355511906811
+  },
+  {
+    "path": "/home/rborkows/uni-rnaseq/data/index/star_full/SA",
+    "bytes_read": 25352264482,
+    "mtime_ns": 1788576364048973243
+  },
+  {
+    "path": "/home/rborkows/uni-rnaseq/data/index/star_full/SAindex",
+    "bytes_read": 1565873619,
+    "mtime_ns": 1788576364632977772
+  }
+]

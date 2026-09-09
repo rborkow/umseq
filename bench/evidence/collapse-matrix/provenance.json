@@ -1,0 +1,12 @@
+{
+  "integrated": "/home/rborkows/uni-rnaseq-probe-lab/integrate-gate-collapse-20260908/private/integrated/STAR",
+  "base_argv": "/home/rborkows/uni-rnaseq-probe-lab/integrate-gate-collapse-20260908/stages/integrated.argv.json",
+  "mate1": "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_1.fastq.gz",
+  "mate2": "/home/rborkows/uni-rnaseq/data/samples/ERR188140_20M/ERR188140_20M_2.fastq.gz",
+  "output": "/home/rborkows/uni-rnaseq-probe-lab/collapse-matrix-20260908",
+  "lock": "/home/rborkows/.cache/uni-rnaseq-resource.lock",
+  "sha256": "a6c61b2c5659b2fdd4651c86417e9d66fb2520f9472740760711d6e2a9c70bb0",
+  "repeats": 3,
+  "timeout_s": 1200,
+  "protocol": "fresh processes, untimed full index-file read before each, no workload warmup, all target startup/collapse included; observer overhead outside target CPU but can perturb wall"
+}
