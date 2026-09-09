@@ -4,17 +4,18 @@ Plan: `.hermes/plans/2026-09-04_uni-rnaseq-pressure-test-and-plan.md`. Card brie
 Workers: astra (specialist) / terra (kernels, Rust) / luna (plumbing, review) / inkling (routine) / me.
 
 ## In Progress
-- **P2C-SALMON-ENVELOPE** — orchestrator, Spark, launched 2026-09-08 17:31 PDT: identical second Salmon run; three-way cmp vs run 1 and golden decides byte-gateable vs envelope. `.hermes/cards/P2C-SALMON-ENVELOPE.md`.
+- **P2C-STAR-PRODUCTION-GATE (host)** — orchestrator, Spark: `--stock-twice` determinism run launched 2026-09-08 ~18:05 PDT (`~/uni-rnaseq-probe-lab/production-stock-twice-20260908`); full gate next if cmp-identical.
 - **P2C-STAR-PRODUCTION-GATE** — Terra, dispatched 2026-09-08 17:40 PDT: runner + source analysis for nf-core's real argv (two-pass, TranscriptomeSAM, BAM Unsorted). Orchestrator runs the host gate after Salmon.
 - **P2C-THP-X86-PORT** — Luna, dispatched 2026-09-08 17:42 PDT: `bench/thp-x86/` bundle (patch stock STAR with the madvise hook, 3-arm rotated matrix, analyzer). Runs on Batch/EC2 by the user/orchestrator.
 
 ## Ready (plan `.hermes/plans/2026-09-08_30k-six-threads.md`)
 - **P2C-PIPELINE-RUN** — re-gated on the advised-bypass path (−11.9%), GPU off; needs PRODUCTION-GATE green. Orchestrator, Spark.
-- **P2C-SALMON-NEXT** — Astra design review; needs the ENVELOPE verdict pasted into the card.
+- **P2C-SALMON-NEXT** — Astra design review; envelope verdict pasted in, dispatchable.
 - **P2C-TRIM-FASTQC** — Phase A Luna (goldens/scaffold, after THP-X86-PORT lands); Phase B Terra (port, after PRODUCTION-GATE lands).
 - Parked: GPU seed search (−5.6% robust / −8.1% mean-only, eleven rounds; no lever left worth a card).
 
 ### Follow-through completed preparation / review
+- **P2C-SALMON-ENVELOPE** — DONE: identical run 2 differs from run 1 with the same shape as either vs golden (quant.sf 134,886 TPM rows differ; rel ΔTPM p99 5.5e-2; gene-level p99 3.8e-2, low-count genes move 10–60×). **Salmon is not run-to-run deterministic; no byte gate exists.** Run 2: 507.39 wall / 4537.08 user / 66.75 sys s. `bench/PHASE2D-salmon-thp.md` §Envelope, `bench/evidence/salmon-alignment-screen/envelope.tsv`.
 - **P2C-SALMON-ALIGNMENT-SCREEN** — complete, exit 0: 535.35 wall / 4857.79 user / 79.23 sys s in-container, 69,176,421 processed = mapped (matches golden). `quant.sf`/`quant.genes.sf` **differ** from golden (Name/order identical; TPM/NumReads p99 rel 5.8e-2; consistent with Salmon's multithreaded-EM nondeterminism — no byte-identical gate exists). Profile: kernel 1.5%, zero AnonHugePages, hot = CAS contention 22.7% + logLikelihood 18.8% + soft-float long double 15.9%. **Huge-page hypothesis closed as inapplicable; no Salmon saving in the cost model.** `bench/PHASE2D-salmon-thp.md`, `bench/evidence/salmon-alignment-screen/`.
 - **P2C-COLLAPSE-FULLDEPTH** — verified same matrix binary on 78,619,701 pairs / 211,097,418 ordered records; 570,386,243 GPU chains, zero strict mismatches/faults/rejections/live charges. All collapse calls succeeded, identities and explicit policies verified. `bench/evidence/full-depth-collapse/`; correctness does not upgrade the narrow 8.0831% performance estimate.
 - **P2C-COLLAPSE-MATRIX** — 12/12 rows and raw observations verified. Both on arms 99.9746–99.9815% huge-backed; mean CPU-s 679.5267 CPU-on / 624.6000 GPU-on, GPU −8.0831% CPU / −13.1612% wall versus CPU-on. Narrow point-estimate crossing, NOT robust: paired reductions 10.0198/8.1224/6.0621%. Collapse saves ~2% CPU in both paths (cost included), so credit layout not GPU. Keep opt-in; `bench/PHASE2C-collapse-matrix.md`.

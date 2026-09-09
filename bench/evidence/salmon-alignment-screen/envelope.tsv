@@ -1,0 +1,7 @@
+file	pair	rows	tpm_rows_differ	numreads_rows_differ	rel_dTPM_median	rel_dTPM_p99	rel_dTPM_max	abs_dNumReads_p99	abs_dNumReads_max	sum_NumReads_a	sum_NumReads_b
+quant.sf	r2_vs_r1	509650	134886	105512	2.65e-04	5.47e-02	1.31e+05	2.41	2409	69174899.0	69174898.9
+quant.sf	r2_vs_golden	509650	136372	105775	2.91e-04	4.97e-02	8.20e+00	2.24	2568	69174899.0	69174898.8
+quant.sf	r1_vs_golden	509650	137860	104893	2.75e-04	5.82e-02	7.91e+00	2.57	3471	69174898.9	69174898.8
+quant.genes.sf	r2_vs_r1	78899	26819	10421	4.64e-05	3.75e-02	1.25e+01	1.83	2409	69174901.5	69174903.5
+quant.genes.sf	r2_vs_golden	78899	27871	10393	8.59e-05	3.70e-02	5.85e+01	1.90	1514	69174901.5	69174902.0
+quant.genes.sf	r1_vs_golden	78899	28797	10425	6.33e-05	3.61e-02	5.55e+01	1.85	3471	69174903.5	69174902.0

@@ -1,12 +1,45 @@
 # P2C-SALMON-NEXT — Salmon as the next target (Astra design review; gated on P2C-SALMON-ENVELOPE)
 
 Model: gpt-6-astra. Sandbox: read-only. Output: `docs/review-salmon-next.md` only. No code.
-**Do not dispatch until P2C-SALMON-ENVELOPE has its verdict; paste that verdict and the
-envelope table into this card's Context before dispatch.**
+Envelope verdict is in; this card is dispatchable.
 
 ## Context (orchestrator fills in envelope result here)
 
-<ENVELOPE VERDICT + TABLE>
+**ENVELOPE VERDICT (measured 2026-09-08, P2C-SALMON-ENVELOPE): NOT deterministic.** Full section from `bench/PHASE2D-salmon-thp.md`:
+
+## Envelope (run 2, 2026-09-08): Salmon alignment-quant is NOT run-to-run deterministic
+
+Card `P2C-SALMON-ENVELOPE`. Identical second run of the same image digest, argv, inputs
+and 16 threads (runner copy differs only in output root, container name, and the perf-stop
+wait). Target exit 0; **507.39 wall / 4537.08 user / 66.75 sys s** (run 1: 535.35 / 4857.79 /
+79.23 — −6.6% CPU-s run to run, uncontrolled, perf attached both times). `num_processed =
+num_mapped = 69,176,421` again.
+
+Three-way comparison, `bench/evidence/salmon-alignment-screen/envelope.tsv`:
+
+| file | pair | rows differing (TPM / NumReads) | rel ΔTPM median / p99 / max | abs ΔNumReads p99 / max |
+|---|---|---:|---|---|
+| quant.sf | run2 vs run1 | 134,886 / 105,512 | 2.7e-4 / **5.5e-2** / 1.3e5 | 2.41 / 2,409 |
+| quant.sf | run2 vs golden | 136,372 / 105,775 | 2.9e-4 / 5.0e-2 / 8.2 | 2.24 / 2,568 |
+| quant.sf | run1 vs golden | 137,860 / 104,893 | 2.8e-4 / 5.8e-2 / 7.9 | 2.57 / 3,471 |
+| quant.genes.sf | run2 vs run1 | 26,819 / 10,421 | 4.6e-5 / **3.8e-2** / 12.5 | 1.83 / 2,409 |
+| quant.genes.sf | run2 vs golden | 27,871 / 10,393 | 8.6e-5 / 3.7e-2 / 58.5 | 1.90 / 1,514 |
+| quant.genes.sf | run1 vs golden | 28,797 / 10,425 | 6.3e-5 / 3.6e-2 / 55.5 | 1.85 / 3,471 |
+
+**Verdict:** the run-to-run pair has the same shape as either run vs the golden — ~27% of
+transcript rows and ~35% of gene rows move, p99 relative TPM change ≈ 5% (transcript) /
+4% (gene), with individual low-abundance genes moving 10–60×. The golden is one draw from
+this distribution, not a fixed point. The hypothesis "multithreaded online-EM
+nondeterminism" survives its disqualifier; the exact mechanism (thread-ordered atomic updates
+in `AlignmentModel`, minibatch scheduling, VBEM) is for the design review, not asserted here.
+
+**Consequences:** (1) Salmon has no byte-identical gate and cannot have one without a
+single-threaded reference run (not funded; 16× the CPU). (2) Any Salmon replacement or
+in-place patch is gated on a statistical-equivalence policy derived from this envelope — a
+project decision. (3) The team's per-sample counts today carry this jitter; a DESeq2-level
+question of whether it matters is outside this project but worth telling them. n=2 is the
+minimum; the envelope numbers above are a first estimate, not a distribution.
+
 
 Salmon `quant` (alignment mode, 1.10.3, 16 threads) is 51 CPU-min of the projected 137 per
 sample — the largest untouched bucket now that STAR is measured. Profile of the real nf-core
