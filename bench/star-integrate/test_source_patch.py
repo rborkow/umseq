@@ -98,6 +98,18 @@ class PatchGuard(unittest.TestCase):
   cpp=(ROOT/'star_integrate.cpp').read_text()
   self.assertNotIn('ifstream',cpp)
   self.assertNotIn('sampled_file_matches',cpp)
+ def test_two_pass_rebuild_follows_the_single_setup_hook(self):
+  root=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
+  if not root.exists(): self.skipTest('pinned private source unavailable')
+  class R:
+   def replace_once(self,t,o,n):
+    if o not in t: raise ValueError('missing exact hook')
+    return t.replace(o,n,1)
+  generated=m.patch(R(),'STAR.cpp',(root/'STAR.cpp').read_text())
+  self.assertEqual(generated.count('star_integrate::setup(P, genomeMain);'),1)
+  self.assertLess(generated.index('star_integrate::setup(P, genomeMain);'),generated.index('twoPassRunPass1(P, genomeMain'))
+  two_pass=(root/'twoPassRunPass1.cpp').read_text()
+  self.assertIn('sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);',two_pass)
  def test_loader_hugepage_and_drop_cache_hooks_precede_reads(self):
   root=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
   if not root.exists(): self.skipTest('pinned private source unavailable')
