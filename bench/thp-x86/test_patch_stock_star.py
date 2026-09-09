@@ -51,3 +51,14 @@ class FrozenHookTests(unittest.TestCase):
 
     def test_frozen_hook_used_without_generator(self):
         self.assertEqual(mod.stock_hook(generator=mod.HERE / "does-not-exist.py"), mod.FROZEN_HOOK.read_text())
+
+
+class HookShapeTests(unittest.TestCase):
+    def test_hook_is_balanced_and_names_are_right(self):
+        hook = mod.stock_hook()
+        self.assertTrue(hook.startswith("#if defined(STAR_THP_PATCH) && defined(__linux__)\n"))
+        self.assertTrue(hook.endswith("}\n#endif\n"))
+        self.assertEqual(hook.count("#if"), hook.count("#endif"))
+        self.assertIn('getenv("STAR_THP")', hook)
+        self.assertNotIn("STAR_THP_THP", hook)
+        self.assertNotIn("STAR_INTEGRATE", hook)

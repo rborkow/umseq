@@ -43,14 +43,17 @@ def extract_generator_hook(generator: Path = GENERATOR) -> str:
         other = other[: other.index("\nstatic void starIntegrateDropFile") if "\nstatic void starIntegrateDropFile" in other else other.index("\n#endif")]
         if other != function:
             raise RuntimeError("generator emits inconsistent THP hook bodies")
-    return candidates[0][: candidates[0].index("static void starIntegrateAdviseHuge")] + function + "#endif\n"
+    return candidates[0][: candidates[0].index("static void starIntegrateAdviseHuge")] + function + "\n#endif\n"
 
 
 def stock_hook_from_generator(generator: Path = GENERATOR) -> str:
     """Adapt only names that are private to the integrated build."""
     raw = extract_generator_hook(generator)
-    return (raw.replace("STAR_INTEGRATE", "STAR_THP")
-               .replace("#if defined(STAR_THP) &&", "#if defined(STAR_THP_PATCH) &&"))
+    # Order matters: the env var STAR_INTEGRATE_THP becomes STAR_THP (not STAR_THP_THP),
+    # the build guard becomes STAR_THP_PATCH, and the perror prefix is renamed last.
+    return (raw.replace("STAR_INTEGRATE_THP", "STAR_THP")
+               .replace("#if defined(STAR_INTEGRATE) &&", "#if defined(STAR_THP_PATCH) &&")
+               .replace("STAR_INTEGRATE", "STAR_THP"))
 
 
 FROZEN_HOOK = HERE / "star_thp_hook.frozen.h"
