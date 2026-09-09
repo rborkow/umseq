@@ -10,5 +10,7 @@ SCRIPT=$(cd "$(dirname "$0")" && pwd -P)
 python3 "$SCRIPT/star_thp_patch.py" "$ROOT"
 BUILD_ROOT="$ROOT"
 [[ -f "$ROOT/Makefile" ]] || BUILD_ROOT="$ROOT/source"
-make -C "$BUILD_ROOT" STAR CXXFLAGS_common="-O3 -DSTAR_THP_PATCH=1" CXXFLAGS_SIMD=
+# CXXFLAGSextra is the Makefile's hook for extra defines; overriding CXXFLAGS_common drops
+# -fopenmp (link fails on GOMP_parallel). SIMD flags stay as the Makefile chooses.
+make -C "$BUILD_ROOT" STAR CXXFLAGSextra="-DSTAR_THP_PATCH=1"
 echo "built $BUILD_ROOT/STAR (STAR_THP=0 disables advice; STAR_THP=1 enables it)"
