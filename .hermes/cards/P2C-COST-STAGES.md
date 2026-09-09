@@ -1,0 +1,16 @@
+# P2C-COST-STAGES — measured STAR ratios, projected pipeline model
+
+User authorized task 4 of follow-through 1–7; no memo. You are Luna. Own ONLY scripts/cost_curve.py, scripts/tests_cost_curve.py, generated bench/fig outputs this script already owns, and NEW bench/PHASE2C-cost-model-update.md. No commits/push, SSH, data/runs/secrets. Astra owns core STAR contract code/tests; orchestrator owns runners and board/evidence. No edits to their paths. Read AGENTS.md and the existing model/tests before changes. Source/evidence beats card silently. Format readable Python; no broad model refactor.
+
+Replace the obsolete projected 1.07–1.15x kernel-capacity range with two clearly PROJECTED whole-pipeline scenarios driven by measured round9 STAR stage ratios. Read actual bench/evidence/integrate-1-host/timing-round9-raw.tsv and bench/PHASE2C-integrate-1.md (including independent-review qualification). Do not copy rounded ratios. Local raw means independently recomputed: stock 753.9133333333333 CPU-s, advised bypass 661.5466666666667, GPU 618.6533333333333. Those are one-pass 20M-pair SAM STAR stage measurements, NOT nf-core full-depth stage or measured throughput. Historical candidate has a shutdown defect being fixed; clearly provenance-label this reference as provisional historical, not approval of final production software. New accepted timing rows will replace it later.
+
+Scenarios atop SAME existing umbam CPU baseline:
+1. change only STAR bucket by advised_bypass/stock;
+2. change only STAR bucket by gpu/stock.
+Report GPU increment separately gpu/advised_bypass. Do not add percentages or apply stage reduction to the pipeline total. Preserve all existing non-STAR measured/model baseline numerical values. Retain separate umbam CPU+GPU scenario as before; no accidental double count. Leave salmon unchanged. Keep AWS Batch flat user assumption, hardware/utilization assumptions explicit. No memo changes.
+
+Every new model metadata object must carry: source artifact, source input size, stage/unit/threads, stock/bypass/GPU means, stage ratios, comparator, provisional evidence status, and explicit pipeline PROJECTED label. Charts dashed/projected distinctly; do not call scaled samples/day measured. Remove obsolete projection envelope rather than imply it is measured uncertainty. Keep same per-volume hardware-cost mechanics.
+
+Tests first: exact preservation of non-STAR scenarios; STAR-only substitution formula; no additive double-count; GPU incremental comparator; source ratios derived from raw rows; provenance/PROJECTED labels survive JSON; artifacts generated and nonempty. Run using actual available numpy/matplotlib interpreter (existing tests have fallback); skipped tests are NOT success. Generate first in a temporary directory, inspect JSON; then update owned tracked figures. Orchestrator will view figures. Include raw calculated stage and pipeline values in handoff, not invented outputs. No web/current hardware claims.
+
+Finish with files changed, test commands/results, model values and exact remaining limitation. Do not revise historical timings or claim this finishes full pipeline validation. Additional work is not needed; stop at this bounded model update.

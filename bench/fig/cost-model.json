@@ -3,42 +3,80 @@
   "nf-core stock (measured)": 222.89999999999998,
   "umbam CPU replaces BAM chain": 148.48666666666665,
   "umbam CPU+GPU": 147.0533333333333,
-  "umbam + GPU seed search (PROJECTED, 1.07\u20131.15\u00d7)": 138.7725856697819
+  "umbam CPU + STAR advised bypass (PROJECTED)": 140.57211415399942,
+  "umbam CPU + STAR GPU (PROJECTED)": 136.89674563241869
  },
- "projection": {
-  "label": "umbam + GPU seed search (PROJECTED, 1.07\u20131.15\u00d7)",
-  "projected": true,
-  "comparator": "umbam CPU replaces BAM chain",
-  "baseline_cpu_min": 148.48666666666665,
-  "factor_bounds": [
-   1.07,
-   1.15
-  ],
-  "cpu_min_bounds": [
-   129.11884057971014,
-   138.7725856697819
-  ],
-  "capacity_bounds": [
-   1.07,
-   1.15
-  ],
-  "baseline_capacity_per_month_80pct": 4654.963408611324,
-  "capacity_per_month_bounds_80pct": [
-   4980.810847214117,
-   5353.207919903022
-  ],
-  "assumptions": [
-   "unmeasured capacity projection atop the umbam CPU baseline",
-   "CPU-min/sample is comparator CPU-min/sample divided by factor",
-   "capacity is comparator capacity multiplied by factor",
-   "no additional hardware capex is implied",
-   "calibrated composed scenarios are not measured full-pipeline runs"
-  ]
+ "projection_metadata": {
+  "umbam CPU + STAR advised bypass (PROJECTED)": {
+   "source_artifact": "bench/evidence/integrate-1-host/timing-round9-raw.tsv",
+   "source_input_size": "20M-pair SAM",
+   "stage": "STAR align",
+   "unit": "CPU-s",
+   "threads": 20,
+   "stock_mean_cpu_s": 753.9133333333333,
+   "advised_bypass_mean_cpu_s": 661.5466666666667,
+   "gpu_mean_cpu_s": 618.6533333333333,
+   "stage_ratios": {
+    "advised_bypass_over_stock": 0.8774837072342534,
+    "gpu_over_stock": 0.82058945767418,
+    "gpu_over_advised_bypass": 0.9351620445017735
+   },
+   "comparator": "umbam CPU replaces BAM chain",
+   "provisional_evidence_status": "PROVISIONAL HISTORICAL; final candidate has a shutdown defect under repair; not production approval",
+   "pipeline_label": "umbam CPU + STAR advised bypass (PROJECTED)",
+   "projected": true,
+   "formula": "umbam CPU baseline - stock STAR bucket + stock STAR bucket * measured stage ratio",
+   "star_ratio_used": 0.8774837072342534
+  },
+  "umbam CPU + STAR GPU (PROJECTED)": {
+   "source_artifact": "bench/evidence/integrate-1-host/timing-round9-raw.tsv",
+   "source_input_size": "20M-pair SAM",
+   "stage": "STAR align",
+   "unit": "CPU-s",
+   "threads": 20,
+   "stock_mean_cpu_s": 753.9133333333333,
+   "advised_bypass_mean_cpu_s": 661.5466666666667,
+   "gpu_mean_cpu_s": 618.6533333333333,
+   "stage_ratios": {
+    "advised_bypass_over_stock": 0.8774837072342534,
+    "gpu_over_stock": 0.82058945767418,
+    "gpu_over_advised_bypass": 0.9351620445017735
+   },
+   "comparator": "umbam CPU replaces BAM chain",
+   "provisional_evidence_status": "PROVISIONAL HISTORICAL; final candidate has a shutdown defect under repair; not production approval",
+   "pipeline_label": "umbam CPU + STAR GPU (PROJECTED)",
+   "projected": true,
+   "formula": "umbam CPU baseline - stock STAR bucket + stock STAR bucket * measured stage ratio",
+   "star_ratio_used": 0.82058945767418
+  }
+ },
+ "star_stage_measurement": {
+  "source_artifact": "bench/evidence/integrate-1-host/timing-round9-raw.tsv",
+  "source_input_size": "20M-pair SAM",
+  "stage": "STAR align",
+  "unit": "CPU-s",
+  "threads": 20,
+  "means_cpu_s": {
+   "stock": 753.9133333333333,
+   "bypass": 661.5466666666667,
+   "gpu": 618.6533333333333
+  },
+  "stage_ratios": {
+   "advised_bypass_over_stock": 0.8774837072342534,
+   "gpu_over_stock": 0.82058945767418,
+   "gpu_over_advised_bypass": 0.9351620445017735
+  },
+  "stock_mean_cpu_s": 753.9133333333333,
+  "advised_bypass_mean_cpu_s": 661.5466666666667,
+  "gpu_mean_cpu_s": 618.6533333333333,
+  "comparator": "stock",
+  "provisional_evidence_status": "PROVISIONAL HISTORICAL; final candidate has a shutdown defect under repair; not production approval",
+  "pipeline_label": "STAR stage measurement only; whole-pipeline scenarios are PROJECTED"
  },
  "chart": {
   "projected_style": "dashed",
-  "projected_label": "umbam + GPU seed search (PROJECTED, 1.07\u20131.15\u00d7)",
-  "projection_envelope": true
+  "projected_label": "PROJECTED whole-pipeline scenarios",
+  "projection_envelope": false
  },
  "umbam": {
   "CPU (20 thr)": [
@@ -101,16 +139,28 @@
    2.136409421974275
   ],
   [
-   "umbam + GPU seed search (PROJECTED, 1.07\u20131.15\u00d7)",
+   "umbam CPU + STAR advised bypass (PROJECTED)",
    0.32,
-   66.41081129618823,
-   5.040264181985918
+   65.56065586310879,
+   5.105623625421295
   ],
   [
-   "umbam + GPU seed search (PROJECTED, 1.07\u20131.15\u00d7)",
+   "umbam CPU + STAR GPU (PROJECTED)",
+   0.32,
+   67.32081144387371,
+   4.972133078815765
+  ],
+  [
+   "umbam CPU + STAR advised bypass (PROJECTED)",
    0.8,
-   166.02702824047057,
-   2.0161056727943674
+   163.90163965777197,
+   2.042249450168518
+  ],
+  [
+   "umbam CPU + STAR GPU (PROJECTED)",
+   0.8,
+   168.30202860968427,
+   1.9888532315263059
   ]
  ],
  "assumed": {

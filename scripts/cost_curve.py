@@ -4,7 +4,9 @@
 Every number is from a measured run (bench/), except the ones marked ASSUMED or PROJECTED.
 Run: python3 scripts/cost_curve.py  ->  bench/fig/*.png
 """
-import argparse, json, os
+import argparse, csv, json, os
+from decimal import Decimal
+from pathlib import Path
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -19,6 +21,7 @@ ap.add_argument("--kwh", type=float, default=0.30, help="ASSUMED: $/kWh")
 ap.add_argument("--out", default="bench/fig")
 A = ap.parse_args()
 os.makedirs(A.out, exist_ok=True)
+ROOT = Path(__file__).resolve().parents[1]
 
 # ---------------------------------------------------------------------------------------
 # MEASURED. Per-sample CPU-minutes, 78M-pair Geuvadis LCL, 20-core GB10.
@@ -66,14 +69,60 @@ scenarios = {
     "umbam CPU replaces BAM chain":  sum(NFCORE.values()) - NFCORE_BAMCHAIN_CPU + UMBAM["CPU (20 thr)"][1],
     "umbam CPU+GPU":                 sum(NFCORE.values()) - NFCORE_BAMCHAIN_CPU + UMBAM["CPU + GPU"][1],
 }
-PROJECTION_LABEL = "umbam + GPU seed search (PROJECTED, 1.07–1.15×)"
-PROJECTION_FACTORS = (1.07, 1.15)
+
+# MEASURED STAR stage ratios used only to make the two whole-pipeline scenarios below.
+# These are not full-depth nf-core timings and must remain visibly provisional.
+STAR_ROUND9_ARTIFACT = "bench/evidence/integrate-1-host/timing-round9-raw.tsv"
+STAR_ROUND9_INPUT = "20M-pair SAM"
+STAR_ROUND9_THREADS = 20
+
+
+def round9_star_means():
+    rows = []
+    with (ROOT / STAR_ROUND9_ARTIFACT).open(newline="") as handle:
+        for row in csv.DictReader(handle, delimiter="\t"):
+            if row["exit"] != "0":
+                raise ValueError(f"round9 timing row did not exit cleanly: {row}")
+            rows.append((row["arm"], Decimal(row["user_s"]) + Decimal(row["sys_s"])))
+    means = {}
+    for arm in ("stock", "bypass", "gpu"):
+        values = [value for name, value in rows if name == arm]
+        if not values:
+            raise ValueError(f"missing round9 timing arm: {arm}")
+        # Keep the repository's independently recomputed 13-decimal CPU-s means
+        # stable across Python's binary-float summation order.
+        means[arm] = float((sum(values) / Decimal(len(values))).quantize(Decimal("0.0000000000001")))
+    return means
+
+
+STAR_ROUND9_MEANS = round9_star_means()
+STAR_ROUND9_RATIOS = {
+    "advised_bypass_over_stock": STAR_ROUND9_MEANS["bypass"] / STAR_ROUND9_MEANS["stock"],
+    "gpu_over_stock": STAR_ROUND9_MEANS["gpu"] / STAR_ROUND9_MEANS["stock"],
+    "gpu_over_advised_bypass": STAR_ROUND9_MEANS["gpu"] / STAR_ROUND9_MEANS["bypass"],
+}
 PROJECTION_COMPARATOR = "umbam CPU replaces BAM chain"
 projection_baseline = scenarios[PROJECTION_COMPARATOR]
-projection_cpu_bounds = (projection_baseline / PROJECTION_FACTORS[1], projection_baseline / PROJECTION_FACTORS[0])
-projection_cpu = projection_cpu_bounds[1]  # conservative capacity endpoint: 1.07×
-chart_scenarios = {**scenarios, PROJECTION_LABEL: projection_cpu}
+STAR_BASELINE_CPU_MIN = NFCORE["STAR align"]
+
+
+def projected_pipeline_cpu(star_ratio):
+    """Replace only the STAR bucket in the existing umbam CPU baseline."""
+    return projection_baseline - STAR_BASELINE_CPU_MIN + STAR_BASELINE_CPU_MIN * star_ratio
+
+
+PROJECTED_SCENARIOS = {
+    "umbam CPU + STAR advised bypass (PROJECTED)": projected_pipeline_cpu(
+        STAR_ROUND9_RATIOS["advised_bypass_over_stock"]
+    ),
+    "umbam CPU + STAR GPU (PROJECTED)": projected_pipeline_cpu(
+        STAR_ROUND9_RATIOS["gpu_over_stock"]
+    ),
+}
+chart_scenarios = {**scenarios, **PROJECTED_SCENARIOS}
 for k, v in scenarios.items():
+    print(f"{k:34s} {v:6.1f} cpu-min/sample  -> {samples_per_day(v,0.8):5.1f}/day @80%  {samples_per_day(v,0.32):5.1f}/day @32%")
+for k, v in PROJECTED_SCENARIOS.items():
     print(f"{k:34s} {v:6.1f} cpu-min/sample  -> {samples_per_day(v,0.8):5.1f}/day @80%  {samples_per_day(v,0.32):5.1f}/day @32%")
 
 # Measured nf-core throughput as the anchor: 41.5/day at 32% util. Scale scenarios by cpu-min ratio.
@@ -98,7 +147,8 @@ styles = {
     "nf-core stock (measured)": ("#7f8c8d", "--"),
     "umbam CPU replaces BAM chain": ("#2980b9", "-"),
     "umbam CPU+GPU": ("#27ae60", "-"),
-    PROJECTION_LABEL: ("#d97706", "--"),
+    "umbam CPU + STAR advised bypass (PROJECTED)": ("#d97706", "--"),
+    "umbam CPU + STAR GPU (PROJECTED)": ("#c2410c", "--"),
 }
 caps = {}
 for name, cpu in chart_scenarios.items():
@@ -108,13 +158,7 @@ for name, cpu in chart_scenarios.items():
     cost, boxes = per_sample_cost(A.spark_price, A.life_months, vol, cpu)
     ax.plot(vol, cost, color=c, ls=ls, lw=2, label=f"DGX Spark — {name}: one box ≤ {cap:,.0f}/mo")
     ax2.step(vol, boxes, where="post", color=c, ls=ls, lw=2)
-    ax.axvline(cap, color=c, ls=":", lw=1, alpha=.7)
-projection_cost_low, _ = per_sample_cost(A.spark_price, A.life_months, vol, projection_cpu_bounds[1])
-projection_cost_high, _ = per_sample_cost(A.spark_price, A.life_months, vol, projection_cpu_bounds[0])
-ax.fill_between(vol, projection_cost_low, projection_cost_high, color="#d97706", alpha=.12,
-                label="PROJECTED capacity range: 1.07–1.15× baseline")
-ax.axvspan(caps[PROJECTION_LABEL], caps[PROJECTION_LABEL] * PROJECTION_FACTORS[1] / PROJECTION_FACTORS[0],
-           color="#d97706", alpha=.10)
+    ax.axvline(cap, color=c, ls=":" if "PROJECTED" not in name else "--", lw=1, alpha=.7)
 cost_ms, boxes_ms = per_sample_cost(A.studio_price, A.life_months, vol, scenarios["umbam CPU replaces BAM chain"]*20/32)
 ax.plot(vol, cost_ms, color="#8e44ad", ls=":", lw=2, label=f"Mac Studio M5 Ultra (ASSUMED ${A.studio_price/1000:.0f}k, 32 cores, untested)")
 ax2.step(vol, boxes_ms, where="post", color="#8e44ad", ls=":", lw=2)
@@ -142,19 +186,23 @@ bars = {
     "nf-core stock": {k: NFCORE[k] for k in order},
     "umbam CPU":     {**{k: NFCORE[k] for k in order if k not in UMBAM_REPLACES}, "umbam chain (all of the above, one pass)": UMBAM["CPU (20 thr)"][1]},
     "umbam CPU+GPU": {**{k: NFCORE[k] for k in order if k not in UMBAM_REPLACES}, "umbam chain (all of the above, one pass)": UMBAM["CPU + GPU"][1]},
+    "umbam CPU + STAR advised bypass (PROJECTED)": {**{k: NFCORE[k] for k in order if k not in UMBAM_REPLACES}, "STAR align": STAR_BASELINE_CPU_MIN * STAR_ROUND9_RATIOS["advised_bypass_over_stock"], "umbam chain (all of the above, one pass)": UMBAM["CPU (20 thr)"][1]},
+    "umbam CPU + STAR GPU (PROJECTED)": {**{k: NFCORE[k] for k in order if k not in UMBAM_REPLACES}, "STAR align": STAR_BASELINE_CPU_MIN * STAR_ROUND9_RATIOS["gpu_over_stock"], "umbam chain (all of the above, one pass)": UMBAM["CPU (20 thr)"][1]},
 }
 colors["umbam chain (all of the above, one pass)"] = "#27ae60"
 ys = list(bars.keys())
 for yi, y in enumerate(ys):
     left = 0
     for k, v in bars[y].items():
-        ax.barh(yi, v, left=left, color=colors[k], edgecolor="white", label=k if yi == 0 or k.startswith("umbam") and yi == 1 else None)
+        ax.barh(yi, v, left=left, color=colors[k], edgecolor="white", hatch="//" if "PROJECTED" in y else None, label=k if yi == 0 or k.startswith("umbam") and yi == 1 else None)
         if v > 8: ax.text(left + v/2, yi, f"{v:.0f}", ha="center", va="center", fontsize=8, color="white")
         left += v
     ax.text(left + 3, yi, f"{left:.0f} cpu-min", va="center", fontsize=9)
-ax.set_yticks(range(len(ys))); ax.set_yticklabels(ys); ax.invert_yaxis()
+ax.set_yticks(range(len(ys)))
+ax.set_yticklabels([y.replace(" (PROJECTED)", "\n(PROJECTED)") for y in ys])
+ax.invert_yaxis()
 ax.set_xlabel("CPU-minutes per 78M-pair sample (DGX Spark, 20 cores)")
-ax.set_title("Where the CPU-minutes go: the BAM chain (warm colours) collapses to one resident pass (green)", fontsize=10.5)
+ax.set_title("Where the CPU-minutes go\nBAM chain (warm colours) → one resident pass (green)", fontsize=10.5)
 ax.legend(fontsize=7.5, ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.22)); ax.grid(axis="x", alpha=.25)
 ax.set_xlim(0, 260)
 fig.tight_layout(); fig.savefig(f"{A.out}/cpu-minutes.png", dpi=150)
@@ -202,36 +250,49 @@ for name, cpu in scenarios.items():
         be_samples = A.spark_price / (A.batch_per_sample - 0.05)
         rows.append((name, util, spd, be_samples / spd))
 for util in (0.32, 0.8):
-    spd = samples_per_day(projection_cpu, util)
     be_samples = A.spark_price / (A.batch_per_sample - 0.05)
-    rows.append((PROJECTION_LABEL, util, spd, be_samples / spd))
-print("\nscenario, util, samples/day, days to break even vs Batch (Spark $%.0f):" % A.spark_price)
+    for name, cpu in PROJECTED_SCENARIOS.items():
+        spd = samples_per_day(cpu, util)
+        rows.append((name, util, spd, be_samples / spd))
+print("\nscenario, util, samples/day (PROJECTED rows are model output), days to break even vs Batch (Spark $%.0f):" % A.spark_price)
 for r in rows:
     print(f"  {r[0]:34s} {r[1]:.0%}  {r[2]:6.1f}/day  {r[3]:5.1f} days")
-json.dump({"scenarios_cpu_min": {**scenarios, PROJECTION_LABEL: projection_cpu},
-           "projection": {
-               "label": PROJECTION_LABEL,
-               "projected": True,
-               "comparator": PROJECTION_COMPARATOR,
-               "baseline_cpu_min": projection_baseline,
-               "factor_bounds": list(PROJECTION_FACTORS),
-               "cpu_min_bounds": list(projection_cpu_bounds),
-               "capacity_bounds": list(PROJECTION_FACTORS),
-               "baseline_capacity_per_month_80pct": caps[PROJECTION_COMPARATOR],
-               "capacity_per_month_bounds_80pct": [
-                   caps[PROJECTION_COMPARATOR] * PROJECTION_FACTORS[0],
-                   caps[PROJECTION_COMPARATOR] * PROJECTION_FACTORS[1],
-               ],
-               "assumptions": [
-                   "unmeasured capacity projection atop the umbam CPU baseline",
-                   "CPU-min/sample is comparator CPU-min/sample divided by factor",
-                   "capacity is comparator capacity multiplied by factor",
-                   "no additional hardware capex is implied",
-                   "calibrated composed scenarios are not measured full-pipeline runs",
-               ],
+projection_metadata = {}
+for name, star_ratio in ((list(PROJECTED_SCENARIOS)[0], STAR_ROUND9_RATIOS["advised_bypass_over_stock"]),
+                         (list(PROJECTED_SCENARIOS)[1], STAR_ROUND9_RATIOS["gpu_over_stock"])):
+    projection_metadata[name] = {
+        "source_artifact": STAR_ROUND9_ARTIFACT,
+        "source_input_size": STAR_ROUND9_INPUT,
+        "stage": "STAR align",
+        "unit": "CPU-s",
+        "threads": STAR_ROUND9_THREADS,
+        "stock_mean_cpu_s": STAR_ROUND9_MEANS["stock"],
+        "advised_bypass_mean_cpu_s": STAR_ROUND9_MEANS["bypass"],
+        "gpu_mean_cpu_s": STAR_ROUND9_MEANS["gpu"],
+        "stage_ratios": STAR_ROUND9_RATIOS,
+        "comparator": PROJECTION_COMPARATOR,
+        "provisional_evidence_status": "PROVISIONAL HISTORICAL; final candidate has a shutdown defect under repair; not production approval",
+        "pipeline_label": name,
+        "projected": True,
+        "formula": "umbam CPU baseline - stock STAR bucket + stock STAR bucket * measured stage ratio",
+        "star_ratio_used": star_ratio,
+    }
+
+json.dump({"scenarios_cpu_min": {**scenarios, **PROJECTED_SCENARIOS},
+           "projection_metadata": projection_metadata,
+           "star_stage_measurement": {
+               "source_artifact": STAR_ROUND9_ARTIFACT,
+               "source_input_size": STAR_ROUND9_INPUT,
+               "stage": "STAR align", "unit": "CPU-s", "threads": STAR_ROUND9_THREADS,
+               "means_cpu_s": STAR_ROUND9_MEANS, "stage_ratios": STAR_ROUND9_RATIOS,
+               "stock_mean_cpu_s": STAR_ROUND9_MEANS["stock"],
+               "advised_bypass_mean_cpu_s": STAR_ROUND9_MEANS["bypass"],
+               "gpu_mean_cpu_s": STAR_ROUND9_MEANS["gpu"],
+               "comparator": "stock", "provisional_evidence_status": "PROVISIONAL HISTORICAL; final candidate has a shutdown defect under repair; not production approval",
+               "pipeline_label": "STAR stage measurement only; whole-pipeline scenarios are PROJECTED",
            },
-           "chart": {"projected_style": "dashed", "projected_label": PROJECTION_LABEL,
-                     "projection_envelope": True},
+           "chart": {"projected_style": "dashed", "projected_label": "PROJECTED whole-pipeline scenarios",
+                     "projection_envelope": False},
            "umbam": UMBAM, "nfcore": NFCORE, "rows": rows, "assumed": vars(A)},
           open(f"{A.out}/cost-model.json", "w"), indent=1)
 print("wrote", A.out)
