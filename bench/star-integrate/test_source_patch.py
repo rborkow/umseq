@@ -98,7 +98,7 @@ class PatchGuard(unittest.TestCase):
   cpp=(ROOT/'star_integrate.cpp').read_text()
   self.assertNotIn('ifstream',cpp)
   self.assertNotIn('sampled_file_matches',cpp)
- def test_two_pass_rebuild_follows_the_single_setup_hook(self):
+ def test_two_pass_rebuild_rearms_borrowed_index_at_each_transition(self):
   root=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
   if not root.exists(): self.skipTest('pinned private source unavailable')
   class R:
@@ -108,8 +108,14 @@ class PatchGuard(unittest.TestCase):
   generated=m.patch(R(),'STAR.cpp',(root/'STAR.cpp').read_text())
   self.assertEqual(generated.count('star_integrate::setup(P, genomeMain);'),1)
   self.assertLess(generated.index('star_integrate::setup(P, genomeMain);'),generated.index('twoPassRunPass1(P, genomeMain'))
-  two_pass=(root/'twoPassRunPass1.cpp').read_text()
-  self.assertIn('sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);',two_pass)
+  self.assertEqual(generated.count('star_integrate::rearm(P, genomeMain);'),1)
+  self.assertLess(generated.index('sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);'),generated.index('star_integrate::rearm(P, genomeMain);'))
+  two_pass=m.patch(R(),'twoPassRunPass1.cpp',(root/'twoPassRunPass1.cpp').read_text())
+  self.assertEqual(two_pass.count('star_integrate::rearm(P, genomeMain);'),1)
+  self.assertLess(two_pass.index('sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);'),two_pass.index('star_integrate::rearm(P, genomeMain);'))
+  cpp=(ROOT/'star_integrate.cpp').read_text()
+  self.assertIn('index_sa_length == g.SA.lengthByte',cpp)
+  self.assertIn('void rearm(const Parameters &p, const Genome &g)',cpp)
  def test_loader_hugepage_and_drop_cache_hooks_precede_reads(self):
   root=Path('/private/tmp/star-full-source.UVdsuH/STAR-2.7.11b/source')
   if not root.exists(): self.skipTest('pinned private source unavailable')

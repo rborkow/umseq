@@ -105,6 +105,7 @@ def patch(rio,name,text):
     if name=='STAR.cpp':
         text=once(rio,text,'#include "parametersDefault.xxd"\n','#include "parametersDefault.xxd"\n#include "star_integrate.hpp"\n#include "star_integrate_work.hpp"\n')
         text=once(rio,text,'    genomeMain.genomeLoad();\n','    genomeMain.genomeLoad();\n    star_integrate::setup(P, genomeMain);\n')
+        text=once(rio,text,'        sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);\n','        sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);\n        // STAR.cpp:149 is before chunk construction; sjdbBuildIndex replaced SA.\n        star_integrate::rearm(P, genomeMain);\n')
         # The borrowed index is STAR's own G/SA/SAi; genomeMain.freeMemory() (STAR.cpp:247)
         # deletes them right after mapping. The coordinator must have joined and the
         # context been destroyed BEFORE that, or an in-flight drain reads freed memory
@@ -113,6 +114,9 @@ def patch(rio,name,text):
         # GPU is needed once mapping has finished.
         text=once(rio,text,'    // no need for genome anymore, free the memory\n    genomeMain.freeMemory();','    // no need for genome anymore, free the memory\n    star_integrate::finish(); // joins the coordinator; the GPU never touches G/SA/SAi after this\n    genomeMain.freeMemory();')
         return once(rio,text,'    delete P.inOut; // to close files\n\n    return 0;','    delete P.inOut; // to close files\n\n    star_integrate_work::finish();\n    return 0;')
+    if name=='twoPassRunPass1.cpp':
+        text=once(rio,text,'#include "sjdbInsertJunctions.h"\n','#include "sjdbInsertJunctions.h"\n#include "star_integrate.hpp"\n')
+        return once(rio,text,'    sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);\n','    sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);\n    // mapThreadsSpawn joined above at :73; pass-2 chunks are not built until STAR.cpp:197.\n    star_integrate::rearm(P, genomeMain);\n')
     if name=='ReadAlign_maxMappableLength2strands.cpp':
         # V3 consumes whole chains above STAR's prefix block: the device owns ind1, SAi and
         # branch selection, while the stock outer body remains the fallback and
@@ -375,7 +379,7 @@ def main(a):
     inv=rio.inventory(source); rio.require(len(inv)==344 and rio.digest(rio.encoded(inv))==rio.FULL_INVENTORY_SHA256,'pinned 344-file source inventory mismatch')
     if root.exists(): raise ValueError('private root already exists; refuse overwrite')
     root.mkdir(mode=0o700); shutil.copytree(source,root/'baseline'); shutil.copytree(source,root/'integrated')
-    changed=('STAR.cpp','ReadAlignChunk_mapChunk.cpp','ReadAlign_mapOneRead.cpp','ReadAlign_oneRead.cpp','ReadAlign_maxMappableLength2strands.cpp','SuffixArrayFuns.cpp','Genome_genomeLoad.cpp','PackedArray.cpp','Makefile')
+    changed=('STAR.cpp','twoPassRunPass1.cpp','ReadAlignChunk_mapChunk.cpp','ReadAlign_mapOneRead.cpp','ReadAlign_oneRead.cpp','ReadAlign_maxMappableLength2strands.cpp','SuffixArrayFuns.cpp','Genome_genomeLoad.cpp','PackedArray.cpp','Makefile')
     for n in changed: (root/'integrated'/n).write_text(patch(rio,n,(source/n).read_text()))
     shutil.copy2(HERE/'star_integrate.hpp',root/'integrated'/'star_integrate.hpp')
     shutil.copy2(HERE/'star_integrate.cpp',root/'integrated'/'star_integrate.cpp')

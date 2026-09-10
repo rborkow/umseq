@@ -20,21 +20,30 @@ implicit fallback.
 
 ## Two-pass index lifetime
 
-The hook is installed immediately after `genomeMain.genomeLoad()` in
-`source/STAR.cpp:136`, before `twoPassRunPass1` at `source/STAR.cpp:170`.
-Pass 1 constructs `Genome genomeMain1=genomeMain`, maps it, then calls
-`sjdbInsertJunctions` at `source/twoPassRunPass1.cpp:15-92`.
-That loads pass-1 junctions and calls `sjdbBuildIndex`
-(`source/sjdbInsertJunctions.cpp:24-64`).
-`sjdbBuildIndex` changes `nGenome` and `nSA`, defines a replacement packed SA,
-and adjusts SAi entries (`source/sjdbBuildIndex.cpp:109-126`).
+The production argv has two mapping-time index transitions. `STAR.cpp:136-149`
+loads the index and inserts the mapping-time GTF junctions before any chunks are
+constructed. `twoPassRunPass1.cpp:15-73` maps pass 1 and joins its mapping
+threads; `:92` then inserts pass-1 junctions before `STAR.cpp:197` constructs
+pass-2 chunks. In each insertion `sjdbBuildIndex.cpp:126,289-300` grows `G`,
+replaces the packed `SA` allocation, changes `nSA`, and rebuilds `SAi`.
 
-Verdict: the borrowed coordinator setup is stale across this transition unless
-the backing objects happen to retain compatible storage; confidence **high**.
-No generator re-arm was added: calling setup/finish around this transition has
-not been proven safe for existing worker/coordinator state. If wrong, the gate
-will fail by a strict mismatch, crash, sidecar rejection, or any output compare;
-it cannot pass merely on GPU activity.
+The generator explicitly calls `star_integrate::rearm(P, genomeMain)` after
+each insertion. It compares the borrowed identity (`G`, `SA.charArray`,
+`SA.lengthByte`, `nSA`, and `nGenome`); on change it runs the proven close path
+(drain windows, join coordinator, drop lookahead/admission and destroy the
+borrowed context) and calls re-entrant setup on the new buffers. The explicit
+sites are deliberately used instead of a branch in every seed hook: their
+source ordering proves no mapping thread is live, and one-pass mapping’s hot
+path remains unchanged.
+
+`PackedArray::allocateArray` is already advised by the generated
+`PackedArray.cpp` hook, so the replacement `SA2.charArray` is advised. The
+`G1` allocation including `genomeInsertL` headroom is advised in
+`Genome_genomeLoad.cpp`, covering appended junction sequence. At final finish,
+`index_anon_huge_bytes` is sampled from the current `G`, `SA`, and `SAi`
+buffers. The sidecar reports cumulative totals plus `index_generations` and
+per-generation submitted/consumed deltas; production acceptance must require
+generation 2 consumed work.
 
 ## Transcriptome BAM
 

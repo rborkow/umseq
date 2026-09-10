@@ -184,6 +184,22 @@ def main():
                 + key.stderr
             )
         subprocess.run([str(exe), "positional-shuffled"], check=True, timeout=30)
+        lifecycle_sidecar = Path(tmp) / "lifecycle-sidecar.jsonl"
+        lifecycle = subprocess.run(
+            [str(exe), "index-lifecycle"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=dict(os.environ, STAR_INTEGRATE_SIDECAR=str(lifecycle_sidecar)),
+            check=True,
+            timeout=30,
+        )
+        assert lifecycle.stdout.strip() == "index lifecycle: generations=2 stale_key_mismatch=1"
+        lifecycle_row = json.loads(lifecycle_sidecar.read_text())
+        assert lifecycle_row["index_generations"] == 2
+        assert len(lifecycle_row["generations"]) == 2
+        assert all(row["submitted"] > 0 and row["consumed"] > 0
+                   for row in lifecycle_row["generations"])
         subprocess.run([str(exe)], env=env, check=True, timeout=30)
         rows = [
             json.loads(line)

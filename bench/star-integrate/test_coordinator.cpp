@@ -18,14 +18,18 @@ std::atomic<bool> backend_wait(false), backend_entered(false),
     backend_release(false);
 Parameters fixture_p;
 Genome fixture_g;
-char fixture_genome = 0, fixture_sa = 0, fixture_sai = 0;
+char fixture_genome[1024] = {}, fixture_sa[1024] = {}, fixture_sai[1024] = {};
+uint fixture_sai_starts[3] = {};
 void prepare_fixture_index() {
   fixture_p.pGe.gLoad = "NoSharedMemory";
-  fixture_g.G = &fixture_genome;
-  fixture_g.SA.charArray = &fixture_sa;
-  fixture_g.SAi.charArray = &fixture_sai;
+  fixture_g.G = fixture_genome + 200;
+  fixture_g.SA.charArray = fixture_sa;
+  fixture_g.SAi.charArray = fixture_sai;
   fixture_g.nGenome = 1;
-  fixture_g.nSA = 100;
+  fixture_g.nSA = 10;
+  fixture_g.genomeSAindexStart = fixture_sai_starts;
+  fixture_g.SA.lengthByte = sizeof(fixture_sa);
+  fixture_g.SAi.lengthByte = sizeof(fixture_sai);
   star_integrate::bind_index(fixture_g);
 }
 star_integrate::InnerCall call(uint64_t ordinal, uint64_t distance,
@@ -731,6 +735,76 @@ extern "C" int32_t usi_search_batch_v3(UsiPrefixContext *, uint64_t,
   }
   return 0;
 }
+void index_lifecycle() {
+  setenv("STAR_INTEGRATE", "1", 1);
+  prepare_fixture_index();
+  assert(star_integrate::setup(fixture_p, fixture_g));
+
+  std::vector<star_integrate::WindowRead> first_frames;
+  first_frames.push_back(frame(11));
+  star_integrate::submit_window(std::move(first_frames));
+  star_integrate::settle_for_test();
+  ReadAlign first_read(11);
+  char a[4] = {11, 11, 11, 11}, b[4] = {12, 12, 12, 12};
+  char *reads[] = {a, b};
+  uint64_t range[2] = {}, nrep = 0, maxl = 0;
+  star_integrate::begin_map(first_read);
+  star_integrate::set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
+  star_integrate::reverse_suppressed(77);
+  star_integrate::InnerCall stale =
+      star_integrate::build_current_inner_call(call(11, 1, false));
+  assert(star_integrate::lookup(fixture_p, fixture_g, reads, 4, 0, stale, range,
+                                nrep, maxl));
+  star_integrate::end_chunk();
+
+  char second_genome[1024] = {}, second_sa[768] = {}, second_sai[1024] = {};
+  fixture_g.G = second_genome + 200;
+  fixture_g.SA.charArray = second_sa;
+  fixture_g.SA.lengthByte = sizeof(second_sa);
+  fixture_g.SAi.charArray = second_sai;
+  fixture_g.SAi.lengthByte = sizeof(second_sai);
+  fixture_g.nGenome = 2;
+  fixture_g.nSA = 11;
+  star_integrate::rearm(fixture_p, fixture_g);
+  {
+    std::lock_guard<std::mutex> lock(star_integrate::S().mu);
+    assert(star_integrate::S().live_requests == 0);
+    assert(star_integrate::S().generations.size() == 2);
+  }
+
+  std::vector<star_integrate::WindowRead> second_frames;
+  second_frames.push_back(frame(29));
+  star_integrate::submit_window(std::move(second_frames));
+  star_integrate::settle_for_test();
+  ReadAlign second_read(29);
+  char c[4] = {29, 29, 29, 29}, d[4] = {30, 30, 30, 30};
+  char *second_reads[] = {c, d};
+  star_integrate::begin_map(second_read);
+  star_integrate::set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
+  star_integrate::reverse_suppressed(77);
+  assert(!star_integrate::lookup(fixture_p, fixture_g, second_reads, 4, 0,
+                                 stale, range, nrep, maxl));
+  assert(star_integrate::current_window
+             ->miss_reasons[star_integrate::MISS_KEY_MISMATCH] == 1);
+  star_integrate::end_chunk();
+  std::vector<star_integrate::WindowRead> fresh_frames;
+  fresh_frames.push_back(frame(30));
+  star_integrate::submit_window(std::move(fresh_frames));
+  star_integrate::settle_for_test();
+  ReadAlign fresh_read(30);
+  char e[4] = {30, 30, 30, 30}, f[4] = {31, 31, 31, 31};
+  char *fresh_reads[] = {e, f};
+  star_integrate::begin_map(fresh_read);
+  star_integrate::set_chain(7, 3, 1, 2, 5, 0, 0, 4, 1);
+  star_integrate::reverse_suppressed(77);
+  star_integrate::InnerCall fresh =
+      star_integrate::build_current_inner_call(call(30, 1, false));
+  assert(star_integrate::lookup(fixture_p, fixture_g, fresh_reads, 4, 0, fresh,
+                                range, nrep, maxl));
+  star_integrate::finish();
+  std::puts("index lifecycle: generations=2 stale_key_mismatch=1");
+}
+
 // Round 7 (host20): 76% of chains missed because the coordinator split a
 // window across the 262,144-job batch cap — the head of the window was
 // dispatched, the tail was neither dispatched nor CPU-resolved, and every
@@ -809,6 +883,8 @@ int main(int argc, char **argv) {
     chain_accounting();
   else if (argc == 2 && !std::strcmp(argv[1], "current-refusal"))
     current_window_refusal();
+  else if (argc == 2 && !std::strcmp(argv[1], "index-lifecycle"))
+    index_lifecycle();
   else
     normal();
 }

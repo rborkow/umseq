@@ -80,6 +80,10 @@ void reverse_suppressed(uint64_t piece);
 void note_flag_clear();
 void end_chunk();
 bool setup(const Parameters &, const Genome &);
+// Re-arm after STAR replaces borrowed index storage with sjdbBuildIndex.  The
+// generated calls are outside mapping threads (STAR.cpp:149 and
+// twoPassRunPass1.cpp:92), so finish may drain synchronously here.
+void rearm(const Parameters &, const Genome &);
 bool enabled();
 // Written before mapping workers start and read in their hot paths.  Keep the
 // generated disabled path to one load; do not route it through `enabled()`.

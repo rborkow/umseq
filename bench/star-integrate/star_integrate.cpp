@@ -278,18 +278,27 @@ struct State {
   uint64_t live_bytes, live_requests;
   const Genome *index_object;
   const void *index_g, *index_sa, *index_sai;
-  uint64_t index_nsa, index_ngenome;
+  uint64_t index_g_extent, index_sa_length, index_sai_length, index_nsa,
+      index_ngenome;
   uint64_t index_anon_huge_bytes;
   double setup_wall_s;
+  struct Generation {
+    uint64_t submitted, consumed;
+    Generation(uint64_t submitted_in, uint64_t consumed_in)
+        : submitted(submitted_in), consumed(consumed_in) {}
+  };
+  std::vector<Generation> generations;
   bool tried, enabled, stopping, fault;
   Totals totals;
   Visits visits;
   State()
       : ctx(nullptr), pending_bytes(0), epoch(1), next_generation(1),
         live_bytes(0), live_requests(0), index_object(nullptr),
-        index_g(nullptr), index_sa(nullptr), index_sai(nullptr), index_nsa(0),
-        index_ngenome(0), index_anon_huge_bytes(0), setup_wall_s(0),
-        tried(false), enabled(false), stopping(false), fault(false) {}
+        index_g(nullptr), index_sa(nullptr), index_sai(nullptr),
+        index_g_extent(0), index_sa_length(0), index_sai_length(0),
+        index_nsa(0), index_ngenome(0), index_anon_huge_bytes(0),
+        setup_wall_s(0), tried(false), enabled(false), stopping(false),
+        fault(false) {}
 };
 void memlog(const State &s, uint64_t batches) {
   static const bool on = std::getenv("STAR_INTEGRATE_MEMLOG") != nullptr;
@@ -402,16 +411,20 @@ void bind_index(const Genome &g) {
   State &s = S();
   s.index_object = &g;
   s.index_g = g.G;
+  s.index_g_extent = g.nGenome + 400;
   s.index_sa = g.SA.charArray;
+  s.index_sa_length = g.SA.lengthByte;
   s.index_sai = g.SAi.charArray;
+  s.index_sai_length = g.SAi.lengthByte;
   s.index_nsa = g.nSA;
   s.index_ngenome = g.nGenome;
 }
 bool same_index(const Genome &g) {
   const State &s = S();
   return s.index_object == &g && s.index_g == g.G &&
-         s.index_sa == g.SA.charArray && s.index_sai == g.SAi.charArray &&
-         s.index_nsa == g.nSA && s.index_ngenome == g.nGenome;
+         s.index_sa == g.SA.charArray && s.index_sa_length == g.SA.lengthByte &&
+         s.index_sai == g.SAi.charArray && s.index_nsa == g.nSA &&
+         s.index_ngenome == g.nGenome;
 }
 void add_stats(ProbeStats &a, const ProbeStats &b) {
   a.gathers += b.gathers;
@@ -510,8 +523,7 @@ uint64_t sampled_hash_parts(const uint8_t *head, uint64_t head_length,
 }
 bool admitted(const Parameters &p, const Genome &g) {
   return p.runThreadN > 0 && p.runThreadN <= 20 &&
-         p.pGe.gLoad == "NoSharedMemory" && !p.twoPass.yes &&
-         !p.sjdbInsert.yes && !p.wasp.yes && !p.peOverlap.yes &&
+         p.pGe.gLoad == "NoSharedMemory" && !p.wasp.yes && !p.peOverlap.yes &&
          p.outFilterBySJoutStage != 2 && p.pGe.transform.type == 0 &&
          p.seedSearchLmax == 0 && g.GstrandBit == 32 && p.pGe.gSAsparseD == 1 &&
          g.G && g.SA.charArray && g.SAi.charArray;
@@ -823,6 +835,21 @@ void sidecar(const State &s) {
   f << "{\"mode\":\"" << (s.enabled ? "enabled" : "cpu-bypass")
     << "\",\"batches\":" << t.batches << ",\"submitted\":" << t.submitted
     << ",\"gpu_consumed\":" << t.gpu_consumed
+    << ",\"index_generations\":" << s.generations.size()
+    << ",\"generations\":[";
+  for (size_t i = 0; i < s.generations.size(); ++i) {
+    const State::Generation &generation = s.generations[i];
+    const uint64_t submitted_end = i + 1 < s.generations.size()
+                                       ? s.generations[i + 1].submitted
+                                       : t.submitted;
+    const uint64_t consumed_end = i + 1 < s.generations.size()
+                                      ? s.generations[i + 1].consumed
+                                      : t.gpu_consumed;
+    f << (i ? "," : "")
+      << "{\"submitted\":" << submitted_end - generation.submitted
+      << ",\"consumed\":" << consumed_end - generation.consumed << "}";
+  }
+  f << "]"
     << ",\"chains_submitted\":" << t.chains_submitted
     << ",\"chains_consumed\":" << t.chains_consumed
     << ",\"steps_consumed\":" << t.steps_consumed
@@ -997,11 +1024,17 @@ bool setup(const Parameters &p, const Genome &g) {
   std::lock_guard<std::mutex> lock(s.mu);
   if (!admitted(p, g))
     return false;
-  if (s.tried)
+  if (s.enabled)
     return s.enabled && same_index(g);
+  if (s.tried)
+    return false;
   s.tried = true;
   if (!env1("STAR_INTEGRATE"))
     return false;
+  // A frame key includes this epoch.  Advance it for each replacement so a
+  // retained generation-1 key cannot match generation 2 by coincidence.
+  if (!s.generations.empty())
+    ++s.epoch;
   UsiIdentityV1 id = {};
   const uint64_t g_extent = g.nGenome + 400;
   const uint64_t sa_extent = ((g.nSA - 1) * (g.GstrandBit + 1)) / 8 + 8;
@@ -1033,12 +1066,10 @@ bool setup(const Parameters &p, const Genome &g) {
     return false;
   }
   s.enabled = true;
-  s.index_anon_huge_bytes =
-      anon_huge_overlapping(g.G - 200, g_extent) +
-      anon_huge_overlapping(g.SA.charArray, sa_extent) +
-      anon_huge_overlapping(g.SAi.charArray, g.SAi.lengthByte);
   fast_enabled = true;
   bind_index(g);
+  s.generations.push_back(
+      State::Generation(s.totals.submitted, s.totals.gpu_consumed));
   s.coordinator = std::thread(coordinator_main);
   return true;
 #endif
@@ -1448,7 +1479,7 @@ bool lookup(const Parameters &p, const Genome &g, char **r, uint64_t len,
   return true;
 #endif
 }
-void finish() {
+void finish_generation(bool emit_sidecar) {
 #if STAR_INTEGRATE
   end_chunk();
   State &s = S();
@@ -1462,13 +1493,41 @@ void finish() {
   if (s.coordinator.joinable())
     s.coordinator.join();
   std::lock_guard<std::mutex> lock(s.mu);
-  sidecar(s);
+  // The final sidecar is emitted before the borrowed context is destroyed.
+  // Measure the installed generation's actual packed extents, not the prior
+  // setup's derived SA extent: sjdbBuildIndex replaces SA between passes.
+  s.index_anon_huge_bytes =
+      (s.index_g ? anon_huge_overlapping(
+                       static_cast<const uint8_t *>(s.index_g) - 200,
+                       s.index_g_extent)
+                 : 0) +
+      anon_huge_overlapping(s.index_sa, s.index_sa_length) +
+      anon_huge_overlapping(s.index_sai, s.index_sai_length);
+  if (emit_sidecar)
+    sidecar(s);
   if (s.ctx) {
     UsiErrorV1 e = {};
     usi_destroy_v2(&s.ctx, &e);
   }
   s.enabled = false;
   fast_enabled = false;
+  s.tried = false;
+  s.stopping = false;
+#endif
+}
+void finish() { finish_generation(true); }
+void rearm(const Parameters &p, const Genome &g) {
+#if STAR_INTEGRATE
+  // STAR.cpp:149 performs mapping-time GTF insertion before any chunks exist.
+  // twoPassRunPass1.cpp:73 joins pass-1 mapThreadsSpawn before its :92
+  // insertion.  Thus neither explicit re-arm races a mapping worker.
+  if (!same_index(g)) {
+    finish_generation(false);
+    setup(p, g);
+  }
+#else
+  (void)p;
+  (void)g;
 #endif
 }
 void settle_for_test() {
