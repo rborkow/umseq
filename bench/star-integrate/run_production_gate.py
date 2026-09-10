@@ -116,15 +116,31 @@ def compare_cmp(stock, integrated, root):
         command_ok(["cmp", "-s", str(left), str(right)], "cmp " + name)
 
 
-def normalize_bam(samtools, bam, destination):
+def normalize_bam(samtools, bam, destination, transcriptome=False):
+    """Documented normalization for STAR BAMs under nf-core's argv (measured on two stock
+    runs, bench/PHASE2E-production-gate.md):
+
+    * both BAMs: header dropped (its @PG/@CO lines embed the output path), records sorted
+      as whole lines - `--outSAMtype BAM Unsorted` emits thread-chunk order.
+    * transcriptome BAM only: `HI:i:` stripped and flag bit 0x100 cleared - STAR picks the
+      primary transcriptome alignment of a multimapper with a per-thread RNG
+      (ReadAlign_quantTranscriptome.cpp:69, rngUniformReal0to1(rngMultOrder)), so which of
+      the N equivalent records is primary, and their HI numbering, vary run to run.
+      Everything else in the record (transcript, position, CIGAR, NH, mate fields, RG) is
+      compared exactly.
+    """
     raw = destination.with_suffix(".sam")
     with raw.open("wb") as stream:
         command_ok([str(samtools), "view", str(bam)], "samtools view " + str(bam), stdout=stream)
+    if transcriptome:
+        masked = destination.with_suffix(".masked.sam")
+        with masked.open("wb") as stream:
+            command_ok(["awk", "-F", "\t", "-v", "OFS=\t",
+                        '{ if (int($2 / 256) % 2 == 1) $2 -= 256; for (i = 12; i <= NF; i++) if ($i ~ /^HI:i:/) { for (j = i; j < NF; j++) $j = $(j + 1); NF--; break }; print }',
+                        str(raw)], "mask primary flag / strip HI " + str(bam), stdout=stream)
+        raw = masked
     env = dict(os.environ, LC_ALL="C")
     with destination.open("wb") as stream:
-        # Full-record sort, not by read name: a multimapper's several records come out in
-        # thread-chunk-dependent relative order, so a stable name sort still differs
-        # between two stock runs (measured on the transcriptome BAM, stock-twice 2026-09-08).
         command_ok(["sort", "-S", "4G", "--parallel", "8", str(raw)], "sort records " + str(bam), env=env, stdout=stream)
 
 
@@ -133,11 +149,14 @@ def compare_namesorted_sam(stock, integrated, root, samtools):
         raise ValueError("samtools is required for namesorted-sam comparison")
     root = Path(root) / "normalized"
     root.mkdir(exist_ok=True)
-    print("NORMALIZATION: BAM headers removed with 'samtools view'; remaining SAM records sorted as whole lines (LC_ALL=C sort). Record multiset must be identical; emitted order is not compared.")
+    print("NORMALIZATION: BAM headers removed with 'samtools view'; records sorted as whole lines (LC_ALL=C sort); "
+          "transcriptome BAM additionally has HI:i stripped and flag 0x100 cleared (per-thread RNG primary choice, "
+          "ReadAlign_quantTranscriptome.cpp:69). Record multiset must then be identical.")
     for name in ("Aligned.out.bam", "Aligned.toTranscriptome.out.bam"):
         left, right = root / ("stock." + name + ".namesorted.sam"), root / ("integrated." + name + ".namesorted.sam")
-        normalize_bam(samtools, Path(stock) / name, left)
-        normalize_bam(samtools, Path(integrated) / name, right)
+        transcriptome = name == "Aligned.toTranscriptome.out.bam"
+        normalize_bam(samtools, Path(stock) / name, left, transcriptome)
+        normalize_bam(samtools, Path(integrated) / name, right, transcriptome)
         command_ok(["cmp", "-s", str(left), str(right)], "namesorted-sam " + name)
     # The non-BAM artifacts retain their byte contract, apart from documented Log timing fields.
     write_normalized_logs(stock, integrated, root)
