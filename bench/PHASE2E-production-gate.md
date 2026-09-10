@@ -80,3 +80,35 @@ The only code difference in bypass is the madvise hook, which sits outside `admi
 This is one pair and is not a result; it is the reason the next launch is a same-binary
 `STAR_INTEGRATE_THP=0/1` ablation under the two-pass argv (3 rotated pairs, warm cache,
 live-process `AnonHugePages`), `~/uni-rnaseq-probe-lab/thp-twopass-20260908`.
+
+## Step 3 — huge-page ablation under the production argv (2026-09-08/09): **−9.4% CPU-s, robust**
+
+Same integrated binary `ef22723c…` in cpu-bypass (integration refused by `admitted()`, so
+the only variable is the advice), nf-core two-pass argv, 16 threads, `STAR_INTEGRATE_THP=0`
+vs `1`, 3 rotated pairs, page cache warmed with a `cat` of the index before every run,
+`STAR_INTEGRATE_DROP_INDEX_CACHE=1` (historical eviction). Evidence:
+`bench/evidence/production-gate/thp-twopass-timing.tsv`; outputs from the earlier bypass run
+were shown identical to stock under the documented normalization.
+
+| arm | user+sys CPU-s (n=3) | range | wall s | sys s |
+|---|---:|---|---:|---:|
+| advice off (`THP=0`) | **1868.4** | 1867.5–1869.1 | 440 | 35–37 |
+| advice on (`THP=1`) | **1692.6** | 1691.5–1693.8 | 420 | 23 |
+
+**madvise(MADV_HUGEPAGE) alone, same binary, production invocation: −9.41% CPU-s**
+(paired −9.48 / −9.38 / −9.38%; wall −4.6%; sys −35%). Comparator: the same binary with the
+advice disabled at run time. This is the two-pass analogue of round 7b's −11.9% on the
+one-pass slice; the reduction is smaller in relative terms because two-pass adds the
+junction-insertion and pass-1 work that is not index-walk bound, and it holds across both
+generations of the index (the post-`sjdbBuildIndex` SA is allocated through
+`PackedArray::allocateArray`, which is advised).
+
+Caveat: `anon_huge_kb_max` in the TSV is 0 in every row because the sampler read
+`/proc/<pid>/smaps` of the wrong process (it looked for a child named `STAR` of the
+subshell; STAR was the subshell's `exec`'d `time` child). The backing was verified in
+round 7b by real-pid smaps and is not re-verified here; the CPU-s difference is the
+measurement, the page backing is inferred. A later run should fix the sampler.
+
+**Consequence for the project:** the portable, GPU-free STAR win survives the production
+invocation at −9.4%. P2C-THP-X86-PORT is now the highest-value open thread: this is the
+number that could move the Batch cost, if x86 THP behaves the same.
