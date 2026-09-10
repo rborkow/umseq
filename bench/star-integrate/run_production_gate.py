@@ -122,7 +122,10 @@ def normalize_bam(samtools, bam, destination):
         command_ok([str(samtools), "view", str(bam)], "samtools view " + str(bam), stdout=stream)
     env = dict(os.environ, LC_ALL="C")
     with destination.open("wb") as stream:
-        command_ok(["sort", "-s", "-k1,1", str(raw)], "sort read names " + str(bam), env=env, stdout=stream)
+        # Full-record sort, not by read name: a multimapper's several records come out in
+        # thread-chunk-dependent relative order, so a stable name sort still differs
+        # between two stock runs (measured on the transcriptome BAM, stock-twice 2026-09-08).
+        command_ok(["sort", "-S", "4G", "--parallel", "8", str(raw)], "sort records " + str(bam), env=env, stdout=stream)
 
 
 def compare_namesorted_sam(stock, integrated, root, samtools):
@@ -130,7 +133,7 @@ def compare_namesorted_sam(stock, integrated, root, samtools):
         raise ValueError("samtools is required for namesorted-sam comparison")
     root = Path(root) / "normalized"
     root.mkdir(exist_ok=True)
-    print("NORMALIZATION: BAM headers removed with 'samtools view'; remaining SAM records stably sorted by read name (LC_ALL=C, sort -s -k1,1).")
+    print("NORMALIZATION: BAM headers removed with 'samtools view'; remaining SAM records sorted as whole lines (LC_ALL=C sort). Record multiset must be identical; emitted order is not compared.")
     for name in ("Aligned.out.bam", "Aligned.toTranscriptome.out.bam"):
         left, right = root / ("stock." + name + ".namesorted.sam"), root / ("integrated." + name + ".namesorted.sam")
         normalize_bam(samtools, Path(stock) / name, left)
