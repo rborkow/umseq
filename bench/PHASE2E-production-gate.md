@@ -69,3 +69,14 @@ Next: a lifecycle card — lift the `twoPass`/`sjdbInsert` guard and re-arm the 
 after `sjdbInsertJunctions` (`twoPassRunPass1.cpp:15-92`, `sjdbBuildIndex.cpp:109-126`),
 with the pass-1→pass-2 transition as the new strict-gate hazard. Until it passes, the
 production number is unmeasured and P2C-PIPELINE-RUN stays gated.
+
+### Step 2 parity and an unplanned observation
+
+The non-engaged integrated run is output-identical to stock under the documented
+normalization (both BAMs, both SJ files) — the bypass path is stock. Times (`/usr/bin/time`,
+single pair, uncontrolled, perf not attached): stock 491.76 wall / **1868.82 user** / 40.53
+sys; integrated-bypass 466.07 / **1704.91** / 44.51 — **−8.8% user-s** with zero GPU work.
+The only code difference in bypass is the madvise hook, which sits outside `admitted()`.
+This is one pair and is not a result; it is the reason the next launch is a same-binary
+`STAR_INTEGRATE_THP=0/1` ablation under the two-pass argv (3 rotated pairs, warm cache,
+live-process `AnonHugePages`), `~/uni-rnaseq-probe-lab/thp-twopass-20260908`.
