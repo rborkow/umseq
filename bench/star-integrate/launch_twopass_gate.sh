@@ -9,7 +9,7 @@ src="$lab/integrate-source-twopass-20260908"       # staged by the orchestrator 
 private="$lab/integrate-private-twopass-20260908"
 out="$lab/production-gate-twopass-20260908"
 lib="$lab/integrate-gate-lat-close-20260908/target/release/libumstar.a"
-tooling="$lab/integrate-source-lat-close-20260908/tooling"
+tooling="$lab/integrate-source-lat-close-20260908/tooling/replay"   # per the accepted gate's preparation.json
 here="$src/bench/star-integrate"
 PINNED="$HOME/uni-rnaseq-seed-lab/full-source-UVdsuH/STAR-2.7.11b/source"
 exec 9>"$HOME/.cache/uni-rnaseq-resource.lock"; flock 9
