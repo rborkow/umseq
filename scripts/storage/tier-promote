@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# tier-promote <dir> <t1-subpath>
+#   Copy a closed directory to the T1 NFS share (llm_work), verify by sha256
+#   manifest, move the original to _trash (14-day purge), leave a symlink so
+#   every existing citation of <dir> still resolves.
+# e.g. tier-promote ~/uni-rnaseq-probe-lab/thp-ablation umseq/evidence
+set -euo pipefail
+. "$(dirname "$(realpath "$0")")/tier-common"
+
+arg=${1%/}; sub=$2
+[ -L "$arg" ] && { echo "already promoted: $arg -> $(readlink "$arg")"; exit 0; }
+src=$(realpath "$arg")
+dst="$LLM_WORK/$sub/$(basename "$src")"
+
+[ -d "$src" ] || { echo "not a directory: $src" >&2; exit 1; }
+[ -e "$dst" ] && { echo "refusing: $dst exists" >&2; exit 1; }
+case "$src" in "$LLM_WORK"/*) echo "refusing: $src is already on T1" >&2; exit 1;; esac
+
+mkdir -p "$(dirname "$dst")" "$LLM_WORK/_trash"
+write_manifest "$src"
+rsync -rltDH --no-perms --chmod=ugo=rwX --info=progress2 "$src/" "$dst/"
+if ! check_manifest "$dst"; then
+  echo "VERIFY FAILED $dst (left in place for inspection)" >&2; exit 2
+fi
+mv "$src" "$LLM_WORK/_trash/$(basename "$src").$(date +%s)"
+ln -s "$dst" "$src"
+echo "OK $src -> $dst"

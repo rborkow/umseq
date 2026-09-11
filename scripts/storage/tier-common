@@ -1,0 +1,22 @@
+# shellcheck shell=bash
+# Sourced by tier-* scripts. Portable across the Spark (Linux) and the Mac.
+
+if [ -z "${LLM_WORK:-}" ]; then
+  if [ -d /mnt/llm_work ]; then LLM_WORK=/mnt/llm_work
+  elif [ -d "$HOME/llm_work" ]; then LLM_WORK=$HOME/llm_work
+  else echo "llm_work not mounted (set LLM_WORK)" >&2; exit 1; fi
+fi
+export LLM_WORK
+export COPYFILE_DISABLE=1   # no AppleDouble ._* files from macOS tar/rsync
+
+if command -v sha256sum >/dev/null; then SHA=sha256sum
+else SHA="shasum -a 256"; fi
+
+# write_manifest <dir>: MANIFEST.sha256 of every regular file (excluding itself), sorted
+write_manifest() {
+  ( cd "$1" && find . -type f ! -name MANIFEST.sha256 ! -name '._*' -print0 | sort -z | xargs -0 $SHA > MANIFEST.sha256 )
+}
+# check_manifest <dir>: verify, quietly; non-zero on any mismatch or missing file
+check_manifest() {
+  ( cd "$1" && $SHA -c MANIFEST.sha256 --quiet )
+}

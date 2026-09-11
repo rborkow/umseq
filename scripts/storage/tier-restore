@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# tier-restore <bucket/prefix/name> [dest-parent]
+#   Pull an archive back to local NVMe (default ~/restore) and verify against its manifest.
+#   Restores land on local disk on purpose: measurements run on NVMe, not NFS.
+# e.g. tier-restore rnaseq/evidence/thp-ablation
+set -euo pipefail
+. "$(dirname "$(realpath "$0")")/tier-common"
+
+obj=${1%/}; parent=${2:-$HOME/restore}; name=$(basename "$obj")
+mkdir -p "$parent"
+[ -e "$parent/$name" ] && { echo "refusing: $parent/$name exists" >&2; exit 1; }
+rclone cat "rustfs:$obj.tar.zst" | tar -C "$parent" --zstd -xf -
+rclone cat "rustfs:$obj.sha256" | cmp -s - "$parent/$name/MANIFEST.sha256" || { echo "manifest in archive differs from S3 copy" >&2; exit 2; }
+check_manifest "$parent/$name" || { echo "VERIFY FAILED $parent/$name" >&2; exit 2; }
+echo "OK s3://$obj -> $parent/$name"

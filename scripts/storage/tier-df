@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# tier-df: one-screen view of all three tiers from this host. Exit 1 if a budget is breached.
+set -uo pipefail
+. "$(dirname "$(realpath "$0")")/tier-common"
+host=$(hostname -s); rc=0
+free_gb() { df -Pk "$1" | awk 'NR==2{printf "%d", $4/1048576}'; }
+
+case "$(uname)" in Darwin) root=/System/Volumes/Data; min=100;; *) root=/; min=500;; esac
+f=$(free_gb "$root"); echo "T0 $host:$root free ${f}G (min ${min}G)"; [ "$f" -lt "$min" ] && { echo "  !! T0 budget breached"; rc=1; }
+f=$(free_gb "$LLM_WORK"); echo "T1 $LLM_WORK free ${f}G"; [ "$f" -lt 1000 ] && { echo "  !! T1 under 1 TB"; rc=1; }
+if command -v rclone >/dev/null; then
+  for b in $(rclone lsd rustfs: 2>/dev/null | awk '{print $NF}'); do
+    printf "T2 s3://%-12s %s\n" "$b" "$(rclone size "rustfs:$b" 2>/dev/null | tail -1)"
+  done
+fi
+t=$(du -sk "$LLM_WORK/_trash" 2>/dev/null | awk '{printf "%d",$1/1048576}'); echo "_trash ${t:-0}G"
+exit $rc

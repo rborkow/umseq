@@ -80,6 +80,9 @@ stay clean on Mac. A change to a GPU path is not done until the Tier 0 gate has 
   `~/.cache/uni-rnaseq-resource.lock` (`flock`). `earlyoom` kills processes past ~110 GiB RSS.
   Long jobs run `nohup … &` with an absolute `timeout`; foreground ssh dies at ~7 minutes.
 - Mac (Apple Silicon): CPU chain, gates, stub backend, cost model. No CUDA, no Metal yet.
+- Storage is tiered (`docs/STORAGE.md`): runs and timings on local NVMe only; closed evidence is
+  promoted to NFS `llm_work` with a symlink left at the cited path; archives go to rustfs S3.
+  A promoted evidence dir is a symlink — follow it, never copy it back next to the original.
 
 ## Don't
 

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# tier-archive <dir> <bucket/prefix>
+#   Immutable cold archive: <dir> -> s3://<bucket/prefix>/<name>.tar.zst + <name>.sha256
+#   Refuses to overwrite an existing key. Appends the URI to <dir>/ARCHIVED.txt.
+# e.g. tier-archive /mnt/llm_work/umseq/evidence/thp-ablation rnaseq/evidence
+set -euo pipefail
+. "$(dirname "$(realpath "$0")")/tier-common"
+
+src=$(realpath "${1%/}"); dest=${2%/}; name=$(basename "$src")
+key="rustfs:$dest/$name.tar.zst"
+[ -d "$src" ] || { echo "not a directory: $src" >&2; exit 1; }
+if rclone lsf "$key" 2>/dev/null | grep -q .; then echo "refusing: $key exists (archives are immutable)" >&2; exit 1; fi
+
+[ -f "$src/MANIFEST.sha256" ] || write_manifest "$src"
+tar -C "$(dirname "$src")" --zstd -cf - "$name" | rclone rcat --s3-chunk-size 256M --s3-upload-concurrency 4 "$key"
+rclone copyto "$src/MANIFEST.sha256" "rustfs:$dest/$name.sha256"
+size=$(rclone size "$key" --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["bytes"])')
+[ "$size" -gt 0 ] || { echo "VERIFY FAILED: zero-size object $key" >&2; exit 2; }
+rclone cat "rustfs:$dest/$name.sha256" | cmp -s - "$src/MANIFEST.sha256" || { echo "VERIFY FAILED: manifest mismatch" >&2; exit 2; }
+echo "archived: s3://$dest/$name.tar.zst bytes=$size $(date -u +%FT%TZ)" >> "$src/ARCHIVED.txt"
+echo "OK $name -> s3://$dest/$name.tar.zst ($size B)"
